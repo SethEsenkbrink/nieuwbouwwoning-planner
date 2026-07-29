@@ -1,4 +1,11 @@
 {
+  "//": [
+    "Alleen COMPOSITE indexes (twee of meer velden) horen hier.",
+    "Single-field indexes maakt Firestore automatisch aan; declareer je er toch een,",
+    "dan weigert de deploy met: 'this index is not necessary, configure using",
+    "single field index controls'.",
+    "Sorteren op één veld (bijv. phases op volgorde) werkt dus zonder dat je hier iets doet."
+  ],
   "indexes": [
     {
       "collectionGroup": "tasks",
@@ -15,11 +22,6 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "sluitingsdatum", "order": "ASCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "phases",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "volgorde", "order": "ASCENDING" }]
     }
   ],
   "fieldOverrides": []
