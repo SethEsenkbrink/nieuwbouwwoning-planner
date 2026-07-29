@@ -29,10 +29,12 @@ opzet — eerst een fundament dat klopt.
 - Auth-flow: registreren, inloggen, uitloggen, wachtwoord-reset, `ProtectedRoute`,
   lege dashboard-shell
 - `netlify/functions/health.mts` op `/api/health`
-- Git geïnitialiseerd, remote ingesteld op `SethEsenkbrink/nieuwbouwwoning-planner`,
-  89 bestanden gestaged
+- Git: eerste commit (`64e3208`) gezet en gepusht naar
+  `SethEsenkbrink/nieuwbouwwoning-planner`, branch `main` volgt `origin/main`
 - Netlify-project `nieuwbouwplanner` aangemaakt
   (`04f692cf-ce81-4cb6-8c9d-cf0c9ffefb66`, <https://nieuwbouwplanner.netlify.app>)
+- **Project verhuisd uit Google Drive** naar
+  `C:\dev\projecten\Brink Multimedia - main folder\` — de hele werkruimte staat nu lokaal
 
 ## Direct volgende stap
 
@@ -62,20 +64,24 @@ rules — repareer die vóórdat er data in staat.
 ## Open vragen / wacht op Seth
 
 - **Setup-checklist afwerken** (`docs/2026-07-29-setup-checklist.md`): Firebase-project
-  aanmaken, `.env.local` vullen, rules deployen, eerste commit + push, repo koppelen aan
-  Netlify, env vars zetten. Zonder stap 2 en 4 start de app niet.
-- **Eerste commit staat nog open.** Git's `index.lock` bleef hangen omdat de Drive-map
-  geen verwijderingen toestaat. Eén regel om op te lossen — zie checklist §5. Ruim
-  daarbij ook het bestandje `deltest` op (restant van een schrijftest).
+  aanmaken, `.env.local` vullen, rules deployen, repo koppelen aan Netlify, env vars
+  zetten. Zonder stap 2 en 4 start de app niet. Git (§5) is klaar.
+- **`npm install` is nog niet gedraaid** op de nieuwe locatie. `node_modules` ontbreekt,
+  dus `npm run dev` en `npm run verify` werken nog niet.
 - **Inhoud van de fase-tijdlijn**: welke fases en valkuilen precies? Dit is
   domeinkennis uit het eigen traject. Zonder input wordt het generiek — en dan is het
   net zo waardeloos als de bestaande apps.
 
 ## Bekende valkuilen
 
-- **Het project staat in een Google Drive-map.** Twee problemen: Drive probeert
-  `node_modules` (tienduizenden bestanden) te syncen, en Drive-sync kan git's index
-  corrumperen. Aanrader: `git clone` naar een map buiten Drive en daar werken.
+- **`npm audit fix --force` niet gebruiken.** Dat downgradet `@netlify/vite-plugin` van
+  2.12.9 naar 2.1.4. De audit-meldingen zijn opgelost met `overrides` in `package.json`
+  (ADR-0007). Komt er een nieuwe melding: eerst checken of het dev- of productiecode is
+  met `npm ls --omit=dev --all | grep <pakket>`.
+- **Nooit terugverhuizen naar Google Drive.** `node_modules` is 606 MB / 33.966
+  bestanden; Drive sync't dat allemaal, vreet quota, en houdt file handles open waardoor
+  `npm install` en `git` willekeurige `EPERM`/`EBUSY`-fouten geven. Dit heeft in sessie 01
+  al een vastgelopen `.git/index.lock` opgeleverd. Werk lokaal, gebruik GitHub als backup.
 - **Vite 8 draait op Rolldown.** `manualChunks` moet een *functie* zijn; de object-vorm
   uit Vite ≤7 faalt met "manualChunks is not a function". Kostte deze sessie een
   build-fout.

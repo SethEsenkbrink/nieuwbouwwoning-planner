@@ -19,11 +19,8 @@ wat er mist.
 > **Node-versie:** dit project vereist Node 24. Check met `node -v`. Heb je nvm,
 > dan pakt `nvm use` de versie uit `.nvmrc`.
 
-> **Let op — Google Drive:** de projectmap staat in je Drive-map. `node_modules`
-> bevat tienduizenden bestanden en Drive gaat die proberen te synchroniseren.
-> Sluit `Nieuwbouwplanner/node_modules` uit in de Drive-instellingen, of
-> overweeg de repo naar een map buiten Drive te clonen en Drive alleen als
-> archief te gebruiken.
+> **Locatie:** `C:\dev\projecten\Brink Multimedia - main folder\Nieuwbouwplanner`.
+> Bewust buiten Google Drive — zie stap 5.
 
 ---
 
@@ -126,35 +123,25 @@ npm run dev
 
 ---
 
-## 5. Git afronden en pushen
+## 5. Git — ✅ klaar
 
-De repo is geïnitialiseerd, de remote staat erop en 89 bestanden zijn gestaged. De
-eerste commit kon niet vanuit de bouwomgeving gezet worden: de Google Drive-map staat
-geen verwijderingen toe, waardoor git's `index.lock` is blijven staan.
+Eerste commit `64e3208` staat en is gepusht naar
+`SethEsenkbrink/nieuwbouwwoning-planner`. Branch `main` volgt `origin/main`.
 
-Op je eigen machine, in de projectmap:
+Het project is verhuisd uit Google Drive naar
+`C:\dev\projecten\Brink Multimedia - main folder\`. **Verhuis het daar niet vandaan
+terug naar Drive:** `node_modules` is 606 MB verdeeld over bijna 34.000 bestanden, en
+Drive houdt file handles open waardoor `npm install` en `git` willekeurige
+`EPERM`/`EBUSY`-fouten geven. GitHub is je backup, niet Drive.
+
+Vanaf nu is de normale flow:
 
 ```powershell
-# 1. De blijven hangen lock en een testbestandje opruimen
-Remove-Item .git\index.lock -ErrorAction SilentlyContinue
-Remove-Item deltest         -ErrorAction SilentlyContinue
-
-# 2. De laatste twee docs toevoegen en committen
 git add -A
 git status --short | Select-String "env"     # mag ALLEEN .env.example tonen
-git commit -m "Fundament: React 19 + Vite 8 + TypeScript, Firebase auth, huisstijl v4, security rules"
-
-# 3. Pushen
-git push -u origin main
+git commit -m "Korte beschrijving"
+git push
 ```
-
-Authenticatiefout? Log eerst in met `gh auth login`, of gebruik een personal access token.
-
-> **Aanrader: haal de repo uit Google Drive.** Git en Drive-sync gaan slecht samen —
-> Drive kan `.git`-bestanden onder je handen wegsynchroniseren en de index corrumperen.
-> Precies dat probleem veroorzaakte de vastgelopen lock hierboven. Beter:
-> `git clone` naar bijvoorbeeld `C:\dev\nieuwbouwwoning-planner` en daar werken. De
-> Drive-map blijft dan gewoon je archief.
 
 ---
 
