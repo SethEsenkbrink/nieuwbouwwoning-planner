@@ -80,6 +80,31 @@ users/{uid}
         - naam, bouwnummer, projectnaam, aannemer
         - garantiewaarborg (woningborg | swk | geen | anders)
         - koopsom, meerwerkbudget, aangemaaktOp, bijgewerktOp
+        // Opleverdatum als BAND met een staat — zie ADR-0008
+        - opleverStatus (indicatief | bandbreedte | aangezegd)
+        - opleverVroegst, opleverVerwacht, opleverLaatst
+        - opleverBron        // "mail aannemer 12-07" — wie beweerde dit, wanneer
+        - opleverBronDatum
+        ├── ankers/{ankerId}          // bouwmomenten waaraan afspraken hangen
+        │     - type (start_bouw | begane_grond_gestort | ruwbouw_gereed
+        │             | wind_waterdicht | dekvloer_gestort | oplevering
+        │             | sleuteloverdracht | einde_onderhoudstermijn)
+        │     - titel, verwachtOp, status (verwacht | bevestigd | gepasseerd), bron
+        ├── betrokkenen/{betrokkeneId}
+        │     - naam (bedrijf), contactpersoon, email, telefoon
+        │     - categorie (installatie | afbouw | tuin | verhuizing
+        │                 | huidige_woning | nuts | financieel | overig)
+        │     - aanlooptijdDagen        // hoeveel notice hebben ze nodig
+        │     - annuleertermijnDagen    // tot wanneer kosteloos verzetten
+        │     - communicatieregel (direct | bij_aanzegging | handmatig)
+        │     - notitie
+        ├── afspraken/{afspraakId}
+        │     - betrokkeneId, omschrijving
+        │     - ankerType, offsetDagen  // negatief = ervóór. NOOIT een vaste datum
+        │     - duurDagen
+        │     - status (concept | voorlopig | bevestigd | afgerond | vervallen)
+        │     - gecommuniceerdeDatum    // wat weet deze partij nu — de kern
+        │     - gecommuniceerdOp
         ├── phases/{phaseId}
         │     - type (koop | notaris | financiering | bouw | oplevering | onderhoud | garantie)
         │     - titel, status (open | bezig | klaar), streefdatum, volgorde
@@ -99,21 +124,39 @@ users/{uid}
 De canonieke TypeScript-definities staan in `src/types/model.ts` — **dat bestand is leidend**
 zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firestore-rules bij.
 
+> **De belangrijkste regel in dit model:** een afspraakdatum wordt **nooit opgeslagen**.
+> Alleen `ankerType` + `offsetDagen`. De datum is altijd afgeleid. Sla je hem wel op, dan
+> heb je bij elke verschuiving een migratie — precies het handwerk dat deze app wegneemt.
+> Zie ADR-0008.
+
 ## 6. Features & volgorde
 
-### MVP
+> **Volgorde herzien op 2026-07-29 (ADR-0008).** De betrokkenen- en schuif-impactmodule is
+> naar voren gehaald, vóór de fase-tijdlijn. Reden: dat is de acute pijn van gebruiker #1,
+> en het dwingt het datamodel meteen langs het moeilijkste stuk (afgeleide datums).
 
-- [ ] Gratis account aanmaken en inloggen (e-mail/wachtwoord; Google-login later)
-- [ ] Eén nieuwbouwproject aanmaken met basisgegevens
+### Klaar
+
+- [x] Gratis account aanmaken en inloggen (e-mail/wachtwoord)
+
+### MVP — nu aan de beurt
+
+- [ ] Eén nieuwbouwproject aanmaken, inclusief de **opleverdatum als band** met staat
+      (indicatief / bandbreedte / aangezegd)
+- [ ] **Betrokkenen** vastleggen met aanlooptijd, annuleertermijn en communicatieregel,
+      vanuit een standaardbibliotheek (`docs/2026-07-29-betrokkenen-standaardlijst.md`)
+- [ ] **Afspraken** als anker + offset, met `gecommuniceerdeDatum`
+- [ ] **Schuif-impact**: anker wijzigen → actielijst op urgentie, concept-berichten,
+      bijgewerkte planning met een diff t.o.v. de vorige versie
+- [ ] Dashboard: eerstvolgende beslismoment, wie wacht op bevestiging, waar de band knelt
+
+### Fase 2
+
 - [ ] Vaste **fase-tijdlijn** met per fase de standaard-actiepunten en valkuilen
 - [ ] Handmatig taken met deadlines toevoegen en afvinken
-- [ ] Dashboard: eerstvolgende deadline, wat loopt achter
-
-### Fase 2 — het onderscheidende
-
 - [ ] **Meerwerk-tracker** met sluitingsdatums gekoppeld aan de bouwfase
 - [ ] **Bouwdepot-overzicht**: gefactureerd / gedeclareerd / openstaand
-- [ ] **Documentparser** (sectie 4): overeenkomst inlezen → termijnen in de tijdlijn
+- [ ] **Documentparser** (sectie 4): overeenkomst inlezen → ankerpunten en afspraken
 
 ### Fase 3 — verdieping
 
