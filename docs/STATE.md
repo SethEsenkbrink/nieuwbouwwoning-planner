@@ -29,6 +29,8 @@ opzet — eerst een fundament dat klopt.
 - Auth-flow: registreren, inloggen, uitloggen, wachtwoord-reset, `ProtectedRoute`,
   lege dashboard-shell
 - `netlify/functions/health.mts` op `/api/health`
+- Opstartfout-scherm: ontbreekt de Firebase-config, dan toont de app een leesbare
+  instructiepagina in plaats van een witte pagina met de melding in de console
 - Git: eerste commit (`64e3208`) gezet en gepusht naar
   `SethEsenkbrink/nieuwbouwwoning-planner`, branch `main` volgt `origin/main`
 - Netlify-project `nieuwbouwplanner` aangemaakt
@@ -74,6 +76,10 @@ rules — repareer die vóórdat er data in staat.
 
 ## Bekende valkuilen
 
+- **HTTP-headers in `netlify.toml` mogen geen newlines bevatten.** Een gewone TOML
+  multiline string (`"""..."""`) behoudt die wél; zet daarom een `\` aan elk regeleinde.
+  Ging in sessie 01 fout en liet `npm run dev` bij élke request crashen. `npm run
+  verify:headers` vangt dit nu af.
 - **`npm audit fix --force` niet gebruiken.** Dat downgradet `@netlify/vite-plugin` van
   2.12.9 naar 2.1.4. De audit-meldingen zijn opgelost met `overrides` in `package.json`
   (ADR-0007). Komt er een nieuwe melding: eerst checken of het dev- of productiecode is

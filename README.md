@@ -29,6 +29,7 @@ Firebase-project aanmaakt.
 | `npm run typecheck` | TypeScript zonder output |
 | `npm run lint` | ESLint, inclusief type-aware regels |
 | `npm run verify:tokens` | Controleert of de huisstijl-CSS gelijk loopt met `brink-ui/tokens.js` |
+| `npm run verify:headers` | Valideert de security headers en de CSP uit `netlify.toml` |
 | `npm run verify` | Alles hierboven + build. **Draai dit vóór elke commit.** |
 | `npm run rules:test` | Firestore-rules tegen de emulator |
 

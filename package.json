@@ -19,7 +19,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:tokens": "node scripts/verify-tokens.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run verify:tokens && npm run build",
+    "verify:headers": "node scripts/verify-headers.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run verify:tokens && npm run verify:headers && npm run build",
     "rules:test": "firebase emulators:exec --only firestore --project nieuwbouwplanner-rules-test \"vitest run firebase/rules.test.ts\""
   },
   "overrides": {
@@ -49,6 +50,7 @@
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.8.0",
     "prettier": "^3.9.6",
+    "smol-toml": "^1.7.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.65.0",

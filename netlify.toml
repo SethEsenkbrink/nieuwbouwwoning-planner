@@ -55,22 +55,30 @@
     Cross-Origin-Opener-Policy = "same-origin-allow-popups"
     Cross-Origin-Resource-Policy = "same-origin"
 
-    Content-Security-Policy = """
-      default-src 'self';
-      base-uri 'self';
-      object-src 'none';
-      frame-ancestors 'none';
-      form-action 'self';
-      img-src 'self' data: blob:;
-      font-src 'self' data:;
-      style-src 'self' 'unsafe-inline';
-      script-src 'self' https://apis.google.com https://www.gstatic.com;
-      connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com wss://*.firebaseio.com;
-      frame-src 'self' https://*.firebaseapp.com https://accounts.google.com;
-      worker-src 'self' blob:;
-      manifest-src 'self';
-      upgrade-insecure-requests;
-    """
+    # ⚠ LET OP DE BACKSLASHES aan het einde van elke regel.
+    # Een HTTP-header mag geen newlines bevatten. Een gewone TOML-multiline
+    # string ("""...""") behoudt die newlines wél, waardoor de header ongeldig
+    # wordt: de lokale Netlify-emulator crasht dan met
+    #   TypeError: Headers.set: "..." is an invalid header value
+    # De backslash is TOML's line-continuation: hij verwijdert de newline én de
+    # inspringing van de volgende regel. Zo blijft dit leesbaar én geldig.
+    # Voeg je een regel toe, zet er dan een spatie + backslash achter.
+    Content-Security-Policy = """\
+default-src 'self'; \
+base-uri 'self'; \
+object-src 'none'; \
+frame-ancestors 'none'; \
+form-action 'self'; \
+img-src 'self' data: blob:; \
+font-src 'self' data:; \
+style-src 'self' 'unsafe-inline'; \
+script-src 'self' https://apis.google.com https://www.gstatic.com; \
+connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com wss://*.firebaseio.com; \
+frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; \
+worker-src 'self' blob:; \
+manifest-src 'self'; \
+upgrade-insecure-requests\
+"""
 
 # Gehashte assets mogen permanent gecached worden.
 [[headers]]
