@@ -1,0 +1,70 @@
+# ── Dependencies ───────────────────────────────────────────────────────────
+node_modules/
+.pnp/
+.pnp.js
+
+# ── Build-output ───────────────────────────────────────────────────────────
+dist/
+dist-ssr/
+build/
+*.local
+
+# ── Geheimen — NOOIT committen ─────────────────────────────────────────────
+# Alleen .env.example hoort in git. Alle echte waarden blijven lokaal of
+# staan in Netlify environment variables.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+service-account*.json
+serviceAccountKey*.json
+*-firebase-adminsdk-*.json
+
+# ── Netlify ────────────────────────────────────────────────────────────────
+.netlify/
+
+# ── Firebase ───────────────────────────────────────────────────────────────
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+.firebaserc
+
+# ── Caches & tooling ───────────────────────────────────────────────────────
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+.eslintcache
+.prettiercache
+
+# ── Editors ────────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# ── OS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ── Logs ───────────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# ── Projectspecifiek ───────────────────────────────────────────────────────
+# Nooit testdocumenten met echte contractgegevens in de repo.
+/testdocumenten/
+*.aannemingsovereenkomst.pdf

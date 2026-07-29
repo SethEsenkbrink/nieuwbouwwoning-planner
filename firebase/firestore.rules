@@ -1,0 +1,196 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Firestore Security Rules — Nieuwbouwplanner
+//
+// Uitgangspunt: DEFAULT DENY. Alles is verboden tenzij hieronder expliciet
+// toegestaan. Er is bewust géén catch-all match aan het eind die iets toestaat.
+//
+// Deze rules zijn de ENIGE beveiligingslaag tussen een gebruiker en de data van
+// een ander. De Firebase web-config in de bundle is publiek; iedereen kan de
+// client-SDK aanroepen met een eigen account. Wat hier niet dichtgetimmerd is,
+// is open.
+//
+// Testen:  npm run rules:test   (draait tegen de lokale emulator)
+// ═══════════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Hulpfuncties ─────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // De enige autorisatieregel die telt: het pad-segment {uid} moet gelijk
+    // zijn aan de uid uit het geverifieerde token.
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Voorkomt dat één document de database opblaast of als opslagplek voor
+    // documentinhoud misbruikt wordt (PROJECT.md §3, constraint C2).
+    function withinSizeLimit() {
+      return request.resource.size() < 20;
+    }
+
+    function isString(value, maxLen) {
+      return value is string && value.size() <= maxLen;
+    }
+
+    // Optioneel veld: mag ontbreken, maar als het er is moet het kloppen.
+    function optionalString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || isString(data[field], maxLen);
+    }
+
+    function optionalNumber(data, field) {
+      return !(field in data)
+        || data[field] == null
+        || (data[field] is number && data[field] >= 0 && data[field] <= 100000000);
+    }
+
+    function optionalTimestamp(data, field) {
+      return !(field in data) || data[field] == null || data[field] is timestamp;
+    }
+
+    function isOneOf(value, allowed) {
+      return value is string && value in allowed;
+    }
+
+
+    // ── users/{uid} ──────────────────────────────────────────────────────
+    // Profielgegevens van de gebruiker zelf. Bewust minimaal: we slaan hier
+    // geen e-mailadres op, dat zit al in Firebase Auth.
+
+    match /users/{uid} {
+      allow get, list: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && withinSizeLimit()
+        && optionalString(request.resource.data, 'weergavenaam', 100);
+      allow delete: if isOwner(uid);
+
+
+      // ── projects/{projectId} ───────────────────────────────────────────
+
+      match /projects/{projectId} {
+        allow get, list: if isOwner(uid);
+        allow delete: if isOwner(uid);
+
+        allow create: if isOwner(uid)
+          && withinSizeLimit()
+          && isString(request.resource.data.naam, 120)
+          && request.resource.data.naam.size() > 0
+          && optionalString(request.resource.data, 'bouwnummer', 40)
+          && optionalString(request.resource.data, 'projectnaam', 120)
+          && optionalString(request.resource.data, 'aannemer', 120)
+          && (!('garantiewaarborg' in request.resource.data)
+              || isOneOf(request.resource.data.garantiewaarborg,
+                         ['woningborg', 'swk', 'geen', 'anders']))
+          && optionalNumber(request.resource.data, 'koopsom')
+          && optionalNumber(request.resource.data, 'meerwerkbudget')
+          && request.resource.data.aangemaaktOp == request.time;
+
+        allow update: if isOwner(uid)
+          && withinSizeLimit()
+          && isString(request.resource.data.naam, 120)
+          && request.resource.data.naam.size() > 0
+          && optionalString(request.resource.data, 'bouwnummer', 40)
+          && optionalString(request.resource.data, 'projectnaam', 120)
+          && optionalString(request.resource.data, 'aannemer', 120)
+          && (!('garantiewaarborg' in request.resource.data)
+              || isOneOf(request.resource.data.garantiewaarborg,
+                         ['woningborg', 'swk', 'geen', 'anders']))
+          && optionalNumber(request.resource.data, 'koopsom')
+          && optionalNumber(request.resource.data, 'meerwerkbudget')
+          // aangemaaktOp is onveranderlijk.
+          && request.resource.data.aangemaaktOp == resource.data.aangemaaktOp;
+
+
+        // ── phases/{phaseId} ─────────────────────────────────────────────
+
+        match /phases/{phaseId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.titel, 200)
+            && isOneOf(request.resource.data.type,
+                       ['koop', 'notaris', 'financiering', 'bouw',
+                        'oplevering', 'onderhoud', 'garantie'])
+            && isOneOf(request.resource.data.status, ['open', 'bezig', 'klaar'])
+            && optionalTimestamp(request.resource.data, 'streefdatum')
+            && (!('volgorde' in request.resource.data)
+                || (request.resource.data.volgorde is int
+                    && request.resource.data.volgorde >= 0));
+        }
+
+
+        // ── tasks/{taskId} ───────────────────────────────────────────────
+
+        match /tasks/{taskId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.titel, 300)
+            && request.resource.data.titel.size() > 0
+            && isOneOf(request.resource.data.status, ['open', 'klaar'])
+            && isOneOf(request.resource.data.bron, ['handmatig', 'geparsed'])
+            && optionalTimestamp(request.resource.data, 'deadline')
+            && optionalString(request.resource.data, 'phaseId', 64)
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
+
+
+        // ── meerwerk/{itemId} ────────────────────────────────────────────
+
+        match /meerwerk/{itemId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.omschrijving, 300)
+            && request.resource.data.omschrijving.size() > 0
+            && isOneOf(request.resource.data.status,
+                       ['overweeg', 'besteld', 'bevestigd'])
+            && optionalNumber(request.resource.data, 'bedrag')
+            && optionalTimestamp(request.resource.data, 'sluitingsdatum')
+            && optionalString(request.resource.data, 'phaseId', 64);
+        }
+
+
+        // ── termijnen/{termId} — bouwdepot ───────────────────────────────
+
+        match /termijnen/{termId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.omschrijving, 300)
+            && request.resource.data.omschrijving.size() > 0
+            && optionalNumber(request.resource.data, 'bedrag')
+            && request.resource.data.gefactureerd is bool
+            && request.resource.data.gedeclareerdBijBank is bool
+            && request.resource.data.betaald is bool
+            && optionalTimestamp(request.resource.data, 'gefactureerdOp')
+            && optionalTimestamp(request.resource.data, 'gedeclareerdOp')
+            && optionalTimestamp(request.resource.data, 'betaaldOp');
+        }
+
+
+        // ── gebreken/{defectId} — oplevering ─────────────────────────────
+
+        match /gebreken/{defectId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.omschrijving, 1000)
+            && request.resource.data.omschrijving.size() > 0
+            && isOneOf(request.resource.data.status, ['open', 'hersteld'])
+            && optionalString(request.resource.data, 'locatie', 200)
+            && optionalTimestamp(request.resource.data, 'gemeldOp')
+            && optionalTimestamp(request.resource.data, 'hersteltermijn');
+        }
+      }
+    }
+
+    // Geen catch-all. Alles wat hierboven niet expliciet staat, is geweigerd.
+  }
+}

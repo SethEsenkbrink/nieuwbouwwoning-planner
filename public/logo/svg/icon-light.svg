@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Nieuwbouwplanner">
+  <defs>
+    <radialGradient id="npGevel" cx="35%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#D77E4F"/>
+      <stop offset="1" stop-color="#C4633B"/>
+    </radialGradient>
+  </defs>
+  <path d="M42 5 Q45.2 5 47.4 7.2 L74.8 34.6 Q77 36.8 77 40 L77 69 Q77 75 71 75 L13 75 Q7 75 7 69 L7 40 Q7 36.8 9.2 34.6 L36.6 7.2 Q38.8 5 42 5 Z" fill="url(#npGevel)"/>
+  <circle cx="72" cy="72" r="16" fill="#FBF8F1"/>
+  <path d="M65 72.5 l4.8 4.8 L79 66.5" fill="none" stroke="#4E5B3C" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

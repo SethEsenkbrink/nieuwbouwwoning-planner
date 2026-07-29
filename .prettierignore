@@ -1,0 +1,7 @@
+dist/
+node_modules/
+brink-ui/
+.netlify/
+coverage/
+package-lock.json
+public/logo/

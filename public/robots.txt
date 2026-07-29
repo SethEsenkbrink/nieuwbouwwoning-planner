@@ -1,0 +1,3 @@
+# De app zit volledig achter een login — er is niets te indexeren.
+User-agent: *
+Disallow: /

@@ -1,0 +1,26 @@
+{
+  "name": "@brink/ui",
+  "version": "1.0.0",
+  "description": "Gedeelde Brink-huisstijl: design tokens, Tailwind-preset, fonts en basiscomponenten. Single source of truth voor alle projecten.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./preset": "./tailwind-preset.js",
+    "./tokens": "./tokens.js",
+    "./fonts.css": "./fonts.css"
+  },
+  "files": [
+    "src",
+    "tailwind-preset.js",
+    "tokens.js",
+    "fonts.css"
+  ],
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.1.0"
+  }
+}

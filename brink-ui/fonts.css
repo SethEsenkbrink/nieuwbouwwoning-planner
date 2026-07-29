@@ -1,0 +1,23 @@
+/**
+ * Brink Multimedia — Fonts (v1.0)
+ * Manrope als variable font, zodat gewicht 450 (de body-signatuur) exact werkt.
+ * Importeer dit één keer per project (bijv. in de root layout).
+ */
+@import "@fontsource-variable/manrope";
+
+:root {
+  --brink-font: "Manrope Variable", Manrope, system-ui, Arial, sans-serif;
+}
+
+html {
+  font-family: var(--brink-font);
+}
+
+body {
+  font-family: var(--brink-font);
+  font-weight: 450; /* signatuur: softer dan 500, firmer dan 400 */
+  background-color: #F5F1E8; /* Warm zand — nooit puur wit */
+  color: #26251F; /* warm ink */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

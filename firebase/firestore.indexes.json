@@ -1,0 +1,26 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "tasks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "deadline", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "meerwerk",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "sluitingsdatum", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "phases",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "volgorde", "order": "ASCENDING" }]
+    }
+  ],
+  "fieldOverrides": []
+}
