@@ -7,6 +7,8 @@ import Inloggen from "@/routes/Inloggen";
 import Registreren from "@/routes/Registreren";
 import WachtwoordVergeten from "@/routes/WachtwoordVergeten";
 import Dashboard from "@/routes/Dashboard";
+import ProjectWizard from "@/routes/ProjectWizard";
+import Betrokkenen from "@/routes/Betrokkenen";
 import NietGevonden from "@/routes/NietGevonden";
 
 /**
@@ -57,6 +59,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/project/nieuw"
+            element={
+              <ProtectedRoute>
+                <ProjectWizard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/betrokkenen"
+            element={
+              <ProtectedRoute>
+                <Betrokkenen />
               </ProtectedRoute>
             }
           />

@@ -154,9 +154,9 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 
 ### MVP — nu aan de beurt
 
-- [ ] Eén nieuwbouwproject aanmaken, inclusief de **opleverdatum als band** met staat
+- [x] Eén nieuwbouwproject aanmaken, inclusief de **opleverdatum als band** met staat
       (indicatief / bandbreedte / aangezegd)
-- [ ] **Betrokkenen** vastleggen met aanlooptijd, annuleertermijn en communicatieregel,
+- [x] **Betrokkenen** vastleggen met aanlooptijd, annuleertermijn en communicatieregel,
       vanuit een standaardbibliotheek (`docs/2026-07-29-betrokkenen-standaardlijst.md`)
 - [ ] **Afspraken** als anker + offset, met `gecommuniceerdeDatum`
 - [ ] **Schuif-impact**: anker wijzigen → actielijst op urgentie, concept-berichten,

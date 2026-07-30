@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useAuth } from "@/context/useAuth";
 import { Logo } from "./Logo";
 import { Knop } from "./Knop";
@@ -17,8 +17,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-canvas">
       <header className="border-b border-bone bg-lifted">
-        <div className="mx-auto flex max-w-content items-center justify-between px-s2 py-s2">
-          <Logo hoogte={36} />
+        <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-s2 px-s2 py-s2">
+          <div className="flex items-center gap-s4">
+            <Link to="/" aria-label="Naar het dashboard">
+              <Logo hoogte={36} />
+            </Link>
+            <nav className="flex items-center gap-s3" aria-label="Hoofdmenu">
+              <Link to="/" className="text-body text-slate hover:text-ink">
+                Dashboard
+              </Link>
+              <Link to="/betrokkenen" className="text-body text-slate hover:text-ink">
+                Betrokkenen
+              </Link>
+            </nav>
+          </div>
 
           <div className="flex items-center gap-s2">
             {gebruiker?.email && (
