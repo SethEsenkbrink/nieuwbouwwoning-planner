@@ -31,8 +31,23 @@ service cloud.firestore {
 
     // Voorkomt dat één document de database opblaast of als opslagplek voor
     // documentinhoud misbruikt wordt (PROJECT.md §3, constraint C2).
+    //
+    // LET OP — `.data` is essentieel en is hier ooit vergeten.
+    // `request.resource` is een Resource-object; de velden van het document
+    // zitten in `request.resource.data`. `request.resource.size()` telt dus
+    // niet de velden maar de eigenschappen van de wrapper: een klein, constant
+    // getal dat altijd onder elke grens ligt. De check deed daardoor niets, de
+    // rules compileerden gewoon, en alle andere tests bleven groen.
+    // Gevonden in sessie 03 toen de rules-tests voor het eerst draaiden.
     function withinSizeLimit() {
-      return request.resource.size() < 20;
+      return request.resource.data.size() < 20;
+    }
+
+    // Zelfde doel, maar met een eigen grens. Nodig sinds `projects` de
+    // opleverband erbij kreeg (6 velden, ADR-0008): 15 velden zit te dicht op
+    // de standaardgrens van 20 om nog iets te kunnen toevoegen.
+    function withinSize(max) {
+      return request.resource.data.size() < max;
     }
 
     function isString(value, maxLen) {
@@ -58,6 +73,41 @@ service cloud.firestore {
       return value is string && value in allowed;
     }
 
+    // Verplicht geheel getal binnen een bereik. Gebruikt voor aanlooptijd,
+    // annuleertermijn en offset — waarden waar de rekenmotor op vertrouwt.
+    function isInt(value, min, max) {
+      return value is int && value >= min && value <= max;
+    }
+
+    function optionalInt(data, field, min, max) {
+      return !(field in data) || data[field] == null || isInt(data[field], min, max);
+    }
+
+    // ── Gedeelde waardelijsten ───────────────────────────────────────────
+    // Deze acht bouwmomenten staan óók in src/types/model.ts (AnkerType) en in
+    // docs/2026-07-29-betrokkenen-standaardlijst.md. Wijzig je er één, wijzig
+    // dan alle drie.
+
+    function ankerTypes() {
+      return ['start_bouw', 'begane_grond_gestort', 'ruwbouw_gereed',
+              'wind_waterdicht', 'dekvloer_gestort', 'oplevering',
+              'sleuteloverdracht', 'einde_onderhoudstermijn'];
+    }
+
+    // De opleverdatum als band met een staat (ADR-0008, principe 1). Alle
+    // velden zijn optioneel: een project mag bestaan voordat er ook maar één
+    // datum bekend is. Wat er staat, moet wel kloppen.
+    function geldigeOpleverband(data) {
+      return (!('opleverStatus' in data) || data.opleverStatus == null
+              || isOneOf(data.opleverStatus,
+                         ['indicatief', 'bandbreedte', 'aangezegd']))
+        && optionalTimestamp(data, 'opleverVroegst')
+        && optionalTimestamp(data, 'opleverVerwacht')
+        && optionalTimestamp(data, 'opleverLaatst')
+        && optionalString(data, 'opleverBron', 300)
+        && optionalTimestamp(data, 'opleverBronDatum');
+    }
+
 
     // ── users/{uid} ──────────────────────────────────────────────────────
     // Profielgegevens van de gebruiker zelf. Bewust minimaal: we slaan hier
@@ -78,7 +128,7 @@ service cloud.firestore {
         allow delete: if isOwner(uid);
 
         allow create: if isOwner(uid)
-          && withinSizeLimit()
+          && withinSize(25)
           && isString(request.resource.data.naam, 120)
           && request.resource.data.naam.size() > 0
           && optionalString(request.resource.data, 'bouwnummer', 40)
@@ -89,10 +139,11 @@ service cloud.firestore {
                          ['woningborg', 'swk', 'geen', 'anders']))
           && optionalNumber(request.resource.data, 'koopsom')
           && optionalNumber(request.resource.data, 'meerwerkbudget')
+          && geldigeOpleverband(request.resource.data)
           && request.resource.data.aangemaaktOp == request.time;
 
         allow update: if isOwner(uid)
-          && withinSizeLimit()
+          && withinSize(25)
           && isString(request.resource.data.naam, 120)
           && request.resource.data.naam.size() > 0
           && optionalString(request.resource.data, 'bouwnummer', 40)
@@ -103,8 +154,91 @@ service cloud.firestore {
                          ['woningborg', 'swk', 'geen', 'anders']))
           && optionalNumber(request.resource.data, 'koopsom')
           && optionalNumber(request.resource.data, 'meerwerkbudget')
+          && geldigeOpleverband(request.resource.data)
           // aangemaaktOp is onveranderlijk.
           && request.resource.data.aangemaaktOp == resource.data.aangemaaktOp;
+
+
+        // ── ankers/{ankerId} — bouwmomenten ──────────────────────────────
+        // Waaraan afspraken hangen. De datum is `verwachtOp` en mag schuiven;
+        // dat schuiven is nou juist de reden dat deze app bestaat.
+
+        match /ankers/{ankerId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isOneOf(request.resource.data.type, ankerTypes())
+            && isString(request.resource.data.titel, 200)
+            && request.resource.data.titel.size() > 0
+            && isOneOf(request.resource.data.status,
+                       ['verwacht', 'bevestigd', 'gepasseerd'])
+            && optionalTimestamp(request.resource.data, 'verwachtOp')
+            && optionalString(request.resource.data, 'bron', 300);
+        }
+
+
+        // ── betrokkenen/{betrokkeneId} ───────────────────────────────────
+        // Partijen die de koper zelf inschakelt. Contactgegevens zijn bewust
+        // optioneel: de schuif-impact werkt ook zonder e-mailadres.
+        //
+        // `aanlooptijdDagen` en `annuleertermijnDagen` zijn wél verplicht —
+        // zonder die twee kan de urgentiebepaling niets. Bovengrens 3650 dagen
+        // (10 jaar): ruim genoeg voor elke reële termijn, krap genoeg om
+        // onzin-invoer en overflow in de rekenmotor te weren.
+
+        match /betrokkenen/{betrokkeneId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.naam, 120)
+            && request.resource.data.naam.size() > 0
+            && isOneOf(request.resource.data.categorie,
+                       ['installatie', 'afbouw', 'tuin', 'verhuizing',
+                        'huidige_woning', 'nuts', 'financieel', 'overig'])
+            && isInt(request.resource.data.aanlooptijdDagen, 0, 3650)
+            && isInt(request.resource.data.annuleertermijnDagen, 0, 3650)
+            && isOneOf(request.resource.data.communicatieregel,
+                       ['direct', 'bij_aanzegging', 'handmatig'])
+            && isOneOf(request.resource.data.waardenBron, ['voorstel', 'eigen'])
+            && optionalString(request.resource.data, 'contactpersoon', 120)
+            && optionalString(request.resource.data, 'email', 200)
+            && optionalString(request.resource.data, 'telefoon', 40)
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
+
+
+        // ── afspraken/{afspraakId} ───────────────────────────────────────
+        // HIER STAAT GEEN AFSPRAAKDATUM, EN DIE MAG ER OOK NOOIT KOMEN.
+        // Alleen `ankerType` + `offsetDagen`; de datum wordt afgeleid in
+        // src/lib/planning.ts. Zie ADR-0008.
+        //
+        // De enige uitzondering is `gecommuniceerdeDatum`, en dat is geen
+        // planning maar een feit over de buitenwereld: welke datum deze partij
+        // als laatste van je kreeg. Het verschil tussen berekend en
+        // gecommuniceerd ís de actielijst.
+        //
+        // `offsetDagen` mag negatief zijn (ervóór), bijv. huur opzeggen op
+        // sleuteloverdracht −45.
+
+        match /afspraken/{afspraakId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.betrokkeneId, 64)
+            && request.resource.data.betrokkeneId.size() > 0
+            && isString(request.resource.data.omschrijving, 300)
+            && request.resource.data.omschrijving.size() > 0
+            && isOneOf(request.resource.data.ankerType, ankerTypes())
+            && isInt(request.resource.data.offsetDagen, -3650, 3650)
+            && isOneOf(request.resource.data.status,
+                       ['concept', 'voorlopig', 'bevestigd',
+                        'afgerond', 'vervallen'])
+            && optionalInt(request.resource.data, 'duurDagen', 0, 365)
+            && optionalTimestamp(request.resource.data, 'gecommuniceerdeDatum')
+            && optionalTimestamp(request.resource.data, 'gecommuniceerdOp')
+            && optionalString(request.resource.data, 'waarschuwing', 1000)
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
 
 
         // ── phases/{phaseId} ─────────────────────────────────────────────

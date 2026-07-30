@@ -1,6 +1,6 @@
 # PROJECT.md — Nieuwbouwplanner
 
-> **Rol van dit bestand:** de *vaste waarheid*. Scope, constraints, datamodel en stack.
+> **Rol van dit bestand:** de _vaste waarheid_. Scope, constraints, datamodel en stack.
 > Dit verandert zelden. Wijzig het alleen bij een fundamentele koerswijziging, en
 > leg die wijziging altijd óók vast als ADR in `docs/decisions/`.
 >
@@ -35,13 +35,13 @@ werkt het voor de volgende koper. Laat het eigen traject de volgorde van feature
 
 ## 3. Harde constraints (niet onderhandelbaar)
 
-| # | Constraint | Consequentie |
-|---|---|---|
-| C1 | **Stack:** Firebase (Auth + Firestore) + Netlify (hosting + functions), frontend React | Geen andere backend introduceren |
-| C2 | **Geen bestandsopslag** | Firebase Storage wordt nooit geïnitialiseerd. Documenten worden client-side gelezen; alleen geëxtraheerde velden gaan naar Firestore |
-| C3 | **Gratis** | Firebase Spark-plan, Netlify free/pro. Nooit iets bouwen dat Blaze vereist |
-| C4 | **Multi-user** | Iedereen eigen account, ziet uitsluitend eigen project(en) |
-| C5 | **Geen juridisch/financieel advies** | Termijnen zijn indicatief; disclaimer zichtbaar in de UI |
+| #   | Constraint                                                                             | Consequentie                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| C1  | **Stack:** Firebase (Auth + Firestore) + Netlify (hosting + functions), frontend React | Geen andere backend introduceren                                                                                                     |
+| C2  | **Geen bestandsopslag**                                                                | Firebase Storage wordt nooit geïnitialiseerd. Documenten worden client-side gelezen; alleen geëxtraheerde velden gaan naar Firestore |
+| C3  | **Gratis**                                                                             | Firebase Spark-plan, Netlify free/pro. Nooit iets bouwen dat Blaze vereist                                                           |
+| C4  | **Multi-user**                                                                         | Iedereen eigen account, ziet uitsluitend eigen project(en)                                                                           |
+| C5  | **Geen juridisch/financieel advies**                                                   | Termijnen zijn indicatief; disclaimer zichtbaar in de UI                                                                             |
 
 **C2 en C3 zijn de twee die het makkelijkst per ongeluk sneuvelen.** Voordat je een package
 of Firebase-service toevoegt: check of het Blaze vereist en of het bestanden persisteert.
@@ -51,7 +51,7 @@ of Firebase-service toevoegt: check of het Blaze vereist en of het bestanden per
 ### Waarom dit gratis blijft
 
 - **Firebase Spark** levert Auth + Firestore kosteloos. Op Spark kun je géén Cloud Functions
-  deployen — geen probleem, want *alle* serverside logica draait op **Netlify Functions**.
+  deployen — geen probleem, want _alle_ serverside logica draait op **Netlify Functions**.
   Firebase blijft puur Auth + database.
 - **Netlify** levert hosting + serverless functions. De functions zijn stateless: ze
   ontvangen tekst, geven gestructureerde data terug, en slaan zelf niets op.
@@ -97,6 +97,7 @@ users/{uid}
         │     - aanlooptijdDagen        // hoeveel notice hebben ze nodig
         │     - annuleertermijnDagen    // tot wanneer kosteloos verzetten
         │     - communicatieregel (direct | bij_aanzegging | handmatig)
+        │     - waardenBron (voorstel | eigen)   // ADR-0009 — zie hieronder
         │     - notitie
         ├── afspraken/{afspraakId}
         │     - betrokkeneId, omschrijving
@@ -105,6 +106,8 @@ users/{uid}
         │     - status (concept | voorlopig | bevestigd | afgerond | vervallen)
         │     - gecommuniceerdeDatum    // wat weet deze partij nu — de kern
         │     - gecommuniceerdOp
+        │     - waarschuwing            // hoort bij de afspraak, niet bij de partij
+        │     - notitie
         ├── phases/{phaseId}
         │     - type (koop | notaris | financiering | bouw | oplevering | onderhoud | garantie)
         │     - titel, status (open | bezig | klaar), streefdatum, volgorde
@@ -128,6 +131,16 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 > Alleen `ankerType` + `offsetDagen`. De datum is altijd afgeleid. Sla je hem wel op, dan
 > heb je bij elke verschuiving een migratie — precies het handwerk dat deze app wegneemt.
 > Zie ADR-0008.
+>
+> `gecommuniceerdeDatum` is de enige uitzondering, en dat is geen inconsistentie: het is
+> geen planning maar een **feit over de buitenwereld** — welke datum die partij als laatste
+> van je hoorde. Het verschil met de berekende datum ís de actielijst.
+
+> **`waardenBron` (ADR-0009).** Staat op `voorstel` zolang aanlooptijd en annuleertermijn
+> uit de standaardbibliotheek komen, en op `eigen` zodra de gebruiker ze aanpast. De UI
+> toont bij `voorstel` een disclaimer, bij `eigen` niet. Zonder dit veld is een schatting
+> van de app niet te onderscheiden van het cijfer dat de leverancier zelf noemde — en dan
+> sneuvelt constraint C5 in stilte.
 
 ## 6. Features & volgorde
 
@@ -177,19 +190,20 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 
 ## 8. Stack (vastgesteld 2026-07-29, zie ADR-0001 t/m 0005)
 
-| Laag | Keuze | Versie |
-|---|---|---|
-| Runtime | Node LTS "Krypton" | 24 |
-| Build | Vite | 8.x |
-| UI | React + react-dom | 19.2.x |
-| Taal | TypeScript (native compiler) | 7.x |
-| Routing | `react-router` (declarative mode) | 8.x |
-| Styling | Tailwind CSS v4 CSS-first + `@tailwindcss/vite` | 4.3.x |
-| Huisstijl | `@brink/ui` (lokale kopie) + `src/styles/brink-theme.css` | — |
-| Auth + DB | Firebase Auth + Cloud Firestore (Spark) | 12.x |
-| Serverless | Netlify Functions (`.mts`) + `@netlify/vite-plugin` | 5.x / 2.x |
-| Kwaliteit | ESLint 10 (flat) · Prettier 3 · Vitest 4 | — |
-| PDF-extractie | `pdf.js` (client-side) — nog toe te voegen | — |
+| Laag          | Keuze                                                     | Versie    |
+| ------------- | --------------------------------------------------------- | --------- |
+| Runtime       | Node LTS "Krypton"                                        | 24        |
+| Build         | Vite                                                      | 8.x       |
+| UI            | React + react-dom                                         | 19.2.x    |
+| Taal          | TypeScript (native compiler)                              | 7.x       |
+| Routing       | `react-router` (declarative mode)                         | 8.x       |
+| Styling       | Tailwind CSS v4 CSS-first + `@tailwindcss/vite`           | 4.3.x     |
+| Huisstijl     | `@brink/ui` (lokale kopie) + `src/styles/brink-theme.css` | —         |
+| Auth + DB     | Firebase Auth + Cloud Firestore (Spark)                   | 12.x      |
+| Serverless    | Netlify Functions (`.mts`) + `@netlify/vite-plugin`       | 5.x / 2.x |
+| Kwaliteit     | ESLint 10 (flat) · Prettier 3 · Vitest 4                  | —         |
+| Rekenkern     | `src/lib/planning.ts` — puur TypeScript, geen SDK         | —         |
+| PDF-extractie | `pdf.js` (client-side) — nog toe te voegen                | —         |
 
 **Bewust níet:** Firebase Storage, Firebase Cloud Functions, React Compiler (nog),
 `react-router-dom` (EOL op 7.18.2), PostCSS/autoprefixer (overbodig met Tailwind v4).

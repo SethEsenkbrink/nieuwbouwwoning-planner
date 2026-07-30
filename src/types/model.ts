@@ -12,11 +12,20 @@ import type { Timestamp } from "firebase/firestore";
  * Structuur in Firestore (alles onder de user, zodat de rules simpel blijven):
  *
  *   users/{uid}/projects/{projectId}
+ *     ├── ankers/{ankerId}
+ *     ├── betrokkenen/{betrokkeneId}
+ *     ├── afspraken/{afspraakId}
  *     ├── phases/{phaseId}
  *     ├── tasks/{taskId}
  *     ├── meerwerk/{itemId}
  *     ├── termijnen/{termId}
  *     └── gebreken/{defectId}
+ *
+ * DE BELANGRIJKSTE REGEL IN DIT MODEL (ADR-0008):
+ * een afspraakdatum wordt NOOIT opgeslagen. Alleen `ankerType` + `offsetDagen`.
+ * De datum is altijd afgeleid via `src/lib/planning.ts`. Sla je hem wél op, dan
+ * is elke verschuiving van de bouw een migratie — precies het handwerk dat deze
+ * app wegneemt.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -29,6 +38,20 @@ export interface MetId {
 
 export type Garantiewaarborg = "woningborg" | "swk" | "geen" | "anders";
 
+/**
+ * De staat van de opleverdatum. Dit veld bepaalt wie je wel en niet mag
+ * benaderen — zie ADR-0008, principe 1.
+ *
+ *   indicatief   "ergens in week 45"           → niemand definitief boeken
+ *   bandbreedte  vroegst wk 44 – laatst wk 50  → alleen lange aanlooptijden waarschuwen
+ *   aangezegd    formele aanzegging aannemer   → nu pas iedereen definitief inplannen
+ *
+ * In Nederland zegt de aannemer de opleverdatum formeel aan, meestal enkele
+ * weken van tevoren. Alles daarvóór is een schatting, en dat onderscheid moet
+ * de app kennen.
+ */
+export type OpleverStatus = "indicatief" | "bandbreedte" | "aangezegd";
+
 export interface Project {
   /** Vrije naam van de gebruiker, bijv. "Ons huis in Almere". Verplicht. */
   naam: string;
@@ -40,8 +63,195 @@ export interface Project {
   /** Bedragen in hele euro's. */
   koopsom?: number;
   meerwerkbudget?: number;
+
+  // ── De opleverdatum als band ────────────────────────────────────────────
+  // Drie datums in plaats van één, plus de staat en de herkomst. Bij
+  // `aangezegd` vallen vroegst/verwacht/laatst doorgaans samen.
+
+  opleverStatus?: OpleverStatus;
+  opleverVroegst?: Timestamp;
+  opleverVerwacht?: Timestamp;
+  opleverLaatst?: Timestamp;
+  /**
+   * Wie beweerde dit, en wanneer. Bijv. "mail aannemer 12-07".
+   * Klinkt als een detail, maar bij de derde verschuiving wil je terug kunnen
+   * zien waar een datum vandaan kwam.
+   */
+  opleverBron?: string;
+  opleverBronDatum?: Timestamp;
+
   aangemaaktOp: Timestamp;
   bijgewerktOp?: Timestamp;
+}
+
+// ── Ankers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Bouwmomenten waaraan afspraken hangen. Bewust een gesloten lijst: hij
+ * beschrijft het bouwproces, niet de voorkeur van de gebruiker.
+ *
+ * Waarom niet alleen `oplevering`: de keuken-inmeter komt niet "zes weken vóór
+ * oplevering", hij komt zodra de wanden staan. En de vloerenlegger hangt aan
+ * de droogtijd van de dekvloer, niet aan de sleuteloverdracht. Die momenten
+ * lopen uiteen zodra de bouw ongelijkmatig schuift — en dat is precies wat er
+ * gebeurt. Zie ADR-0008, principe 2.
+ */
+export type AnkerType =
+  | "start_bouw"
+  | "begane_grond_gestort"
+  | "ruwbouw_gereed"
+  | "wind_waterdicht"
+  | "dekvloer_gestort"
+  | "oplevering"
+  | "sleuteloverdracht"
+  | "einde_onderhoudstermijn";
+
+/**
+ * `verwacht`   — schatting, mag schuiven
+ * `bevestigd`  — de aannemer heeft dit vastgelegd
+ * `gepasseerd` — het moment is geweest; de datum ligt vast
+ */
+export type AnkerStatus = "verwacht" | "bevestigd" | "gepasseerd";
+
+export interface Anker {
+  type: AnkerType;
+  /** Vrije titel, bijv. "Dekvloer begane grond". */
+  titel: string;
+  verwachtOp?: Timestamp;
+  status: AnkerStatus;
+  /** Waar deze datum vandaan komt, bijv. "bouwvergadering 03-09". */
+  bron?: string;
+}
+
+// ── Betrokkenen ────────────────────────────────────────────────────────────
+
+export type BetrokkeneCategorie =
+  | "installatie"
+  | "afbouw"
+  | "tuin"
+  | "verhuizing"
+  | "huidige_woning"
+  | "nuts"
+  | "financieel"
+  | "overig";
+
+/**
+ * Wanneer je deze partij informeert bij een verschuiving. Dit ene veld haalt
+ * naar verwachting het grootste deel van het mailverkeer weg (ADR-0008,
+ * principe 4).
+ *
+ *   direct          bij élke wijziging — voor partijen met een lange aanlooptijd
+ *   bij_aanzegging  pas als de opleverdatum formeel is aangezegd
+ *   handmatig       nooit automatisch voorstellen; de gebruiker beslist
+ *
+ * Een naïeve implementatie mailt bij elke wijziging iedereen. Dat maakt het
+ * erger: schuift de oplevering drie keer, dan heb je iedereen drie keer lastig-
+ * gevallen met een datum die opnieuw niet klopte.
+ */
+export type Communicatieregel = "direct" | "bij_aanzegging" | "handmatig";
+
+/**
+ * Herkomst van `aanlooptijdDagen` en `annuleertermijnDagen` (ADR-0009).
+ *
+ *   voorstel  overgenomen uit de standaardbibliotheek — een inschatting
+ *   eigen     de gebruiker heeft het cijfer van zijn leverancier ingevuld
+ *
+ * Bij `voorstel` toont de UI "voorstel — controleer bij je leverancier"
+ * (constraint C5: de tool structureert, hij adviseert niet). Zodra de gebruiker
+ * een van beide waarden aanpast, gaat dit veld naar `eigen` en verdwijnt de
+ * disclaimer. Dat omzetten hoort in de opslaglaag te gebeuren, niet in het
+ * formulier — vergeet je het, dan blijft de disclaimer hangen op cijfers die
+ * de gebruiker zelf heeft ingevoerd.
+ */
+export type WaardenBron = "voorstel" | "eigen";
+
+export interface Betrokkene {
+  /** Bedrijfsnaam. Verplicht — dit is waar de gebruiker de partij aan herkent. */
+  naam: string;
+  contactpersoon?: string;
+  email?: string;
+  telefoon?: string;
+  categorie: BetrokkeneCategorie;
+
+  /**
+   * Tijd tussen "deze partij weet het" en "deze partij staat er".
+   * Keuken 56–70 dagen, vloerenlegger 21, verhuisbus 7.
+   * Bepaalt hoe vroeg je moet informeren.
+   */
+  aanlooptijdDagen: number;
+
+  /**
+   * Tot hoeveel dagen van tevoren kan de afspraak kosteloos verzet worden.
+   * Een bus annuleren kan tot 48 uur van tevoren gratis; een keuken die in
+   * productie is, niet meer.
+   *
+   * Het snijpunt van deze twee getallen levert het cijfer dat er werkelijk toe
+   * doet: de laatste dag waarop je nog gratis kunt schuiven.
+   */
+  annuleertermijnDagen: number;
+
+  communicatieregel: Communicatieregel;
+  waardenBron: WaardenBron;
+  notitie?: string;
+}
+
+// ── Afspraken ──────────────────────────────────────────────────────────────
+
+/**
+ * `concept`    nog niet naar buiten gebracht
+ * `voorlopig`  partij is geïnformeerd, datum nog niet hard
+ * `bevestigd`  beide partijen zijn het eens over de datum
+ * `afgerond`   is gebeurd
+ * `vervallen`  gaat niet door
+ */
+export type AfspraakStatus = "concept" | "voorlopig" | "bevestigd" | "afgerond" | "vervallen";
+
+export interface Afspraak {
+  /** Verwijzing naar een betrokkenen/{betrokkeneId}. */
+  betrokkeneId: string;
+  /** Wat er gebeurt, bijv. "inmeten keuken". */
+  omschrijving: string;
+
+  /**
+   * Het anker waaraan deze afspraak hangt, plus de verschuiving in dagen.
+   * Negatief = ervóór. Bijv. `dekvloer_gestort` +42 (droogtijd), of
+   * `sleuteloverdracht` −45 (huur opzeggen).
+   *
+   * HIER STAAT GEEN DATUM, EN DIE KOMT ER OOK NOOIT. Zie de kop van dit
+   * bestand en ADR-0008.
+   */
+  ankerType: AnkerType;
+  offsetDagen: number;
+
+  /** Hoeveel dagen de klus zelf duurt. Voor overlap-detectie later. */
+  duurDagen?: number;
+
+  status: AfspraakStatus;
+
+  /**
+   * De datum die deze partij als laatste van jou heeft gekregen — de kern van
+   * de hele module (ADR-0008, principe 5).
+   *
+   * Wijkt de berekende datum hiervan af, dan staat deze afspraak op de
+   * actielijst. Vink je "doorgegeven" aan, dan lopen ze weer gelijk en
+   * verdwijnt de regel. Wat overblijft is je werklijst.
+   *
+   * Let op: dít is de enige datum in dit model die wél wordt opgeslagen, en
+   * dat is geen inconsistentie — het is geen planning maar een feit over de
+   * buitenwereld: wat weet die partij nu.
+   */
+  gecommuniceerdeDatum?: Timestamp;
+  gecommuniceerdOp?: Timestamp;
+
+  /**
+   * Waarschuwing die bij deze afspraak hoort en zichtbaar moet zijn op het
+   * moment dat hij relevant wordt — bijv. de droogtijd van de dekvloer of de
+   * onomkeerbaarheid van een opzegtermijn. Waarschuwingen horen bij de data,
+   * niet in een handleiding die niemand leest.
+   */
+  waarschuwing?: string;
+
+  notitie?: string;
 }
 
 // ── Fases ──────────────────────────────────────────────────────────────────
@@ -52,13 +262,7 @@ export interface Project {
  * van de gebruiker.
  */
 export type FaseType =
-  | "koop"
-  | "notaris"
-  | "financiering"
-  | "bouw"
-  | "oplevering"
-  | "onderhoud"
-  | "garantie";
+  "koop" | "notaris" | "financiering" | "bouw" | "oplevering" | "onderhoud" | "garantie";
 
 export type FaseStatus = "open" | "bezig" | "klaar";
 
@@ -144,6 +348,9 @@ export interface Gebrek {
 // ── Handige aliassen voor gelezen documenten ───────────────────────────────
 
 export type ProjectDoc = Project & MetId;
+export type AnkerDoc = Anker & MetId;
+export type BetrokkeneDoc = Betrokkene & MetId;
+export type AfspraakDoc = Afspraak & MetId;
 export type PhaseDoc = Phase & MetId;
 export type TaskDoc = Task & MetId;
 export type MeerwerkDoc = MeerwerkItem & MetId;

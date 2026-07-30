@@ -1,6 +1,6 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-07-29 · sessie 02
+> **Bijgewerkt:** 2026-07-30 · sessie 03
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
 > Geen geschiedenis hier — die staat in `sessions/`. Houd dit onder één scherm.
 
@@ -8,104 +8,108 @@
 
 ## Waar staan we
 
-Het **fundament staat, is geverifieerd en draait echt**. Firebase is ingericht, de
-security-rules staan live, en de app toont het inlogscherm in de huisstijl op
-`localhost:5173`. `npm run verify` (typecheck, lint, tokenpariteit, headers, build) is
-groen.
+Het fundament stond al; **nu staat ook de kern van de eerste feature**. Het datamodel voor
+betrokkenen en schuif-impact is uitgewerkt, de Firestore-rules dekken de drie nieuwe
+subcollecties af, de standaardbibliotheek met 38 partijen is typed data geworden, en de
+rekenmotor draait met **37 groene unit tests**.
 
-Er is nog **geen functionaliteit**: geen projecten, geen betrokkenen, geen tijdlijn.
-Dat is opzet — eerst een fundament dat klopt.
-
-**De productrichting is in sessie 02 scherper geworden.** De eerste echte feature is niet
-de fase-tijdlijn maar de **betrokkenen- en schuif-impactmodule**: het probleem dat een
-indicatieve opleverdatum voortdurend schuift en dat elke verschuiving handmatig moet worden
-doorvertaald naar alle ingehuurde partijen. Volledig uitgewerkt in **ADR-0008**.
+Er is nog **geen UI** voor deze feature. Je kunt dus nog geen project of betrokkene
+aanmaken in de browser — dat is de volgende stap. De logica eronder is af en getest.
 
 ## Klaar
 
-- Docs- en continuïteitssysteem (`PROJECT.md`, `WORKFLOW.md`, `CONTEXT.md`, 8 ADR's)
-- Configs: Vite 8, TypeScript 6 (strict), ESLint 10 flat met type-aware regels, Prettier
-- Security: Firestore-rules met default-deny en veldvalidatie, CSP + security headers,
-  `.gitignore` die `.env*` blokkeert
-- Huisstijl in Tailwind v4 CSS-first, met pariteitstest tegen `tokens.js` (50 tokens)
-- Eigen logo: gevel-mark met satelliet + vinkje, 6 SVG-varianten met outlined wordmark
-- Auth-flow: registreren, inloggen, uitloggen, wachtwoord-reset, `ProtectedRoute`
-- `netlify/functions/health.mts` op `/api/health`
-- Opstartfout-scherm bij ontbrekende config, in plaats van een witte pagina
-- Twee eigen checks in `npm run verify`: `verify:tokens` en `verify:headers`
-- **Firebase live**: project `nieuwbouwplanner`, Firestore in production mode,
-  rules + indexes gedeployed, `.env.local` gevuld
-- **App draait**: inlogscherm zichtbaar en correct opgemaakt
-- Git: gepusht naar `SethEsenkbrink/nieuwbouwwoning-planner`, `main` volgt `origin/main`
-- Netlify-project `nieuwbouwplanner` aangemaakt
-  (`04f692cf-ce81-4cb6-8c9d-cf0c9ffefb66`, <https://nieuwbouwplanner.netlify.app>)
-- Verhuisd uit Google Drive naar `C:\dev\projecten\Brink Multimedia - main folder\`
+- Alles uit sessie 01 en 02 (fundament, Firebase live, auth-flow, huisstijl, security)
+- **`src/types/model.ts`**: `Anker`, `Betrokkene`, `Afspraak`, `AnkerType` (8 bouwmomenten),
+  plus de opleverdatum als band met staat op `Project`
+- **`firebase/firestore.rules`**: `ankers`, `betrokkenen`, `afspraken` met dezelfde
+  striktheid als de bestaande collecties (enum-whitelists, int-bereiken, lengtelimieten).
+  Projectlimiet van 20 naar 25 velden omdat de opleverband er zes bij deed
+- **`firebase/rules.test.ts`**: 34 tests erbij (was 19, nu 53) voor de nieuwe collecties en
+  de opleverband. **53/53 groen** en de rules zijn gedeployed — wat live staat is nu de
+  geteste versie
+- **Bug gevonden en gefixt: de size-limiet in de rules deed niets.**
+  `request.resource.size()` telt de eigenschappen van het Resource-object, niet de velden
+  van het document — daarvoor moet je `request.resource.data.size()` gebruiken. De check
+  stond er sinds sessie 01 en heeft nooit iets geweigerd. Gevonden op het moment dat de
+  rules-tests voor het eerst draaiden
+- **`src/data/betrokkenen-standaard.ts`**: 38 standaardpartijen met afspraken, ankers,
+  offsets en de zes waarschuwingsteksten uit de standaardlijst
+- **`src/lib/planning.ts`** + **`planning.test.ts`**: `berekenDatum`, `bepaalUrgentie`,
+  `bouwActielijst`, `laatsteGratisSchuifdatum` — puur, zonder Firestore, 37 tests groen
+- **ADR-0009**: zekerheid en herkomst als expliciete velden
+- `npm run test` toegevoegd aan `npm run verify`; rules-tests afgesplitst naar
+  `vitest.rules.config.ts` zodat `verify` ook zonder Java draait
+
+## Twee conventies die in deze sessie zijn vastgelegd
+
+1. **Aanlooptijd en annuleertermijn staan op de betrokkene, één paar per partij.** Heeft een
+   partij meerdere afspraken met verschillende termijnen (keuken: inmeten 14 dagen, levering
+   70), dan staat de langste in de bibliotheek. Gevolg: het inmeten wordt eerder als urgent
+   gemarkeerd dan strikt nodig. Bewuste ruil — te vroeg waarschuwen kost aandacht, te laat
+   kost een afspraak.
+2. **Bij een range in de standaardlijst wordt de bovenkant genomen.** "56–70 dagen" wordt 70.
 
 ## Direct volgende stap
 
-**Bouwen: het datamodel voor betrokkenen en schuif-impact (ADR-0008).**
+**De UI voor de betrokkenen- en schuif-impactmodule.** In deze volgorde:
 
-Concreet, in deze volgorde:
+1. **Datalaag** (`src/lib/projecten.ts` of vergelijkbaar) — CRUD op projecten, ankers,
+   betrokkenen en afspraken via Firestore-converters die `Timestamp` ⇄ `Date` omzetten.
+   `planning.ts` blijft SDK-vrij; de conversie hoort in deze laag.
+   **Let op:** hier hoort ook de regel dat `waardenBron` naar `"eigen"` gaat zodra een
+   gebruiker een termijn aanpast — vergeet je dat in de opslaglaag, dan blijft de
+   disclaimer hangen op cijfers die hij zelf heeft ingevoerd.
+2. **Project aanmaken** met de opleverband en de staat (indicatief / bandbreedte /
+   aangezegd)
+3. **Betrokkenen aanvinken** uit de standaardbibliotheek, per categorie, met de
+   voorstelwaarden zichtbaar en aanpasbaar
+4. **Actielijst** op het dashboard: `bouwActielijst()` renderen, gesorteerd op urgentie,
+   met per regel de reden, de zekerheid van de berekening en een "doorgegeven"-knop
+5. **Anker verschuiven** → de lijst herberekent, met een diff ten opzichte van de vorige
+   versie
 
-1. **`src/types/model.ts` uitbreiden** — `Anker`, `Betrokkene`, `Afspraak`, plus de
-   opleverdatum-band en `opleverStatus` op `Project`. Zie `PROJECT.md` §5 voor het schema.
-2. **`firebase/firestore.rules` uitbreiden** met de drie nieuwe subcollecties, met dezelfde
-   striktheid als de bestaande (types, toegestane waarden, lengtes, size limit).
-3. **`firebase/rules.test.ts` uitbreiden** met tests voor die collecties.
-4. **`src/data/betrokkenen-standaard.ts`** — de standaardbibliotheek uit
-   `docs/2026-07-29-betrokkenen-standaardlijst.md` als typed data.
-5. **`src/lib/planning.ts`** — de pure rekenfuncties, zonder Firestore:
-   `berekenDatum(anker, offset)`, `bepaalUrgentie(afspraak, betrokkene, vandaag)`,
-   `bouwActielijst(project, ankers, betrokkenen, afspraken)`.
-   **Deze krijgen unit tests vóórdat er UI omheen komt** — dit is de eerste echte
-   businesslogica, en de trigger uit ADR-0006 om te gaan testen.
-
-Pas daarna UI. Het model eerst aan Seth voorleggen vóór de rekenmotor: klopt het model
-niet, dan bouw je de rest scheef (zie ADR-0008, "Terugdraaien").
+Punt 4 is waar de feature zich bewijst. Bouw hem vroeg, ook lelijk.
 
 ## Open vragen / wacht op Seth
 
-- **Aanlooptijden en annuleertermijnen valideren.** De standaardlijst bevat startwaarden
-  die ik heb ingeschat. Heeft Seth concrete cijfers van zijn eigen leveranciers (keuken,
-  vloer, waterontharder, busverhuur), dan vervangen die de gok.
-- **Welke ankerpunten kent zijn project?** Weet hij wanneer de dekvloer gestort wordt, of
-  alleen de opleverdatum? Dat bepaalt of de meerdere-ankers-opzet nu al waarde heeft of
-  pas later.
-- **Rules-tests draaien** (`npm run rules:test`, 19 tests, vereist JDK 21+). Nog steeds
-  nooit uitgevoerd. Doe dit vóórdat de nieuwe collecties erbij komen — dan weet je zeker
-  dat een falende test aan het nieuwe werk ligt.
+- **Aanlooptijden valideren.** De 38 startwaarden zijn schattingen. Heeft Seth concrete
+  cijfers van keuken, vloer, waterontharder of busverhuur, dan vervangen die de gok.
+  Besloten in sessie 03: de waarden blijven hoe dan ook invulbaar, met een voorstel als
+  vertrekpunt.
 - **Netlify koppelen aan de repo** + de vier `VITE_FIREBASE_*` env vars + het
   Netlify-domein toevoegen aan Firebase Authorized domains.
-- **CSP-melding verifiëren op de deploy preview.** In de dev-console stond een
-  `blocks the use of 'eval'`-issue. Lokaal geldt de CSP niet meer (`stripCspInDev`), dus
-  dat was mogelijk een restant van vóór die fix. Controleer op de eerste deploy preview of
-  het daar ook speelt — zo ja, uitzoeken wat `eval` gebruikt vóórdat je de CSP verzwakt.
+- **CSP-melding verifiëren op de deploy preview** (`blocks the use of 'eval'`).
+- **Overweging:** een `verify:rules`-script naar het model van `verify:tokens`, dat
+  controleert of de enum-waarden in `firestore.rules` gelijk lopen met `model.ts`. De acht
+  ankertypes staan nu op drie plekken (model, rules, standaardlijst) en kunnen stil uit
+  elkaar lopen.
 
 ## Bekende valkuilen
 
-- **Sla nooit een afspraakdatum op.** Alleen `ankerType` + `offsetDagen`; de datum is
-  afgeleid. Dit is de kern van ADR-0008 — sla je hem wel op, dan is elke verschuiving een
-  migratie en verdwijnt de reden van de app.
-- **De productie-CSP mag niet in dev gelden.** `@netlify/vite-plugin` past de headers uit
-  `netlify.toml` ook lokaal toe, en onze CSP blokkeert dan Vite's inline React-preamble en
-  de HMR-websocket → lege pagina zonder melding. Opgelost met `stripCspInDev` in
-  `vite.config.ts`. De plugin-optie `headers: { enabled: false }` staat wél in de types
-  maar dóét niets (v2.12.9, geverifieerd met curl). **Test CSP-wijzigingen op een Netlify
-  deploy preview, niet lokaal.**
-- **HTTP-headers in `netlify.toml` mogen geen newlines bevatten.** Een gewone TOML
-  multiline string (`"""..."""`) behoudt die wél; zet een `\` aan elk regeleinde.
-  `npm run verify:headers` vangt dit af.
-- **`npm audit fix --force` niet gebruiken.** Dat downgradet `@netlify/vite-plugin` van
-  2.12.9 naar 2.1.4. Meldingen zijn opgelost met `overrides` (ADR-0007). Nieuwe melding?
-  Eerst `npm ls --omit=dev --all | grep <pakket>` om te zien of het productiecode raakt.
+- **In Firestore-rules is het `request.resource.data.size()`, niet
+  `request.resource.size()`.** Zonder `.data` tel je de eigenschappen van het
+  Resource-object en weigert de check nooit iets. Het compileert, alle overige tests
+  blijven groen, en je merkt het pas als je er expliciet op test. Ditzelfde geldt voor
+  `resource.data` bij updates.
+- **Rules die niet gedraaid zijn, zijn rules waarvan je hoopt dat ze werken.** Dat stond al
+  als comment boven `rules.test.ts` en bleek in sessie 03 letterlijk waar.
+- **Sla nooit een afspraakdatum op.** Alleen `ankerType` + `offsetDagen`. Enige
+  uitzondering is `gecommuniceerdeDatum`, en dat is een feit over de buitenwereld, geen
+  planning.
+- **`planning.ts` blijft puur.** Geen Firestore, geen React, en geen `new Date()` die niet
+  als parameter binnenkomt — anders zijn de tests niet meer betrouwbaar.
+- **Reken in UTC, niet in lokale tijd.** Zomertijd maakt dagen 23 of 25 uur lang; bij een
+  offset van 42 dagen kom je eind oktober een dag naast de waarheid uit. `opDag()` in
+  `planning.ts` vangt dit af, en er staat een test op.
+- **De productie-CSP mag niet in dev gelden.** Opgelost met `stripCspInDev` in
+  `vite.config.ts`. Test CSP-wijzigingen op een deploy preview, niet lokaal.
+- **HTTP-headers in `netlify.toml` mogen geen newlines bevatten.** `npm run verify:headers`
+  vangt dit af.
+- **`npm audit fix --force` niet gebruiken.** Downgradet `@netlify/vite-plugin` elf minor
+  versies. Meldingen zijn opgelost met `overrides` (ADR-0007).
 - **Nooit terugverhuizen naar Google Drive.** `node_modules` is 606 MB / 33.966 bestanden;
-  Drive sync't dat, vreet quota, en houdt file handles open waardoor `npm install` en `git`
-  willekeurige `EPERM`/`EBUSY`-fouten geven.
-- **Vite 8 draait op Rolldown.** `manualChunks` moet een *functie* zijn; de object-vorm uit
-  Vite ≤7 faalt met "manualChunks is not a function".
-- **`vite.config.ts` heeft de TypeScript-parser nodig in ESLint.** Anders struikelt ESLint
-  over de eerste type-annotatie.
-- **Importeer uit `react-router`, niet `react-router-dom`.** ESLint blokkeert het laatste,
-  maar internetvoorbeelden staan er vol mee.
+  Drive houdt file handles open en veroorzaakt `EPERM`/`EBUSY`.
+- **Vite 8 draait op Rolldown.** `manualChunks` moet een _functie_ zijn.
+- **Importeer uit `react-router`, niet `react-router-dom`.**
 - **Firestore-emulator vereist JDK 21+**, en **single-field indexes horen niet in
-  `firestore.indexes.json`** — die maakt Firestore automatisch en de deploy weigert ze.
+  `firestore.indexes.json`**.

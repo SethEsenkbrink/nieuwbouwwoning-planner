@@ -20,8 +20,8 @@
     "test:watch": "vitest",
     "verify:tokens": "node scripts/verify-tokens.mjs",
     "verify:headers": "node scripts/verify-headers.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run verify:tokens && npm run verify:headers && npm run build",
-    "rules:test": "firebase emulators:exec --only firestore --project nieuwbouwplanner-rules-test \"vitest run firebase/rules.test.ts\""
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run verify:tokens && npm run verify:headers && npm run build",
+    "rules:test": "firebase emulators:exec --only firestore --project nieuwbouwplanner-rules-test \"vitest run --config vitest.rules.config.ts\""
   },
   "overrides": {
     "brace-expansion": "^5.0.8",

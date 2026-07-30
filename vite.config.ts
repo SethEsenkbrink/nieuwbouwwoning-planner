@@ -55,12 +55,10 @@ function stripCspInDev(): Plugin {
       // De teruggegeven functie draait ná de interne middlewares, dus nadat de
       // Netlify-middleware de header heeft gezet.
       return () => {
-        server.middlewares.use(
-          (_req: IncomingMessage, res: ServerResponse, next: () => void) => {
-            res.removeHeader("Content-Security-Policy");
-            next();
-          },
-        );
+        server.middlewares.use((_req: IncomingMessage, res: ServerResponse, next: () => void) => {
+          res.removeHeader("Content-Security-Policy");
+          next();
+        });
       };
     },
   };
@@ -107,6 +105,9 @@ export default defineConfig({
 
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "firebase/**/*.test.ts", "scripts/**/*.test.mjs"],
+    // Bewust zónder firebase/**: die tests hebben een draaiende Firestore-
+    // emulator nodig (en dus JDK 21+). Ze zitten in `npm run rules:test` met een
+    // eigen config, zodat `npm run test` overal werkt — ook in CI zonder Java.
+    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
   },
 });
