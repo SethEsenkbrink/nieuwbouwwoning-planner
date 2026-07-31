@@ -8,9 +8,24 @@ import type {
   Betrokkene,
   BetrokkeneCategorie,
   Communicatieregel,
+  FaseStatus,
+  FaseType,
   Garantiewaarborg,
+  Gebrek,
+  GebrekStatus,
+  MeerwerkItem,
+  MeerwerkSluiting,
+  MeerwerkStatus,
+  Nabudgetpost,
+  NabudgetStatus,
   OpleverStatus,
+  OpschortingStatus,
+  Phase,
   Project,
+  TaakBron,
+  TaakStatus,
+  Task,
+  Termijn,
   WaardenBron,
 } from "@/types/model";
 
@@ -53,12 +68,24 @@ export type ProjectData = MetDatums<Project>;
 export type AnkerData = MetDatums<Anker>;
 export type BetrokkeneData = MetDatums<Betrokkene>;
 export type AfspraakData = MetDatums<Afspraak>;
+export type FaseData = MetDatums<Phase>;
+export type TaakData = MetDatums<Task>;
+export type MeerwerkData = MetDatums<MeerwerkItem>;
+export type TermijnData = MetDatums<Termijn>;
+export type GebrekData = MetDatums<Gebrek>;
+export type NabudgetData = MetDatums<Nabudgetpost>;
 
 /** Zoals hierboven, plus het Firestore-id dat pas bij het lezen bekend is. */
 export type ProjectMetId = ProjectData & { id: string };
 export type AnkerMetId = AnkerData & { id: string };
 export type BetrokkeneMetId = BetrokkeneData & { id: string };
 export type AfspraakMetId = AfspraakData & { id: string };
+export type FaseMetId = FaseData & { id: string };
+export type TaakMetId = TaakData & { id: string };
+export type MeerwerkMetId = MeerwerkData & { id: string };
+export type TermijnMetId = TermijnData & { id: string };
+export type GebrekMetId = GebrekData & { id: string };
+export type NabudgetMetId = NabudgetData & { id: string };
 
 // ── Hulpjes ────────────────────────────────────────────────────────────────
 
@@ -163,6 +190,40 @@ const AFSPRAAKSTATUSSEN = [
   "afgerond",
   "vervallen",
 ] as const satisfies readonly AfspraakStatus[];
+const FASETYPES = [
+  "koop",
+  "notaris",
+  "financiering",
+  "bouw",
+  "oplevering",
+  "onderhoud",
+  "garantie",
+] as const satisfies readonly FaseType[];
+const FASESTATUSSEN = ["open", "bezig", "klaar"] as const satisfies readonly FaseStatus[];
+const TAAKSTATUSSEN = ["open", "klaar"] as const satisfies readonly TaakStatus[];
+const TAAKBRONNEN = ["handmatig", "geparsed"] as const satisfies readonly TaakBron[];
+const MEERWERKSTATUSSEN = [
+  "overweeg",
+  "besteld",
+  "bevestigd",
+] as const satisfies readonly MeerwerkStatus[];
+const OPSCHORTINGSTATUSSEN = [
+  "onbekend",
+  "niet_gebruikt",
+  "in_depot",
+  "vrijgegeven",
+] as const satisfies readonly OpschortingStatus[];
+const GEBREKSTATUSSEN = ["open", "hersteld"] as const satisfies readonly GebrekStatus[];
+const NABUDGETSTATUSSEN = [
+  "geraamd",
+  "besteld",
+  "betaald",
+] as const satisfies readonly NabudgetStatus[];
+const MEERWERKSLUITINGEN = [
+  "vaste_datum",
+  "bouwmoment",
+  "onbekend",
+] as const satisfies readonly MeerwerkSluiting[];
 
 /**
  * De acht ankertypes, ook bruikbaar in de UI voor een keuzelijst.
@@ -190,6 +251,9 @@ export function projectNaarFirestore(project: Partial<ProjectData>): DocumentDat
     opleverLaatst: naarTimestamp(project.opleverLaatst),
     opleverBron: project.opleverBron,
     opleverBronDatum: naarTimestamp(project.opleverBronDatum),
+    opschortingStatus: project.opschortingStatus,
+    opschortingBedrag: project.opschortingBedrag,
+    opschortingNotitie: project.opschortingNotitie,
     aangemaaktOp: naarTimestamp(project.aangemaaktOp),
     bijgewerktOp: naarTimestamp(project.bijgewerktOp),
   });
@@ -211,6 +275,9 @@ export function projectUitFirestore(id: string, data: DocumentData): ProjectMetI
     ...optioneel("opleverLaatst", leesDatum(data.opleverLaatst)),
     ...optioneel("opleverBron", leesString(data.opleverBron)),
     ...optioneel("opleverBronDatum", leesDatum(data.opleverBronDatum)),
+    ...optioneel("opschortingStatus", leesEnum(data.opschortingStatus, OPSCHORTINGSTATUSSEN)),
+    ...optioneel("opschortingBedrag", leesGetal(data.opschortingBedrag)),
+    ...optioneel("opschortingNotitie", leesString(data.opschortingNotitie)),
     aangemaaktOp: leesDatum(data.aangemaaktOp) ?? new Date(0),
     ...optioneel("bijgewerktOp", leesDatum(data.bijgewerktOp)),
   };
@@ -314,6 +381,171 @@ export function afspraakUitFirestore(id: string, data: DocumentData): AfspraakMe
     ...optioneel("gecommuniceerdeDatum", leesDatum(data.gecommuniceerdeDatum)),
     ...optioneel("gecommuniceerdOp", leesDatum(data.gecommuniceerdOp)),
     ...optioneel("waarschuwing", leesString(data.waarschuwing)),
+    ...optioneel("notitie", leesString(data.notitie)),
+  };
+}
+
+// ── Fase ───────────────────────────────────────────────────────────────────
+
+export function faseNaarFirestore(fase: Partial<FaseData>): DocumentData {
+  return zonderLegeVelden({
+    type: fase.type,
+    titel: fase.titel,
+    status: fase.status,
+    streefdatum: naarTimestamp(fase.streefdatum),
+    volgorde: fase.volgorde,
+  });
+}
+
+export function faseUitFirestore(id: string, data: DocumentData): FaseMetId {
+  return {
+    id,
+    type: leesEnum(data.type, FASETYPES) ?? "bouw",
+    titel: leesString(data.titel) ?? "Naamloze fase",
+    status: leesEnum(data.status, FASESTATUSSEN) ?? "open",
+    ...optioneel("streefdatum", leesDatum(data.streefdatum)),
+    ...optioneel("volgorde", leesGetal(data.volgorde)),
+  };
+}
+
+// ── Taak ───────────────────────────────────────────────────────────────────
+
+export function taakNaarFirestore(taak: Partial<TaakData>): DocumentData {
+  return zonderLegeVelden({
+    titel: taak.titel,
+    deadline: naarTimestamp(taak.deadline),
+    phaseId: taak.phaseId,
+    status: taak.status,
+    bron: taak.bron,
+    notitie: taak.notitie,
+  });
+}
+
+export function taakUitFirestore(id: string, data: DocumentData): TaakMetId {
+  return {
+    id,
+    titel: leesString(data.titel) ?? "Naamloze taak",
+    status: leesEnum(data.status, TAAKSTATUSSEN) ?? "open",
+    // Terugval op "handmatig": een taak waarvan de herkomst onduidelijk is,
+    // presenteren als uit een contract geparsed zou meer zekerheid suggereren
+    // dan er is.
+    bron: leesEnum(data.bron, TAAKBRONNEN) ?? "handmatig",
+    ...optioneel("deadline", leesDatum(data.deadline)),
+    ...optioneel("phaseId", leesString(data.phaseId)),
+    ...optioneel("notitie", leesString(data.notitie)),
+  };
+}
+
+// ── Meerwerk ───────────────────────────────────────────────────────────────
+
+export function meerwerkNaarFirestore(item: Partial<MeerwerkData>): DocumentData {
+  return zonderLegeVelden({
+    omschrijving: item.omschrijving,
+    bedrag: item.bedrag,
+    sluiting: item.sluiting,
+    sluitingsdatum: naarTimestamp(item.sluitingsdatum),
+    sluitingAnkerType: item.sluitingAnkerType,
+    sluitingOffsetDagen: item.sluitingOffsetDagen,
+    phaseId: item.phaseId,
+    status: item.status,
+    notitie: item.notitie,
+  });
+}
+
+export function meerwerkUitFirestore(id: string, data: DocumentData): MeerwerkMetId {
+  return {
+    id,
+    omschrijving: leesString(data.omschrijving) ?? "Naamloos meerwerk",
+    status: leesEnum(data.status, MEERWERKSTATUSSEN) ?? "overweeg",
+    // Terugval op "onbekend": een item zonder geldige sluitingssoort als vaste
+    // datum tonen zou een deadline suggereren die er niet is (ADR-0011).
+    sluiting: leesEnum(data.sluiting, MEERWERKSLUITINGEN) ?? "onbekend",
+    ...optioneel("bedrag", leesGetal(data.bedrag)),
+    ...optioneel("sluitingsdatum", leesDatum(data.sluitingsdatum)),
+    ...optioneel("sluitingAnkerType", leesEnum(data.sluitingAnkerType, ANKERTYPES)),
+    ...optioneel("sluitingOffsetDagen", leesGetal(data.sluitingOffsetDagen)),
+    ...optioneel("phaseId", leesString(data.phaseId)),
+    ...optioneel("notitie", leesString(data.notitie)),
+  };
+}
+
+// ── Termijn (bouwdepot) ────────────────────────────────────────────────────
+
+export function termijnNaarFirestore(termijn: Partial<TermijnData>): DocumentData {
+  return zonderLegeVelden({
+    omschrijving: termijn.omschrijving,
+    bedrag: termijn.bedrag,
+    gefactureerd: termijn.gefactureerd,
+    gefactureerdOp: naarTimestamp(termijn.gefactureerdOp),
+    gedeclareerdBijBank: termijn.gedeclareerdBijBank,
+    gedeclareerdOp: naarTimestamp(termijn.gedeclareerdOp),
+    betaald: termijn.betaald,
+    betaaldOp: naarTimestamp(termijn.betaaldOp),
+  });
+}
+
+export function termijnUitFirestore(id: string, data: DocumentData): TermijnMetId {
+  return {
+    id,
+    omschrijving: leesString(data.omschrijving) ?? "Naamloze termijn",
+    // Terugval op false: een ontbrekende boolean als "gedaan" lezen zou een
+    // openstaande declaratie laten verdwijnen uit het overzicht.
+    gefactureerd: data.gefactureerd === true,
+    gedeclareerdBijBank: data.gedeclareerdBijBank === true,
+    betaald: data.betaald === true,
+    ...optioneel("bedrag", leesGetal(data.bedrag)),
+    ...optioneel("gefactureerdOp", leesDatum(data.gefactureerdOp)),
+    ...optioneel("gedeclareerdOp", leesDatum(data.gedeclareerdOp)),
+    ...optioneel("betaaldOp", leesDatum(data.betaaldOp)),
+  };
+}
+
+// ── Gebrek (opleverpunt) ───────────────────────────────────────────────────
+
+export function gebrekNaarFirestore(gebrek: Partial<GebrekData>): DocumentData {
+  return zonderLegeVelden({
+    omschrijving: gebrek.omschrijving,
+    locatie: gebrek.locatie,
+    gemeldOp: naarTimestamp(gebrek.gemeldOp),
+    hersteltermijn: naarTimestamp(gebrek.hersteltermijn),
+    status: gebrek.status,
+  });
+}
+
+export function gebrekUitFirestore(id: string, data: DocumentData): GebrekMetId {
+  return {
+    id,
+    omschrijving: leesString(data.omschrijving) ?? "Naamloos opleverpunt",
+    // Terugval op "open": een gebrek waarvan de status onleesbaar is als
+    // hersteld tonen zou het uit beeld halen terwijl het er nog kan zijn.
+    status: leesEnum(data.status, GEBREKSTATUSSEN) ?? "open",
+    ...optioneel("locatie", leesString(data.locatie)),
+    ...optioneel("gemeldOp", leesDatum(data.gemeldOp)),
+    ...optioneel("hersteltermijn", leesDatum(data.hersteltermijn)),
+  };
+}
+
+// ── Nabudget (posten ná de oplevering) ─────────────────────────────────────
+
+export function nabudgetNaarFirestore(post: Partial<NabudgetData>): DocumentData {
+  return zonderLegeVelden({
+    omschrijving: post.omschrijving,
+    geraamd: post.geraamd,
+    werkelijk: post.werkelijk,
+    status: post.status,
+    notitie: post.notitie,
+  });
+}
+
+export function nabudgetUitFirestore(id: string, data: DocumentData): NabudgetMetId {
+  return {
+    id,
+    omschrijving: leesString(data.omschrijving) ?? "Naamloze post",
+    // Terugval op "geraamd": een post als betaald tonen die het niet is, haalt
+    // hem uit het overzicht van wat er nog komt.
+    status: leesEnum(data.status, NABUDGETSTATUSSEN) ?? "geraamd",
+    ...optioneel("geraamd", leesGetal(data.geraamd)),
+    ...optioneel("werkelijk", leesGetal(data.werkelijk)),
     ...optioneel("notitie", leesString(data.notitie)),
   };
 }

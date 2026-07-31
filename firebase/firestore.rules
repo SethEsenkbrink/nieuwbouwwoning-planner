@@ -94,6 +94,16 @@ service cloud.firestore {
               'sleuteloverdracht', 'einde_onderhoudstermijn'];
     }
 
+    // Het 5%-opschortingsrecht (ADR-0012). Alleen de keuze en het bedrag; de
+    // uiterste datum wordt afgeleid en dus niet opgeslagen.
+    function geldigeOpschorting(data) {
+      return (!('opschortingStatus' in data) || data.opschortingStatus == null
+              || isOneOf(data.opschortingStatus,
+                         ['onbekend', 'niet_gebruikt', 'in_depot', 'vrijgegeven']))
+        && optionalNumber(data, 'opschortingBedrag')
+        && optionalString(data, 'opschortingNotitie', 2000);
+    }
+
     // De opleverdatum als band met een staat (ADR-0008, principe 1). Alle
     // velden zijn optioneel: een project mag bestaan voordat er ook maar één
     // datum bekend is. Wat er staat, moet wel kloppen.
@@ -139,6 +149,7 @@ service cloud.firestore {
                          ['woningborg', 'swk', 'geen', 'anders']))
           && optionalNumber(request.resource.data, 'koopsom')
           && optionalNumber(request.resource.data, 'meerwerkbudget')
+          && geldigeOpschorting(request.resource.data)
           && geldigeOpleverband(request.resource.data)
           && request.resource.data.aangemaaktOp == request.time;
 
@@ -154,6 +165,7 @@ service cloud.firestore {
                          ['woningborg', 'swk', 'geen', 'anders']))
           && optionalNumber(request.resource.data, 'koopsom')
           && optionalNumber(request.resource.data, 'meerwerkbudget')
+          && geldigeOpschorting(request.resource.data)
           && geldigeOpleverband(request.resource.data)
           // aangemaaktOp is onveranderlijk.
           && request.resource.data.aangemaaktOp == resource.data.aangemaaktOp;
@@ -277,6 +289,17 @@ service cloud.firestore {
 
         // ── meerwerk/{itemId} ────────────────────────────────────────────
 
+        // ── meerwerk/{itemId} ────────────────────────────────────────────
+        // De deadline kent drie vormen (ADR-0011). `sluiting` zegt welke, en
+        // is verplicht: uit "welk veld is ingevuld" afleiden zou betekenen dat
+        // een achtergebleven ankerveld stilzwijgend het gedrag bepaalt.
+        //
+        // De bijbehorende velden zijn allemaal optioneel gevalideerd in plaats
+        // van voorwaardelijk verplicht. Reden: je noteert een meerwerkwens vaak
+        // vóórdat je de datum kent, en een rule die dan al een datum eist maakt
+        // het onmogelijk om iets alvast op te schrijven. Wat er staat moet
+        // kloppen; het hoeft er nog niet te staan.
+
         match /meerwerk/{itemId} {
           allow get, list, delete: if isOwner(uid);
           allow create, update: if isOwner(uid)
@@ -285,9 +308,15 @@ service cloud.firestore {
             && request.resource.data.omschrijving.size() > 0
             && isOneOf(request.resource.data.status,
                        ['overweeg', 'besteld', 'bevestigd'])
+            && isOneOf(request.resource.data.sluiting,
+                       ['vaste_datum', 'bouwmoment', 'onbekend'])
             && optionalNumber(request.resource.data, 'bedrag')
             && optionalTimestamp(request.resource.data, 'sluitingsdatum')
-            && optionalString(request.resource.data, 'phaseId', 64);
+            && (!('sluitingAnkerType' in request.resource.data)
+                || isOneOf(request.resource.data.sluitingAnkerType, ankerTypes()))
+            && optionalInt(request.resource.data, 'sluitingOffsetDagen', -3650, 3650)
+            && optionalString(request.resource.data, 'phaseId', 64)
+            && optionalString(request.resource.data, 'notitie', 2000);
         }
 
 
@@ -310,6 +339,24 @@ service cloud.firestore {
 
 
         // ── gebreken/{defectId} — oplevering ─────────────────────────────
+
+        // ── nabudget/{postId} ────────────────────────────────────────────
+        // Wat er ná de oplevering nog komt: vloer, gordijnen, tuin, oprit.
+        // Twee bedragen naast elkaar — wat je dacht en wat het werd. Dat
+        // verschil is waar het overzicht om draait.
+
+        match /nabudget/{postId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.omschrijving, 300)
+            && request.resource.data.omschrijving.size() > 0
+            && isOneOf(request.resource.data.status, ['geraamd', 'besteld', 'betaald'])
+            && optionalNumber(request.resource.data, 'geraamd')
+            && optionalNumber(request.resource.data, 'werkelijk')
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
+
 
         match /gebreken/{defectId} {
           allow get, list, delete: if isOwner(uid);

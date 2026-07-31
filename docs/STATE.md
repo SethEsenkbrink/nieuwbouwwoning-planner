@@ -1,165 +1,141 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-07-30 · sessie 04
+> **Bijgewerkt:** 2026-07-31 · sessie 05
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
-> Geen geschiedenis hier — die staat in `sessions/`. Houd dit onder één scherm.
+> Geen geschiedenis hier — die staat in `sessions/`. Houd dit kort.
 
 ---
 
-## Waar staan we
+## In één alinea
 
-**De app werkt end-to-end.** De wizard is in de browser doorlopen tegen de
-Firestore-emulator: project aangemaakt, opleverdatum als band ingevuld, en **17 partijen met
-19 afspraken** in één batch weggeschreven. Het dashboard toont de opleverband met zijn staat
-en bron; `/betrokkenen` toont alle partijen met het label _voorstel — controleer bij je
-leverancier_.
+De app is functioneel compleet voor het hele bouwtraject: van koop tot en met de garantie­
+termijnen. Blokken **A t/m D uit het bouwplan zijn af**, inclusief de navigatie-herindeling.
+Wat nog komt is **blok E — het woningdossier** (ADR-0010), plus live gaan (bewust uitgesteld)
+en de documentparser. Alles is lokaal getest tegen de emulator; er staat nog niets in
+productie.
 
-Alle writes kwamen zonder aanpassing langs de security-rules. `npm run verify` is groen:
-typecheck, lint, **60 unit tests**, tokenpariteit, headers en build. De 53 rules-tests zijn
-apart groen en de rules staan live.
+## De kernlus, in één zin
 
-Wat er nog niet is: **de actielijst**. `bouwActielijst()` is af en getest, maar er is nog
-geen scherm dat hem toont. Dat is de volgende stap, en het punt waar de feature zich moet
-bewijzen.
+Een bouwmoment verschuiven laat alle afspraken die eraan hangen meeschuiven, waarna iedereen
+met een verouderde datum op de actielijst komt, gesorteerd op wat er kapotgaat als je niets
+doet — met een kant-en-klaar bericht en een knop die vastlegt dat je het hebt doorgegeven.
 
-## Klaar
+## Wat er staat
 
-- Alles uit sessie 01 en 02 (fundament, Firebase live, auth-flow, huisstijl, security)
-- **`src/types/model.ts`**: `Anker`, `Betrokkene`, `Afspraak`, `AnkerType` (8 bouwmomenten),
-  plus de opleverdatum als band met staat op `Project`
-- **`firebase/firestore.rules`**: `ankers`, `betrokkenen`, `afspraken` met dezelfde
-  striktheid als de bestaande collecties (enum-whitelists, int-bereiken, lengtelimieten).
-  Projectlimiet van 20 naar 25 velden omdat de opleverband er zes bij deed
-- **`firebase/rules.test.ts`**: 34 tests erbij (was 19, nu 53) voor de nieuwe collecties en
-  de opleverband. **53/53 groen** en de rules zijn gedeployed — wat live staat is nu de
-  geteste versie
-- **Bug gevonden en gefixt: de size-limiet in de rules deed niets.**
-  `request.resource.size()` telt de eigenschappen van het Resource-object, niet de velden
-  van het document — daarvoor moet je `request.resource.data.size()` gebruiken. De check
-  stond er sinds sessie 01 en heeft nooit iets geweigerd. Gevonden op het moment dat de
-  rules-tests voor het eerst draaiden
-- **`src/data/betrokkenen-standaard.ts`**: 38 standaardpartijen met afspraken, ankers,
-  offsets en de zes waarschuwingsteksten uit de standaardlijst
-- **`src/lib/planning.ts`** + **`planning.test.ts`**: `berekenDatum`, `bepaalUrgentie`,
-  `bouwActielijst`, `laatsteGratisSchuifdatum` — puur, zonder Firestore, 37 tests groen
-- **ADR-0009**: zekerheid en herkomst als expliciete velden
-- `npm run test` toegevoegd aan `npm run verify`; rules-tests afgesplitst naar
-  `vitest.rules.config.ts` zodat `verify` ook zonder Java draait
+| Scherm | Doet |
+| --- | --- |
+| `/` Dashboard | De actielijst met urgentie, zekerheid, concept-bericht en doorgegeven-knop. Daaronder: oplevering, bouwmomenten, geld, betrokkenen |
+| `/tijdlijn` | Zeven fases met status, streefdatum, aandachtspunten en eigen taken |
+| `/ankers` | De zeven bouwmomenten met datum, hardheid en bron, plus een wat-als vóór het opslaan |
+| `/afspraken` | Per betrokkene: bouwmoment + dagen ervóór/erna, met live voorbeeld van de datum |
+| `/betrokkenen` | Partijen met aanlooptijd, annuleertermijn, communicatieregel en contactgegevens |
+| `/meerwerk` | Sluitingsdatums in drie vormen (ADR-0011) en het budget ertegenaan |
+| `/bouwdepot` | Termijnen: gefactureerd → gedeclareerd → betaald, met wat jíj nog moet indienen |
+| `/oplevering` | Opleverpunten, het 5%-depot en vier garantieklokken |
+| `/na-oplevering` | Vloer, gordijnen, tuin: geraamd naast werkelijk |
+| `/project` | Opleverdatum, projectgegevens en het project verwijderen |
 
-### Sessie 04 — de laag ertussen en de eerste schermen
+**Blok A** kernlus afmaken · **B** technische schuld (B4 live gaan uitgesteld) ·
+**C** bouwtraject compleet · **D** oplevering en garantie — alle vier af. Details per punt
+staan in `2026-07-31-bouwplan-en-backlog.md`.
 
-- **`src/lib/converters.ts`**: de enige plek waar `Timestamp` en `Date` elkaar raken.
-  Leest defensief: onbekende enum-waarden worden `undefined` in plaats van doorgegeven
-- **`src/lib/betrokkenen.ts`**: `bepaalWaardenBron`, puur en met tests. Staat bewust níét in
-  `projecten.ts`, want dat bestand laadt de Firebase-SDK en is daardoor niet testbaar
-- **`src/lib/projecten.ts`**: alle Firestore-toegang. Componenten praten hier tegenaan en
-  nooit rechtstreeks met de SDK
-- **Wizard** op `/project/nieuw`: projectgegevens → opleverdatum → betrokkenen aanvinken.
-  Hervatbaar: het project wordt na stap 1 aangemaakt en de wizard springt bij het openen
-  naar de eerste onafgeronde stap
-- **`/betrokkenen`**: overzicht per categorie, termijnen aanpasbaar, met het
-  voorstel-label zolang `waardenBron` op `"voorstel"` staat
-- **Dashboard**: opleverband met staat en bron, aantal partijen en afspraken
-- Nieuwe componenten: `Keuzeveld`, `Datumveld`, `Stapindicator`; navigatie in `AppShell`
-- **`src/lib/datum.ts`**: `toonDatum`, `alsInvoerwaarde`, `uitInvoerwaarde` — alles in UTC,
-  op één plek. Stond eerst in `Datumveld.tsx`, maar een bestand dat naast componenten ook
-  functies exporteert breekt Fast Refresh
-- **De hele keten is in de browser getest** tegen de emulator: 17 partijen, 19 afspraken,
-  alle writes langs de rules zonder aanpassing
+## Cijfers
 
-## Twee conventies die in deze sessie zijn vastgelegd
-
-1. **Aanlooptijd en annuleertermijn staan op de betrokkene, één paar per partij.** Heeft een
-   partij meerdere afspraken met verschillende termijnen (keuken: inmeten 14 dagen, levering
-   70), dan staat de langste in de bibliotheek. Gevolg: het inmeten wordt eerder als urgent
-   gemarkeerd dan strikt nodig. Bewuste ruil — te vroeg waarschuwen kost aandacht, te laat
-   kost een afspraak.
-2. **Bij een range in de standaardlijst wordt de bovenkant genomen.** "56–70 dagen" wordt 70.
+| | |
+| --- | --- |
+| Unit tests | **220** in 14 bestanden, geen emulator nodig |
+| Rules-tests | **79**, apart met `npm run rules:test` |
+| ADR's | 12, met index in `decisions/README.md` |
+| Verify-scripts | tokens · headers · rules-pariteit (19 enums, 81 waarden) |
 
 ## Direct volgende stap
 
-**Ankers, dan de actielijst.** In deze volgorde, want zonder ankers is de actielijst overal
-"teruggevallen" en dus niet overtuigend.
-
-1. **Ankerscherm** (`/ankers` of op het dashboard). De acht bouwmomenten uit `AnkerType`, elk
-   met een datum en een status (verwacht / bevestigd / gepasseerd) en een bronveld.
-   `haalAnkers`, `voegAnkerToe` en `werkAnkerBij` staan al klaar in `projecten.ts`; er is
-   alleen nog geen UI. Niet elk anker hoeft ingevuld — een leeg anker telt gewoon niet mee.
-2. **Actielijst op het dashboard**: `bouwActielijst()` renderen, gesorteerd op urgentie, met
-   per regel de reden, de zekerheid van de berekening (bij `teruggevallen` expliciet melden
-   wélk anker ontbreekt) en een **"doorgegeven"-knop**. Die knop is essentieel: zonder dat de
-   gebruiker hem indrukt lopen berekend en gecommuniceerd niet gelijk en wordt de lijst ruis
-   (ADR-0008). Hij schrijft `gecommuniceerdeDatum` + `gecommuniceerdOp` via
-   `werkAfspraakBij`.
-3. **Anker verschuiven** → de lijst herberekent, met een diff ten opzichte van de vorige
-   versie.
-
-Punt 2 is waar de feature zich bewijst. Bouw hem vroeg, ook lelijk.
-
-**Praktisch bij het starten:** `.env.local` staat nu op `VITE_USE_FIREBASE_EMULATOR=true`.
-Laat dat staan zolang je bouwt — de emulator geeft bruikbare foutmeldingen en je vervuilt je
-productiedata niet. Terugzetten op `false` als je tegen het echte project wilt werken.
-Emulator starten: `firebase emulators:start --only firestore,auth` in een tweede terminal.
+1. **`npm run verify` en `npm run rules:test` draaien.** De navigatie is nieuw en er zijn
+   11 unit tests bijgekomen; verder is er sinds de laatste groene run niets aan de rules
+   veranderd.
+2. **Blok E — het woningdossier** (ADR-0010). In deze volgorde:
+   - `woningStatus` op het project (`in_aanbouw` / `opgeleverd`) + woningpaspoort
+   - onderdelenregister: merk, type, serienummer, installatiedatum, garantie, `documentUrl`
+   - onderhoudsschema met `intervalDagen` + `laatstUitgevoerdOp` — de enige echte
+     modeluitbreiding, want onderhoud herhaalt zich en bouwafspraken niet
+   - terugkerende controles, logboek, meterstanden
+3. Daarna: de documentparser (C5), live gaan (B4/F1) en de rest van blok F.
 
 ## Open vragen / wacht op Seth
 
-- **Aanlooptijden valideren.** De 38 startwaarden zijn schattingen. Heeft Seth concrete
-  cijfers van keuken, vloer, waterontharder of busverhuur, dan vervangen die de gok. Kan nu
-  rechtstreeks in de app op `/betrokkenen`; het voorstel-label verdwijnt vanzelf.
-- **Welke ankerpunten kent zijn project?** Bij het testen bleek de opleverdatum voorlopig het
-  enige bekende moment. Weet hij inmiddels wanneer de dekvloer wordt gestort of de ruwbouw
-  gereed is, dan wordt de actielijst meteen een stuk scherper.
-- **Netlify koppelen aan de repo** + de vier `VITE_FIREBASE_*` env vars + het
-  Netlify-domein toevoegen aan Firebase Authorized domains.
-- **CSP-melding verifiëren op de deploy preview** (`blocks the use of 'eval'`).
-- **Overweging:** een `verify:rules`-script naar het model van `verify:tokens`, dat
-  controleert of de enum-waarden in `firestore.rules` gelijk lopen met `model.ts`. De acht
-  ankertypes staan nu op drie plekken (model, rules, standaardlijst) en kunnen stil uit
-  elkaar lopen.
+- **Aanlooptijden valideren.** De 38 startwaarden zijn schattingen; echte cijfers van keuken,
+  vloer of busverhuur vervangen de gok. Kan op `/betrokkenen`, waarna het voorstel-label
+  vanzelf verdwijnt.
+- **Welke bouwmomenten kent het project echt?** Nu gevuld met testdata.
+- **Onderdelen voor blok E.** Welke installaties zitten er in de woning (warmtepomp of
+  cv-ketel, WTW, zonnepanelen, waterontharder), zodat de standaardbibliotheek daarop aansluit?
+- **Mailprovider** voor de herinneringen uit blok E. Krijgt een eigen ADR.
 
 ## Bekende valkuilen
 
-- **Java staat niet vanzelf op de PATH na `winget install`.** De emulator vindt hem dan niet,
-  ook al draaide hij eerder wél. `JAVA_HOME` en `...\bin` staan nu als user-variabele op
-  `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot`. Na een wijziging aan de PATH
-  moet de IDE opnieuw starten — een nieuw terminal-tabje erft de oude omgeving.
-- **Zet geen state synchroon in een effect-body.** ESLint blokkeert het (`set-state-in-effect`)
-  en het veroorzaakt een extra renderronde. Patroon: effect met een async IIFE die begint met
-  een `await`, en herladen via een teller in de dependency-array.
-- **Een bestand dat naast componenten ook functies exporteert breekt Fast Refresh.**
-  Hulpfuncties horen in `src/lib/`, niet naast een component.
-- **Wijzigen gaat via `updateDoc`, nooit via `setDoc` zonder merge.** De rules eisen dat
-  `aangemaaktOp` onveranderd blijft; een volledige overschrijving wist dat veld en wordt
-  geweigerd — met een foutmelding die niets over de oorzaak zegt.
+**Wat een AI-sessie in de sandbox wél en níét kan draaien.** Vastgesteld op 31 juli, nadat
+`npm run verify` lokaal twee lintproblemen vond die de sessie als "schoon" had gemeld:
+
+| Commando | In de sandbox | Waarom |
+| --- | --- | --- |
+| `tsc --noEmit` | ✅ ~40 s | Past binnen de tijdslimiet per opdracht |
+| `eslint .` | ❌ **nooit** | Duurt >40 s, ook op zes losse bestanden. Achtergrondprocessen worden afgekapt zodra de opdracht terugkeert, dus een leeg logbestand betekent *niet klaar*, niet *schoon* |
+| `vitest` / `vite build` | ❌ | `node_modules` bevat de Windows-binaries van rolldown |
+| Firestore-emulator | ❌ | Java 11 in plaats van de vereiste nieuwere JDK, en de emulator-JAR is geblokkeerd door de netwerk-allowlist |
+
+**Laat een sessie dus nooit "lint is groen" beweren.** Alleen `tsc` telt daar, en dan met een
+sentinel (`; echo "EXIT=$?" >> log`) zodat zichtbaar is dát het proces klaar is.
+
+**Wat de emulator niet dekt**, ook als je hem lokaal draait:
+
+- **Composite indexes worden niet afgedwongen.** Een query die lokaal werkt kan in productie
+  falen met "The query requires an index". Elke nieuwe `where` + `orderBy`-combinatie moet dus
+  ook in `firestore.indexes.json`.
+- **De productie-CSP en security headers gelden lokaal niet** (`stripCspInDev`). Alleen te
+  controleren op een deploy preview — inclusief de openstaande `eval`-melding.
+- **Netlify Functions draaien via `@netlify/vite-plugin`**, niet via de echte runtime.
+
+**Over de code:**
+
+- **Java staat niet vanzelf op de PATH na `winget install`.** `JAVA_HOME` en `...\bin` staan
+  als user-variabele op `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot`. Na een
+  PATH-wijziging moet de IDE opnieuw starten.
+- **Zet geen state synchroon in een effect-body** (`set-state-in-effect`). Patroon: effect met
+  een async IIFE, herladen via een teller in de dependency-array.
+- **Een bestand dat naast componenten ook waarden exporteert breekt Fast Refresh.** Types mogen
+  wel; constanten niet. Zie `src/lib/projectgegevens.ts` — die staat daar om die reden apart.
+- **Wijzigen gaat via `updateDoc`, behalve waar een veld gewist moet kunnen worden.**
+  `zonderLegeVelden()` strippt `undefined`, dus een `updateDoc` kan niets leegmaken. Waar dat
+  nodig is (ankers, afspraken, meerwerk, termijnen, gebreken, nabudget) gebruiken we `setDoc`
+  — dat mag omdat die documenten geen `aangemaaktOp` kennen. **Bij een volledige overschrijving
+  moet je velden die niet in het formulier staan expliciet meenemen**, zoals
+  `gecommuniceerdeDatum`.
 - **`aangemaaktOp` moet `serverTimestamp()` zijn bij het aanmaken.** De rules controleren
-  `== request.time`; een clientklok die een seconde afwijkt is al genoeg om te falen.
-- **Reken datums uit `<input type="date">` als UTC.** De string "2026-11-16" door
-  `new Date()` halen geeft UTC-middernacht, precies wat `planning.ts` verwacht. Lokale tijd
-  schuift in de zomer een dag op.
-- **In Firestore-rules is het `request.resource.data.size()`, niet
-  `request.resource.size()`.** Zonder `.data` tel je de eigenschappen van het
-  Resource-object en weigert de check nooit iets. Het compileert, alle overige tests
-  blijven groen, en je merkt het pas als je er expliciet op test. Ditzelfde geldt voor
-  `resource.data` bij updates.
-- **Rules die niet gedraaid zijn, zijn rules waarvan je hoopt dat ze werken.** Dat stond al
-  als comment boven `rules.test.ts` en bleek in sessie 03 letterlijk waar.
-- **Sla nooit een afspraakdatum op.** Alleen `ankerType` + `offsetDagen`. Enige
-  uitzondering is `gecommuniceerdeDatum`, en dat is een feit over de buitenwereld, geen
-  planning.
-- **`planning.ts` blijft puur.** Geen Firestore, geen React, en geen `new Date()` die niet
-  als parameter binnenkomt — anders zijn de tests niet meer betrouwbaar.
-- **Reken in UTC, niet in lokale tijd.** Zomertijd maakt dagen 23 of 25 uur lang; bij een
-  offset van 42 dagen kom je eind oktober een dag naast de waarheid uit. `opDag()` in
-  `planning.ts` vangt dit af, en er staat een test op.
-- **De productie-CSP mag niet in dev gelden.** Opgelost met `stripCspInDev` in
-  `vite.config.ts`. Test CSP-wijzigingen op een deploy preview, niet lokaal.
-- **HTTP-headers in `netlify.toml` mogen geen newlines bevatten.** `npm run verify:headers`
-  vangt dit af.
-- **`npm audit fix --force` niet gebruiken.** Downgradet `@netlify/vite-plugin` elf minor
-  versies. Meldingen zijn opgelost met `overrides` (ADR-0007).
-- **Nooit terugverhuizen naar Google Drive.** `node_modules` is 606 MB / 33.966 bestanden;
-  Drive houdt file handles open en veroorzaakt `EPERM`/`EBUSY`.
+  `== request.time`.
+- **Reken datums uit `<input type="date">` als UTC.** Lokale tijd schuift in de zomer een dag.
+- **Maandrekenen klemt op de laatste dag.** `setMonth` maakt van 31 augustus plus zes maanden
+  3 maart; `overMaanden()` in `lib/oplevering.ts` vangt dat af.
+- **In Firestore-rules is het `request.resource.data.size()`, niet `request.resource.size()`.**
+  Zonder `.data` weigert de check nooit iets en blijven alle andere tests groen.
+- **Rules die niet gedraaid zijn, zijn rules waarvan je hoopt dat ze werken.**
+- **Sla nooit een afspraakdatum op.** Alleen `ankerType` + `offsetDagen`. Zie
+  `decisions/README.md` voor de vier ADR's die deze regel vormen.
+- **`planning.ts` blijft puur.** Geen Firestore, geen React, geen `new Date()` die niet als
+  parameter binnenkomt.
+- **`npm audit fix --force` niet gebruiken.** Downgradet `@netlify/vite-plugin` elf versies.
+- **Nooit terugverhuizen naar Google Drive.** `node_modules` is 606 MB / 33.966 bestanden.
 - **Vite 8 draait op Rolldown.** `manualChunks` moet een _functie_ zijn.
 - **Importeer uit `react-router`, niet `react-router-dom`.**
 - **Firestore-emulator vereist JDK 21+**, en **single-field indexes horen niet in
   `firestore.indexes.json`**.
+
+## Bekende aandachtspunten voor later
+
+- **`firebase-*.js` is 566 kB (167 kB gzip)** en overschrijdt de waarschuwingsgrens van 500 kB.
+  Op te lossen met een dynamische import van Firestore; nu geen probleem.
+- **Sourcemaps worden meegebouwd** (~4,7 MB). Prima om te debuggen, maar vóór een publieke
+  deploy een bewuste keuze maken.
+- **`SOURCEMAP_BROKEN`-waarschuwing** van `@tailwindcss/vite`. Cosmetisch.
+- **Eén anker per type is afgevangen bij het lezen, niet structureel.** Een harde garantie zou
+  het document-id gelijkstellen aan het ankertype; dat is een migratie waard zodra er
+  productiedata is.

@@ -6,7 +6,15 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, serverTimestamp, collection, getDocs } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  serverTimestamp,
+  collection,
+  getDocs,
+  Timestamp,
+} from "firebase/firestore";
 
 /**
  * Security-rules tests.
@@ -663,5 +671,288 @@ describe("afspraken", () => {
   it("weigert dat Bob een afspraak in het project van Alice zet", async () => {
     const db = alsGebruiker(BOB);
     await assertFails(setDoc(doc(db, `users/${ALICE}/projects/p1/afspraken/af1`), geldigeAfspraak));
+  });
+});
+
+/**
+ * Meerwerk — de deadline kent drie vormen (ADR-0011). `sluiting` is verplicht
+ * en zegt welke; de bijbehorende velden zijn optioneel, want je noteert een
+ * wens vaak voordat je de datum kent.
+ */
+const geldigMeerwerk = {
+  omschrijving: "Extra wandcontactdozen woonkamer",
+  status: "overweeg",
+  sluiting: "vaste_datum",
+};
+
+describe("meerwerk", () => {
+  it("accepteert meerwerk met een vaste sluitingsdatum", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m1`), {
+        ...geldigMeerwerk,
+        bedrag: 850,
+        sluitingsdatum: Timestamp.fromDate(new Date("2026-09-15T00:00:00Z")),
+      }),
+    );
+  });
+
+  it("accepteert meerwerk dat aan een bouwmoment hangt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m2`), {
+        ...geldigMeerwerk,
+        sluiting: "bouwmoment",
+        sluitingAnkerType: "dekvloer_gestort",
+        sluitingOffsetDagen: -14,
+      }),
+    );
+  });
+
+  it("accepteert meerwerk zonder deadline", async () => {
+    // Een wens noteren voordat je weet tot wanneer het kan, moet kunnen.
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m3`), {
+        ...geldigMeerwerk,
+        sluiting: "onbekend",
+      }),
+    );
+  });
+
+  it("weigert meerwerk zonder sluiting-veld", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/meerwerk/m4`),
+        zonderVeld(geldigMeerwerk, "sluiting"),
+      ),
+    );
+  });
+
+  it("weigert een onbekende sluitingssoort", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m5`), {
+        ...geldigMeerwerk,
+        sluiting: "zodra_het_uitkomt",
+      }),
+    );
+  });
+
+  it("weigert een onbekend ankertype bij de sluiting", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m6`), {
+        ...geldigMeerwerk,
+        sluiting: "bouwmoment",
+        sluitingAnkerType: "tuin_aangelegd",
+      }),
+    );
+  });
+
+  it("weigert een offset buiten het bereik", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m7`), {
+        ...geldigMeerwerk,
+        sluiting: "bouwmoment",
+        sluitingAnkerType: "dekvloer_gestort",
+        sluitingOffsetDagen: 99999,
+      }),
+    );
+  });
+
+  it("weigert een sluitingsdatum die geen timestamp is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m8`), {
+        ...geldigMeerwerk,
+        sluitingsdatum: "15 september",
+      }),
+    );
+  });
+
+  it("weigert een onbekende meerwerkstatus", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m9`), {
+        ...geldigMeerwerk,
+        status: "misschien",
+      }),
+    );
+  });
+
+  it("weigert dat Bob meerwerk in het project van Alice zet", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meerwerk/m10`), geldigMeerwerk),
+    );
+  });
+});
+
+/**
+ * Het 5%-opschortingsrecht (ADR-0012). Alleen de keuze en het bedrag worden
+ * opgeslagen; de uiterste datum wordt afgeleid en hoort hier dus niet.
+ */
+describe("opschorting op project", () => {
+  const basis = { naam: "Ons huis", aangemaaktOp: serverTimestamp() };
+
+  it("accepteert een project met een opschortingskeuze", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1`), {
+        ...basis,
+        opschortingStatus: "in_depot",
+        opschortingBedrag: 9500,
+        opschortingNotitie: "Depot bij notaris Jansen",
+      }),
+    );
+  });
+
+  it("accepteert een project zonder opschortingsvelden", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(setDoc(doc(db, `users/${ALICE}/projects/p2`), basis));
+  });
+
+  it("weigert een onbekende opschortingsstatus", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p3`), {
+        ...basis,
+        opschortingStatus: "misschien_wel",
+      }),
+    );
+  });
+
+  it("weigert een negatief bedrag", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p4`), { ...basis, opschortingBedrag: -100 }),
+    );
+  });
+});
+
+/**
+ * Gebreken zijn opleverpunten: ze hebben een locatie en een hersteltermijn die
+ * de aannemer moet halen. Ze staan bewust los van `tasks` (ADR-0012).
+ */
+const geldigGebrek = {
+  omschrijving: "Kras in het kozijn van slaapkamer 2",
+  status: "open",
+};
+
+describe("gebreken", () => {
+  it("accepteert een volledig opleverpunt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/gebreken/g1`), {
+        ...geldigGebrek,
+        locatie: "slaapkamer 2, kozijn noordzijde",
+        gemeldOp: Timestamp.fromDate(new Date("2026-11-16T00:00:00Z")),
+        hersteltermijn: Timestamp.fromDate(new Date("2026-12-14T00:00:00Z")),
+      }),
+    );
+  });
+
+  it("accepteert een opleverpunt zonder datums", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(setDoc(doc(db, `users/${ALICE}/projects/p1/gebreken/g2`), geldigGebrek));
+  });
+
+  it("weigert een opleverpunt zonder omschrijving", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/gebreken/g3`),
+        zonderVeld(geldigGebrek, "omschrijving"),
+      ),
+    );
+  });
+
+  it("weigert een onbekende gebrekstatus", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/gebreken/g4`), {
+        ...geldigGebrek,
+        status: "half_gemaakt",
+      }),
+    );
+  });
+
+  it("weigert een hersteltermijn die geen timestamp is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/gebreken/g5`), {
+        ...geldigGebrek,
+        hersteltermijn: "over twee weken",
+      }),
+    );
+  });
+
+  it("weigert dat Bob een opleverpunt bij Alice zet", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(setDoc(doc(db, `users/${ALICE}/projects/p1/gebreken/g6`), geldigGebrek));
+  });
+});
+
+/**
+ * Posten ná de oplevering: vloer, gordijnen, tuin. Twee bedragen naast elkaar —
+ * geraamd en werkelijk — want het verschil is waar het overzicht om draait.
+ */
+const geldigePost = { omschrijving: "Tuinaanleg", status: "geraamd" };
+
+describe("nabudget", () => {
+  it("accepteert een post met beide bedragen", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/nabudget/n1`), {
+        ...geldigePost,
+        geraamd: 6000,
+        werkelijk: 7250,
+        status: "betaald",
+        notitie: "Inclusief bestrating achterom",
+      }),
+    );
+  });
+
+  it("accepteert een post zonder bedragen", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(setDoc(doc(db, `users/${ALICE}/projects/p1/nabudget/n2`), geldigePost));
+  });
+
+  it("weigert een post zonder omschrijving", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/nabudget/n3`),
+        zonderVeld(geldigePost, "omschrijving"),
+      ),
+    );
+  });
+
+  it("weigert een onbekende status", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/nabudget/n4`), {
+        ...geldigePost,
+        status: "ooit_misschien",
+      }),
+    );
+  });
+
+  it("weigert een negatief bedrag", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/nabudget/n5`), {
+        ...geldigePost,
+        werkelijk: -50,
+      }),
+    );
+  });
+
+  it("weigert dat Bob een post bij Alice zet", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(setDoc(doc(db, `users/${ALICE}/projects/p1/nabudget/n6`), geldigePost));
   });
 });

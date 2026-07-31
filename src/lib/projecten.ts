@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -7,7 +8,9 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
+  where,
   writeBatch,
   type DocumentData,
 } from "firebase/firestore";
@@ -19,16 +22,40 @@ import {
   ankerUitFirestore,
   betrokkeneNaarFirestore,
   betrokkeneUitFirestore,
+  faseNaarFirestore,
+  faseUitFirestore,
+  gebrekNaarFirestore,
+  gebrekUitFirestore,
+  meerwerkNaarFirestore,
+  meerwerkUitFirestore,
+  nabudgetNaarFirestore,
+  nabudgetUitFirestore,
   projectNaarFirestore,
   projectUitFirestore,
+  taakNaarFirestore,
+  taakUitFirestore,
+  termijnNaarFirestore,
+  termijnUitFirestore,
   type AfspraakData,
   type AfspraakMetId,
   type AnkerData,
   type AnkerMetId,
   type BetrokkeneData,
   type BetrokkeneMetId,
+  type FaseData,
+  type FaseMetId,
+  type GebrekData,
+  type GebrekMetId,
+  type MeerwerkData,
+  type MeerwerkMetId,
+  type NabudgetData,
+  type NabudgetMetId,
   type ProjectData,
   type ProjectMetId,
+  type TaakData,
+  type TaakMetId,
+  type TermijnData,
+  type TermijnMetId,
 } from "@/lib/converters";
 import { bepaalWaardenBron } from "@/lib/betrokkenen";
 import { STANDAARD_BETROKKENEN, type StandaardBetrokkene } from "@/data/betrokkenen-standaard";
@@ -132,35 +159,146 @@ export async function werkProjectBij(
   });
 }
 
-// ── Ankers ─────────────────────────────────────────────────────────────────
+/**
+ * Alle subcollecties onder een project. Komt er een collectie bij, dan hoort hij
+ * hier ook bij — anders blijft er data achter die nergens meer bereikbaar is.
+ */
+const SUBCOLLECTIES = [
+  "ankers",
+  "betrokkenen",
+  "afspraken",
+  "phases",
+  "tasks",
+  "meerwerk",
+  "termijnen",
+  "gebreken",
+  "nabudget",
+] as const;
 
-export async function haalAnkers(uid: string, projectId: string): Promise<AnkerMetId[]> {
-  const resultaat = await getDocs(subPad(uid, projectId, "ankers"));
-  return resultaat.docs.map((d) => ankerUitFirestore(d.id, d.data()));
+/**
+ * Verwijdert een project en alles wat eronder hangt. Geeft terug hoeveel
+ * onderliggende documenten zijn opgeruimd.
+ *
+ * TWEE DINGEN OM TE WETEN
+ *
+ * 1. **Dit is niet atomair.** Firestore kent geen recursieve delete vanuit de
+ *    client; het gaat per collectie in batches. Valt de verbinding halverwege
+ *    weg, dan is een deel weg en een deel niet. Daarom gaat het projectdocument
+ *    als **laatste** — zolang dat er nog staat, vindt de app het project terug
+ *    en kan de gebruiker het opnieuw proberen. Andersom zou hij achterblijven
+ *    met onbereikbare data.
+ * 2. Een batch mag 500 bewerkingen. Met 38 partijen en hun afspraken zit je daar
+ *    ruim onder, maar de opdeling staat er zodat dat zo blijft.
+ */
+export async function verwijderProject(uid: string, projectId: string): Promise<number> {
+  let verwijderd = 0;
+
+  for (const naam of SUBCOLLECTIES) {
+    const resultaat = await getDocs(subPad(uid, projectId, naam));
+    for (let i = 0; i < resultaat.docs.length; i += 400) {
+      const groep = resultaat.docs.slice(i, i + 400);
+      const batch = writeBatch(db);
+      for (const d of groep) batch.delete(d.ref);
+      await batch.commit();
+      verwijderd += groep.length;
+    }
+  }
+
+  await deleteDoc(projectPad(uid, projectId));
+  return verwijderd;
 }
 
-export async function voegAnkerToe(
+// ── Ankers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Alle bouwmomenten, met hooguit één per type.
+ *
+ * Het model gaat uit van één anker per bouwmoment — `berekenDatum()` pakt de
+ * eerste die hij vindt. Structureel is dat niet afgedwongen: twee tabbladen die
+ * tegelijk hetzelfde anker aanmaken leveren twee documenten op, en dan rekent de
+ * app met het ene terwijl het scherm het andere bewerkt.
+ *
+ * Hier wordt dat afgevangen bij het lezen: de eerste wint, de rest wordt
+ * genegeerd. Zo is het gedrag in ieder geval overal hetzelfde. Een echte
+ * garantie zou het document-id gelijkstellen aan het ankertype; dat is een
+ * migratie waard zodra er productiedata is.
+ */
+export async function haalAnkers(uid: string, projectId: string): Promise<AnkerMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "ankers"));
+  const gezien = new Set<string>();
+  const ankers: AnkerMetId[] = [];
+
+  for (const d of resultaat.docs) {
+    const anker = ankerUitFirestore(d.id, d.data());
+    if (gezien.has(anker.type)) continue;
+    gezien.add(anker.type);
+    ankers.push(anker);
+  }
+
+  return ankers;
+}
+
+/**
+ * Schrijft een anker volledig weg: aanmaken als `ankerId` null is, anders
+ * overschrijven. Geeft het id terug.
+ *
+ * WAAROM HIER WÉL `setDoc` EN NIET `updateDoc`.
+ * `zonderLegeVelden()` gooit `undefined` eruit voordat Firestore het ziet — dat
+ * moet, want Firestore weigert `undefined`. Gevolg bij een `updateDoc`: een
+ * veld dat de gebruiker leegmaakt (de bron wissen) blijft gewoon staan, want er
+ * wordt niets over verstuurd. Een volledige overschrijving heeft dat probleem
+ * niet: wat niet meegestuurd wordt, is er daarna ook niet meer.
+ *
+ * Dat kan hier veilig, omdat het anker geen `aangemaaktOp` kent. Bij projecten
+ * mag dit juist níét — daar eist de rule dat `aangemaaktOp` onveranderd blijft,
+ * en die zou een overschrijving wissen.
+ */
+export async function zetAnker(
   uid: string,
   projectId: string,
+  ankerId: string | null,
   anker: AnkerData,
 ): Promise<string> {
-  const ref = doc(subPad(uid, projectId, "ankers"));
-  const batch = writeBatch(db);
-  batch.set(ref, ankerNaarFirestore(anker));
-  await batch.commit();
+  // Geen id meegekregen, maar er bestaat al een anker van dit type? Dan is dat
+  // het anker dat de gebruiker bedoelt. Zonder deze check ontstaat er een
+  // tweede document waar `haalAnkers()` vervolgens overheen leest — en dan
+  // bewerkt het scherm iets anders dan de rekenkern gebruikt.
+  const doel = ankerId ?? (await vindAnkerIdVanType(uid, projectId, anker.type));
+
+  const ref =
+    doel === null
+      ? doc(subPad(uid, projectId, "ankers"))
+      : doc(db, "users", uid, "projects", projectId, "ankers", doel);
+  await setDoc(ref, ankerNaarFirestore(anker));
   return ref.id;
 }
 
-export async function werkAnkerBij(
+async function vindAnkerIdVanType(
+  uid: string,
+  projectId: string,
+  type: AnkerData["type"],
+): Promise<string | null> {
+  const resultaat = await getDocs(
+    query(subPad(uid, projectId, "ankers"), where("type", "==", type), limit(1)),
+  );
+  return resultaat.docs[0]?.id ?? null;
+}
+
+/**
+ * Verwijdert een bouwmoment.
+ *
+ * Wordt gebruikt als de gebruiker de datum leegmaakt: een anker zonder datum
+ * telt in `berekenDatum()` toch niet mee, dus een leeg anker laten staan zou
+ * alleen maar suggereren dat er iets bekend is. De afspraken die eraan hingen
+ * blijven bestaan en vallen terug op de oplevering, met
+ * `zekerheid: "teruggevallen"` (ADR-0009).
+ */
+export async function verwijderAnker(
   uid: string,
   projectId: string,
   ankerId: string,
-  wijzigingen: Partial<AnkerData>,
 ): Promise<void> {
-  await updateDoc(
-    doc(db, "users", uid, "projects", projectId, "ankers", ankerId),
-    ankerNaarFirestore(wijzigingen),
-  );
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "ankers", ankerId));
 }
 
 // ── Betrokkenen ────────────────────────────────────────────────────────────
@@ -173,19 +311,63 @@ export async function haalBetrokkenen(uid: string, projectId: string): Promise<B
 }
 
 /**
- * Wijzigt een betrokkene en zet `waardenBron` mee op "eigen" zodra de
- * gebruiker een van de twee termijnen aanpast. Zie ADR-0009.
+ * Schrijft een betrokkene volledig weg: aanmaken als `bestaand` null is, anders
+ * overschrijven.
+ *
+ * `waardenBron` wordt hier bepaald en komt bewust niet uit het formulier — dat
+ * is de eis uit ADR-0009. Twee gevallen:
+ *
+ * - **Nieuw:** `"eigen"`. Iemand die zelf een partij toevoegt, tikt zijn eigen
+ *   termijnen in. Die als voorstel van de app labelen zou onzin zijn.
+ * - **Bestaand:** `bepaalWaardenBron()` beslist. Eenmaal "eigen" blijft "eigen".
  */
-export async function werkBetrokkeneBij(
+export async function zetBetrokkene(
   uid: string,
   projectId: string,
-  betrokkene: BetrokkeneMetId,
-  wijzigingen: Partial<BetrokkeneData>,
-): Promise<void> {
-  await updateDoc(doc(db, "users", uid, "projects", projectId, "betrokkenen", betrokkene.id), {
-    ...betrokkeneNaarFirestore(wijzigingen),
-    waardenBron: bepaalWaardenBron(betrokkene, wijzigingen),
+  bestaand: BetrokkeneMetId | null,
+  gegevens: Omit<BetrokkeneData, "waardenBron">,
+): Promise<string> {
+  const ref =
+    bestaand === null
+      ? doc(subPad(uid, projectId, "betrokkenen"))
+      : doc(db, "users", uid, "projects", projectId, "betrokkenen", bestaand.id);
+
+  await setDoc(ref, {
+    ...betrokkeneNaarFirestore(gegevens),
+    waardenBron: bestaand === null ? "eigen" : bepaalWaardenBron(bestaand, gegevens),
   });
+  return ref.id;
+}
+
+/**
+ * Verwijdert een betrokkene **en al zijn afspraken**, in één batch.
+ *
+ * De cascade is geen gemak maar een noodzaak. Een afspraak zonder betrokkene
+ * wordt door `bouwActielijst()` overgeslagen (die zoekt de partij op en gaat
+ * verder als hij hem niet vindt) en verschijnt op `/afspraken` evenmin, want
+ * daar staat alles per partij gegroepeerd. Het document zou dus blijven bestaan
+ * zonder dat het ergens te zien of te verwijderen is.
+ *
+ * Een batch is atomair: alle afspraken en de partij verdwijnen samen, of er
+ * verdwijnt niets. De limiet van 500 bewerkingen is hier geen risico.
+ */
+export async function verwijderBetrokkene(
+  uid: string,
+  projectId: string,
+  betrokkeneId: string,
+): Promise<number> {
+  const afspraken = await getDocs(
+    query(subPad(uid, projectId, "afspraken"), where("betrokkeneId", "==", betrokkeneId)),
+  );
+
+  const batch = writeBatch(db);
+  for (const afspraak of afspraken.docs) {
+    batch.delete(afspraak.ref);
+  }
+  batch.delete(doc(db, "users", uid, "projects", projectId, "betrokkenen", betrokkeneId));
+  await batch.commit();
+
+  return afspraken.size;
 }
 
 // ── Afspraken ──────────────────────────────────────────────────────────────
@@ -195,6 +377,14 @@ export async function haalAfspraken(uid: string, projectId: string): Promise<Afs
   return resultaat.docs.map((d) => afspraakUitFirestore(d.id, d.data()));
 }
 
+/**
+ * Wijzigt losse velden. Gebruik dit als je precies weet welke velden je aanraakt —
+ * bijvoorbeeld de doorgegeven-knop, die alleen `gecommuniceerdeDatum` schrijft.
+ *
+ * Wil je een veld léégmaken, dan werkt dit niet: `zonderLegeVelden()` haalt
+ * `undefined` eruit voordat Firestore het ziet, dus er wordt niets over
+ * verstuurd en de oude waarde blijft staan. Gebruik dan `zetAfspraak`.
+ */
 export async function werkAfspraakBij(
   uid: string,
   projectId: string,
@@ -205,6 +395,43 @@ export async function werkAfspraakBij(
     doc(db, "users", uid, "projects", projectId, "afspraken", afspraakId),
     afspraakNaarFirestore(wijzigingen),
   );
+}
+
+/**
+ * Schrijft een afspraak volledig weg: aanmaken als `afspraakId` null is, anders
+ * overschrijven. Nodig voor het bewerkformulier, waar een leeggemaakte
+ * waarschuwing of notitie ook echt weg moet.
+ *
+ * ⚠️ LET OP: DIT IS EEN VOLLEDIGE OVERSCHRIJVING.
+ * Wat je niet meestuurt, is daarna weg — inclusief `gecommuniceerdeDatum` en
+ * `gecommuniceerdOp`. Die twee dragen de kern van ADR-0008 (wat weet die partij
+ * nu), dus de aanroeper moet ze expliciet meenemen. In de praktijk: bouw het
+ * object op uit de bestaande afspraak plus je wijzigingen, niet uit alleen de
+ * formuliervelden.
+ *
+ * Dit mag hier omdat een afspraak geen `aangemaaktOp` kent. Bij projecten mag
+ * het niet: daar eist de rule dat dat veld onveranderd blijft.
+ */
+export async function zetAfspraak(
+  uid: string,
+  projectId: string,
+  afspraakId: string | null,
+  afspraak: AfspraakData,
+): Promise<string> {
+  const ref =
+    afspraakId === null
+      ? doc(subPad(uid, projectId, "afspraken"))
+      : doc(db, "users", uid, "projects", projectId, "afspraken", afspraakId);
+  await setDoc(ref, afspraakNaarFirestore(afspraak));
+  return ref.id;
+}
+
+export async function verwijderAfspraak(
+  uid: string,
+  projectId: string,
+  afspraakId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "afspraken", afspraakId));
 }
 
 // ── De standaardbibliotheek uitrollen ──────────────────────────────────────
@@ -270,4 +497,253 @@ export async function voegStandaardBetrokkenenToe(
 
   await batch.commit();
   return gekozen.length;
+}
+
+// ── Fases ──────────────────────────────────────────────────────────────────
+
+/**
+ * De zeven fases, chronologisch. Sorteren gebeurt op `volgorde`; een fase
+ * zonder dat veld belandt achteraan in plaats van willekeurig ertussen.
+ */
+export async function haalFases(uid: string, projectId: string): Promise<FaseMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "phases"));
+  return resultaat.docs
+    .map((d) => faseUitFirestore(d.id, d.data()))
+    .sort((a, b) => (a.volgorde ?? 99) - (b.volgorde ?? 99));
+}
+
+/**
+ * Schrijft een fase volledig weg. Net als bij ankers mag dat met `setDoc`: een
+ * fase kent geen `aangemaaktOp`, en een leeggemaakte streefdatum moet ook echt
+ * verdwijnen.
+ */
+export async function zetFase(
+  uid: string,
+  projectId: string,
+  faseId: string | null,
+  fase: FaseData,
+): Promise<string> {
+  const ref =
+    faseId === null
+      ? doc(subPad(uid, projectId, "phases"))
+      : doc(db, "users", uid, "projects", projectId, "phases", faseId);
+  await setDoc(ref, faseNaarFirestore(fase));
+  return ref.id;
+}
+
+/**
+ * Maakt de zeven fases in één batch aan, in de vaste volgorde.
+ *
+ * Doet niets als er al fases zijn. Dat is geen beleefdheid maar noodzaak: dit
+ * wordt aangeroepen zodra het tijdlijnscherm opent, en zonder die check zou elk
+ * bezoek zeven nieuwe documenten opleveren.
+ */
+export async function zorgVoorFases(
+  uid: string,
+  projectId: string,
+  fases: readonly FaseData[],
+): Promise<boolean> {
+  const bestaand = await getDocs(query(subPad(uid, projectId, "phases"), limit(1)));
+  if (!bestaand.empty) return false;
+
+  const batch = writeBatch(db);
+  const pad = subPad(uid, projectId, "phases");
+  for (const fase of fases) {
+    batch.set(doc(pad), faseNaarFirestore(fase));
+  }
+  await batch.commit();
+  return true;
+}
+
+// ── Taken ──────────────────────────────────────────────────────────────────
+
+export async function haalTaken(uid: string, projectId: string): Promise<TaakMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "tasks"));
+  return resultaat.docs.map((d) => taakUitFirestore(d.id, d.data()));
+}
+
+/** Aanmaken als `taakId` null is, anders volledig overschrijven. */
+export async function zetTaak(
+  uid: string,
+  projectId: string,
+  taakId: string | null,
+  taak: TaakData,
+): Promise<string> {
+  const ref =
+    taakId === null
+      ? doc(subPad(uid, projectId, "tasks"))
+      : doc(db, "users", uid, "projects", projectId, "tasks", taakId);
+  await setDoc(ref, taakNaarFirestore(taak));
+  return ref.id;
+}
+
+export async function verwijderTaak(
+  uid: string,
+  projectId: string,
+  taakId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "tasks", taakId));
+}
+
+// ── Meerwerk ───────────────────────────────────────────────────────────────
+
+export async function haalMeerwerk(uid: string, projectId: string): Promise<MeerwerkMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "meerwerk"));
+  return resultaat.docs.map((d) => meerwerkUitFirestore(d.id, d.data()));
+}
+
+/**
+ * Aanmaken als `itemId` null is, anders volledig overschrijven.
+ *
+ * Overschrijven is hier belangrijker dan elders: bij het wisselen van
+ * `vaste_datum` naar `bouwmoment` moet het oude datumveld écht verdwijnen. Met
+ * een `updateDoc` blijft het staan, want `zonderLegeVelden()` stuurt `undefined`
+ * niet mee — en dan staan er twee deadlines in één document (ADR-0011).
+ */
+export async function zetMeerwerk(
+  uid: string,
+  projectId: string,
+  itemId: string | null,
+  item: MeerwerkData,
+): Promise<string> {
+  const ref =
+    itemId === null
+      ? doc(subPad(uid, projectId, "meerwerk"))
+      : doc(db, "users", uid, "projects", projectId, "meerwerk", itemId);
+  await setDoc(ref, meerwerkNaarFirestore(item));
+  return ref.id;
+}
+
+export async function verwijderMeerwerk(
+  uid: string,
+  projectId: string,
+  itemId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "meerwerk", itemId));
+}
+
+// ── Termijnen (bouwdepot) ──────────────────────────────────────────────────
+
+export async function haalTermijnen(uid: string, projectId: string): Promise<TermijnMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "termijnen"));
+  return resultaat.docs.map((d) => termijnUitFirestore(d.id, d.data()));
+}
+
+/**
+ * Aanmaken als `termijnId` null is, anders volledig overschrijven.
+ *
+ * Overschrijven is hier nodig omdat een vinkje uitzetten óók de bijbehorende
+ * datum moet wissen: `zonderLegeVelden()` stuurt `undefined` niet mee, dus met
+ * een `updateDoc` zou er een betaaldatum blijven staan bij een termijn die
+ * volgens de app niet betaald is.
+ */
+export async function zetTermijn(
+  uid: string,
+  projectId: string,
+  termijnId: string | null,
+  termijn: TermijnData,
+): Promise<string> {
+  const ref =
+    termijnId === null
+      ? doc(subPad(uid, projectId, "termijnen"))
+      : doc(db, "users", uid, "projects", projectId, "termijnen", termijnId);
+  await setDoc(ref, termijnNaarFirestore(termijn));
+  return ref.id;
+}
+
+export async function verwijderTermijn(
+  uid: string,
+  projectId: string,
+  termijnId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "termijnen", termijnId));
+}
+
+// ── Gebreken (opleverpunten) ───────────────────────────────────────────────
+
+export async function haalGebreken(uid: string, projectId: string): Promise<GebrekMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "gebreken"));
+  return resultaat.docs.map((d) => gebrekUitFirestore(d.id, d.data()));
+}
+
+/**
+ * Aanmaken als `gebrekId` null is, anders volledig overschrijven.
+ *
+ * Overschrijven, zodat een gewiste hersteltermijn ook echt verdwijnt. Een
+ * termijn die blijft staan bij een punt zonder afspraak suggereert dat de
+ * aannemer ergens aan gehouden is.
+ */
+export async function zetGebrek(
+  uid: string,
+  projectId: string,
+  gebrekId: string | null,
+  gebrek: GebrekData,
+): Promise<string> {
+  const ref =
+    gebrekId === null
+      ? doc(subPad(uid, projectId, "gebreken"))
+      : doc(db, "users", uid, "projects", projectId, "gebreken", gebrekId);
+  await setDoc(ref, gebrekNaarFirestore(gebrek));
+  return ref.id;
+}
+
+export async function verwijderGebrek(
+  uid: string,
+  projectId: string,
+  gebrekId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "gebreken", gebrekId));
+}
+
+// ── Nabudget ───────────────────────────────────────────────────────────────
+
+export async function haalNabudget(uid: string, projectId: string): Promise<NabudgetMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "nabudget"));
+  return resultaat.docs.map((d) => nabudgetUitFirestore(d.id, d.data()));
+}
+
+/** Aanmaken als `postId` null is, anders volledig overschrijven. */
+export async function zetNabudget(
+  uid: string,
+  projectId: string,
+  postId: string | null,
+  post: NabudgetData,
+): Promise<string> {
+  const ref =
+    postId === null
+      ? doc(subPad(uid, projectId, "nabudget"))
+      : doc(db, "users", uid, "projects", projectId, "nabudget", postId);
+  await setDoc(ref, nabudgetNaarFirestore(post));
+  return ref.id;
+}
+
+export async function verwijderNabudget(
+  uid: string,
+  projectId: string,
+  postId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "nabudget", postId));
+}
+
+/**
+ * Zet de aangevinkte standaardposten in één batch klaar, zonder bedrag.
+ *
+ * Bewust zonder richtbedragen: de spreiding per post is enorm (laminaat of
+ * gietvloer, zelf leggen of laten leggen) en een verzonnen getal blijft als
+ * anker in je hoofd hangen. Zie `src/data/nabudget-standaard.ts`.
+ */
+export async function voegStandaardNabudgetToe(
+  uid: string,
+  projectId: string,
+  omschrijvingen: readonly string[],
+): Promise<number> {
+  if (omschrijvingen.length === 0) return 0;
+
+  const batch = writeBatch(db);
+  const pad = subPad(uid, projectId, "nabudget");
+  for (const omschrijving of omschrijvingen) {
+    batch.set(doc(pad), nabudgetNaarFirestore({ omschrijving, status: "geraamd" }));
+  }
+  await batch.commit();
+  return omschrijvingen.length;
 }

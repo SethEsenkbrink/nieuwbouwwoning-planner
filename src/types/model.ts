@@ -19,7 +19,8 @@ import type { Timestamp } from "firebase/firestore";
  *     ├── tasks/{taskId}
  *     ├── meerwerk/{itemId}
  *     ├── termijnen/{termId}
- *     └── gebreken/{defectId}
+ *     ├── gebreken/{defectId}
+ *     └── nabudget/{postId}
  *
  * DE BELANGRIJKSTE REGEL IN DIT MODEL (ADR-0008):
  * een afspraakdatum wordt NOOIT opgeslagen. Alleen `ankerType` + `offsetDagen`.
@@ -79,6 +80,20 @@ export interface Project {
    */
   opleverBron?: string;
   opleverBronDatum?: Timestamp;
+
+  // ── Het 5%-opschortingsrecht (ADR-0012) ─────────────────────────────────
+  // Geen datum hier: de uiterste keuzedatum volgt uit de oplevering plus de
+  // onderhoudstermijn en schuift dus mee (ADR-0008).
+
+  opschortingStatus?: OpschortingStatus;
+  /**
+   * Het bedrag dat in depot staat. Bewust door de gebruiker in te vullen en
+   * niet af te leiden uit `koopsom`: de 5% geldt over de **aanneemsom**, en de
+   * koopsom bevat ook de grond. Zelf uitrekenen zou een te hoog bedrag
+   * presenteren als feit.
+   */
+  opschortingBedrag?: number;
+  opschortingNotitie?: string;
 
   aangemaaktOp: Timestamp;
   bijgewerktOp?: Timestamp;
@@ -300,16 +315,41 @@ export interface Task {
 
 export type MeerwerkStatus = "overweeg" | "besteld" | "bevestigd";
 
+/**
+ * Hoe de deadline van dit meerwerk bepaald wordt (ADR-0011).
+ *
+ *   vaste_datum  de administratieve sluitingsdatum van de aannemer. Ligt vóór
+ *                de start van de bouw en schuift NIET mee als de bouw schuift —
+ *                de keuzelijst is dan allang dicht. Dit is het normale geval.
+ *   bouwmoment   meerwerk dat tijdens de bouw opkomt: "extra loze leiding, maar
+ *                wel vóórdat de dekvloer wordt gestort". Hier geldt ADR-0008
+ *                onverkort en wordt de datum afgeleid.
+ *   onbekend     je hebt de wens genoteerd maar weet nog niet wanneer hij
+ *                dichtgaat. Een verzonnen datum is erger dan geen.
+ */
+export type MeerwerkSluiting = "vaste_datum" | "bouwmoment" | "onbekend";
+
 export interface MeerwerkItem {
   omschrijving: string;
   bedrag?: number;
+
   /**
-   * De datum waarna dit meerwerk niet meer besteld kan worden — meestal
-   * gekoppeld aan een bouwfase ("vóór het storten van de vloer").
+   * Welk van de drie soorten deadlines dit is. Expliciet, en niet af te leiden
+   * uit welk veld is ingevuld: dat zou twee bronnen van waarheid opleveren
+   * waarvan er stilzwijgend één wint. Zie ADR-0011.
    */
+  sluiting: MeerwerkSluiting;
+
+  /** Alleen bij `vaste_datum`. Een feit uit het contract, geen berekening. */
   sluitingsdatum?: Timestamp;
+
+  /** Alleen bij `bouwmoment`. Samen goed voor een afgeleide datum. */
+  sluitingAnkerType?: AnkerType;
+  sluitingOffsetDagen?: number;
+
   phaseId?: string;
   status: MeerwerkStatus;
+  notitie?: string;
 }
 
 // ── Bouwdepot-termijnen ────────────────────────────────────────────────────
@@ -333,7 +373,41 @@ export interface Termijn {
 
 // ── Opleverpunten / gebreken ───────────────────────────────────────────────
 
+/**
+ * Het 5%-opschortingsrecht bij nieuwbouw (ADR-0012).
+ *
+ *   onbekend       je hebt er nog niet over besloten
+ *   niet_gebruikt  bewust niet gebruikt, of te laat
+ *   in_depot       het bedrag staat bij de notaris
+ *   vrijgegeven    de punten zijn hersteld en het bedrag is naar de aannemer
+ *
+ * De uiterste datum om te kiezen wordt NIET opgeslagen: die volgt uit de
+ * oplevering plus de onderhoudstermijn, en schuift dus mee (ADR-0008).
+ */
+export type OpschortingStatus = "onbekend" | "niet_gebruikt" | "in_depot" | "vrijgegeven";
+
 export type GebrekStatus = "open" | "hersteld";
+
+/**
+ * Posten die ná de oplevering nog komen: vloer, gordijnen, tuin, oprit.
+ * Ze horen niet bij de aannemer en niet bij het bouwdepot, maar ze bepalen wel
+ * wat het huis uiteindelijk kost.
+ *
+ *   geraamd  je hebt een bedrag in gedachten
+ *   besteld  opdracht gegeven
+ *   betaald  afgerekend
+ */
+export type NabudgetStatus = "geraamd" | "besteld" | "betaald";
+
+export interface Nabudgetpost {
+  omschrijving: string;
+  /** Wat je denkt dat het wordt. */
+  geraamd?: number;
+  /** Wat het geworden is. Pas bekend als de rekening er ligt. */
+  werkelijk?: number;
+  status: NabudgetStatus;
+  notitie?: string;
+}
 
 export interface Gebrek {
   omschrijving: string;

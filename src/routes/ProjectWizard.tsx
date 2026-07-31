@@ -2,13 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { AppShell } from "@/components/AppShell";
 import { Knop } from "@/components/Knop";
-import { Veld } from "@/components/Veld";
-import { Keuzeveld } from "@/components/Keuzeveld";
-import { Datumveld } from "@/components/Datumveld";
 import { Stapindicator } from "@/components/Stapindicator";
 import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
+import { Projectgegevensformulier } from "@/components/Projectgegevensformulier";
+import {
+  LEGE_PROJECTGEGEVENS,
+  type Projectgegevenswaarden,
+} from "@/lib/projectgegevens";
+import { Opleverbandformulier } from "@/components/Opleverbandformulier";
 import { useAuth } from "@/context/useAuth";
+import { opslagFoutmelding } from "@/lib/opslagFouten";
+import {
+  controleerOpleverband,
+  naarOpslag,
+  uitProject,
+  type Opleverbandwaarden,
+} from "@/lib/opleverband";
 import {
   haalActiefProject,
   maakProject,
@@ -17,7 +27,7 @@ import {
 } from "@/lib/projecten";
 import { STANDAARD_BETROKKENEN } from "@/data/betrokkenen-standaard";
 import { ALLE_CATEGORIEEN } from "@/lib/converters";
-import type { BetrokkeneCategorie, Garantiewaarborg, OpleverStatus } from "@/types/model";
+import type { BetrokkeneCategorie } from "@/types/model";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -31,41 +41,17 @@ import type { BetrokkeneCategorie, Garantiewaarborg, OpleverStatus } from "@/typ
  * extra schrijfactie, maar je kunt de wizard sluiten en later verdergaan zonder
  * alles opnieuw in te tikken. Bij het openen springt hij naar de eerste stap
  * die nog niet af is.
+ *
+ * DE FORMULIEREN VAN STAP 1 EN 2 STAAN NIET HIER, MAAR IN `components/`.
+ * Ze komen ook voor op `/project` (de projectinstellingen), en dat is precies
+ * het soort duplicatie dat na drie wijzigingen uit elkaar loopt: een extra veld
+ * op het ene scherm, een andere toelichting op het andere. De omzetting van de
+ * opleverband naar de drie opgeslagen datums zit in `src/lib/opleverband.ts`,
+ * met tests.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
 const STAPPEN = ["Project", "Opleverdatum", "Betrokkenen"] as const;
-
-const WAARBORGEN = [
-  { waarde: "woningborg", label: "Woningborg" },
-  { waarde: "swk", label: "SWK" },
-  { waarde: "geen", label: "Geen garantiewaarborg" },
-  { waarde: "anders", label: "Anders" },
-] as const satisfies readonly { waarde: Garantiewaarborg; label: string }[];
-
-const OPLEVERSTATUSSEN = [
-  {
-    waarde: "indicatief",
-    label: "Indicatief — een schatting",
-    toelichting:
-      "Zoiets als “ergens in week 45”. Boek nog niemand definitief; partijen met een lange " +
-      "aanlooptijd wil je wel alvast op de hoogte houden.",
-  },
-  {
-    waarde: "bandbreedte",
-    label: "Bandbreedte — tussen twee datums",
-    toelichting:
-      "Je weet de vroegste en de laatste datum. De app rekent met alle drie de datums, zodat " +
-      "je ziet hoe breed het nog is.",
-  },
-  {
-    waarde: "aangezegd",
-    label: "Aangezegd — formeel vastgelegd",
-    toelichting:
-      "De aannemer heeft de datum officieel aangezegd. Nu pas kun je iedereen definitief " +
-      "inplannen.",
-  },
-] as const satisfies readonly { waarde: OpleverStatus; label: string; toelichting: string }[];
 
 const CATEGORIELABELS: Record<BetrokkeneCategorie, string> = {
   installatie: "Installatie en techniek",
@@ -88,21 +74,8 @@ export default function ProjectWizard() {
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
 
-  // Stap 1
-  const [naam, setNaam] = useState("");
-  const [bouwnummer, setBouwnummer] = useState("");
-  const [projectnaam, setProjectnaam] = useState("");
-  const [aannemer, setAannemer] = useState("");
-  const [waarborg, setWaarborg] = useState<Garantiewaarborg>("woningborg");
-
-  // Stap 2
-  const [opleverStatus, setOpleverStatus] = useState<OpleverStatus>("indicatief");
-  const [vroegst, setVroegst] = useState<Date | undefined>(undefined);
-  const [verwacht, setVerwacht] = useState<Date | undefined>(undefined);
-  const [laatst, setLaatst] = useState<Date | undefined>(undefined);
-  const [bron, setBron] = useState("");
-
-  // Stap 3
+  const [gegevens, setGegevens] = useState<Projectgegevenswaarden>(LEGE_PROJECTGEGEVENS);
+  const [band, setBand] = useState<Opleverbandwaarden>(uitProject({}));
   const [gekozen, setGekozen] = useState<readonly string[]>([]);
 
   const uid = gebruiker?.uid;
@@ -121,20 +94,21 @@ export default function ProjectWizard() {
         if (!actueel) return;
         if (bestaand) {
           setProjectId(bestaand.id);
-          setNaam(bestaand.naam);
-          setBouwnummer(bestaand.bouwnummer ?? "");
-          setProjectnaam(bestaand.projectnaam ?? "");
-          setAannemer(bestaand.aannemer ?? "");
-          setWaarborg(bestaand.garantiewaarborg ?? "woningborg");
-          setOpleverStatus(bestaand.opleverStatus ?? "indicatief");
-          setVroegst(bestaand.opleverVroegst);
-          setVerwacht(bestaand.opleverVerwacht);
-          setLaatst(bestaand.opleverLaatst);
-          setBron(bestaand.opleverBron ?? "");
+          setGegevens({
+            naam: bestaand.naam,
+            bouwnummer: bestaand.bouwnummer ?? "",
+            projectnaam: bestaand.projectnaam ?? "",
+            aannemer: bestaand.aannemer ?? "",
+            waarborg: bestaand.garantiewaarborg ?? "woningborg",
+            koopsom: bestaand.koopsom === undefined ? "" : String(bestaand.koopsom),
+            meerwerkbudget:
+              bestaand.meerwerkbudget === undefined ? "" : String(bestaand.meerwerkbudget),
+          });
+          setBand(uitProject(bestaand));
           setStap(bestaand.opleverStatus ? 2 : 1);
         }
-      } catch {
-        if (actueel) setFout("Je project kon niet worden geladen. Probeer het opnieuw.");
+      } catch (f) {
+        if (actueel) setFout(opslagFoutmelding(f, "Laden"));
       } finally {
         if (actueel) setBezigMetLaden(false);
       }
@@ -159,28 +133,28 @@ export default function ProjectWizard() {
 
   async function bewaarStap1() {
     if (!uid) return;
-    if (naam.trim() === "") {
+    if (gegevens.naam.trim() === "") {
       setFout("Geef je project een naam.");
       return;
     }
     setBezig(true);
     setFout(null);
     try {
-      const gegevens = {
-        naam: naam.trim(),
-        bouwnummer: bouwnummer.trim() || undefined,
-        projectnaam: projectnaam.trim() || undefined,
-        aannemer: aannemer.trim() || undefined,
-        garantiewaarborg: waarborg,
+      const teBewaren = {
+        naam: gegevens.naam.trim(),
+        bouwnummer: gegevens.bouwnummer.trim() || undefined,
+        projectnaam: gegevens.projectnaam.trim() || undefined,
+        aannemer: gegevens.aannemer.trim() || undefined,
+        garantiewaarborg: gegevens.waarborg,
       };
       if (projectId) {
-        await werkProjectBij(uid, projectId, gegevens);
+        await werkProjectBij(uid, projectId, teBewaren);
       } else {
-        setProjectId(await maakProject(uid, gegevens));
+        setProjectId(await maakProject(uid, teBewaren));
       }
       setStap(1);
-    } catch {
-      setFout("Opslaan is niet gelukt. Controleer je verbinding en probeer het opnieuw.");
+    } catch (f) {
+      setFout(opslagFoutmelding(f, "Opslaan"));
     } finally {
       setBezig(false);
     }
@@ -188,26 +162,20 @@ export default function ProjectWizard() {
 
   async function bewaarStap2() {
     if (!uid || !projectId) return;
-    if (!verwacht) {
-      setFout("Vul in ieder geval de verwachte opleverdatum in.");
+
+    const melding = controleerOpleverband(band);
+    if (melding) {
+      setFout(melding);
       return;
     }
+
     setBezig(true);
     setFout(null);
     try {
-      // Bij één datum vallen de drie samen; de rekenmotor gaat daar goed mee om
-      // en toont dan één datum in plaats van een bereik.
-      await werkProjectBij(uid, projectId, {
-        opleverStatus,
-        opleverVerwacht: verwacht,
-        opleverVroegst: opleverStatus === "bandbreedte" ? (vroegst ?? verwacht) : verwacht,
-        opleverLaatst: opleverStatus === "bandbreedte" ? (laatst ?? verwacht) : verwacht,
-        opleverBron: bron.trim() || undefined,
-        opleverBronDatum: bron.trim() ? new Date() : undefined,
-      });
+      await werkProjectBij(uid, projectId, naarOpslag(band));
       setStap(2);
-    } catch {
-      setFout("Opslaan is niet gelukt. Controleer je verbinding en probeer het opnieuw.");
+    } catch (f) {
+      setFout(opslagFoutmelding(f, "Opslaan"));
     } finally {
       setBezig(false);
     }
@@ -220,8 +188,8 @@ export default function ProjectWizard() {
     try {
       await voegStandaardBetrokkenenToe(uid, projectId, gekozen);
       void navigeer("/", { replace: true });
-    } catch {
-      setFout("De betrokkenen konden niet worden opgeslagen. Probeer het opnieuw.");
+    } catch (f) {
+      setFout(opslagFoutmelding(f, "De betrokkenen opslaan"));
     } finally {
       setBezig(false);
     }
@@ -248,45 +216,13 @@ export default function ProjectWizard() {
 
       {stap === 0 && (
         <div className="brink-card mt-s4 max-w-xl p-s3">
-          <div className="flex flex-col gap-s2">
-            <Veld
-              label="Naam van je project"
-              hint="Voor jezelf, bijvoorbeeld “Ons huis in Almere”."
-              value={naam}
-              onChange={(e) => {
-                setNaam(e.target.value);
-              }}
-              autoFocus
-            />
-            <Veld
-              label="Bouwnummer"
-              hint="Optioneel. Zoals het in de stukken van de aannemer staat."
-              value={bouwnummer}
-              onChange={(e) => {
-                setBouwnummer(e.target.value);
-              }}
-            />
-            <Veld
-              label="Projectnaam van de ontwikkelaar"
-              value={projectnaam}
-              onChange={(e) => {
-                setProjectnaam(e.target.value);
-              }}
-            />
-            <Veld
-              label="Aannemer"
-              value={aannemer}
-              onChange={(e) => {
-                setAannemer(e.target.value);
-              }}
-            />
-            <Keuzeveld
-              label="Garantiewaarborg"
-              waarde={waarborg}
-              opties={WAARBORGEN}
-              onKies={setWaarborg}
-            />
-          </div>
+          <Projectgegevensformulier
+            waarden={gegevens}
+            onWijzig={(patch) => {
+              setGegevens((g) => ({ ...g, ...patch }));
+            }}
+            autoFocusNaam
+          />
 
           <div className="mt-s3 flex justify-end">
             <Knop bezig={bezig} onClick={() => void bewaarStap1()}>
@@ -304,38 +240,11 @@ export default function ProjectWizard() {
             wachten.
           </p>
 
-          <div className="mt-s3 flex flex-col gap-s2">
-            <Keuzeveld
-              label="Hoe zeker is de datum?"
-              waarde={opleverStatus}
-              opties={OPLEVERSTATUSSEN}
-              onKies={setOpleverStatus}
-            />
-
-            <Datumveld
-              label={opleverStatus === "bandbreedte" ? "Verwachte datum" : "Opleverdatum"}
-              waarde={verwacht}
-              onKies={setVerwacht}
-            />
-
-            {opleverStatus === "bandbreedte" && (
-              <>
-                <Datumveld
-                  label="Vroegst mogelijke datum"
-                  hint="Leeg laten? Dan gebruikt de app de verwachte datum."
-                  waarde={vroegst}
-                  onKies={setVroegst}
-                />
-                <Datumveld label="Laatst mogelijke datum" waarde={laatst} onKies={setLaatst} />
-              </>
-            )}
-
-            <Veld
-              label="Waar komt deze datum vandaan?"
-              hint="Bijvoorbeeld “mail aannemer 12-07”. Bij de derde verschuiving wil je dit terug kunnen zien."
-              value={bron}
-              onChange={(e) => {
-                setBron(e.target.value);
+          <div className="mt-s3">
+            <Opleverbandformulier
+              waarden={band}
+              onWijzig={(patch) => {
+                setBand((b) => ({ ...b, ...patch }));
               }}
             />
           </div>

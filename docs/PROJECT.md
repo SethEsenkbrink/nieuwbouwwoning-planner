@@ -15,6 +15,10 @@ complete traject loodst — van koop-/aannemingsovereenkomst tot en met garantie
 deadlines, meerwerk-bewaking, bouwdepot-overzicht en een opleverchecklist, waarbij documenten
 wél worden ingelezen maar **nooit worden opgeslagen**.
 
+**En daarna houdt hij niet op.** Na de sleuteloverdracht verandert dezelfde app van vorm en
+wordt hij het **woningdossier**: wat er in het huis zit, wanneer het onderhouden moet worden,
+en wat er al gedaan is. Eén app, twee fases, omgezet met één veld — zie ADR-0010.
+
 ## 2. Doel & afbakening
 
 De niche is bewust smal: **nieuwbouw van tekening**, niet bestaande bouw. Dat traject is
@@ -85,6 +89,10 @@ users/{uid}
         - opleverVroegst, opleverVerwacht, opleverLaatst
         - opleverBron        // "mail aannemer 12-07" — wie beweerde dit, wanneer
         - opleverBronDatum
+        // Het 5%-opschortingsrecht — zie ADR-0012. Geen deadline hier: die
+        // volgt uit de oplevering plus de onderhoudstermijn.
+        - opschortingStatus (onbekend | niet_gebruikt | in_depot | vrijgegeven)
+        - opschortingBedrag, opschortingNotitie
         ├── ankers/{ankerId}          // bouwmomenten waaraan afspraken hangen
         │     - type (start_bouw | begane_grond_gestort | ruwbouw_gereed
         │             | wind_waterdicht | dekvloer_gestort | oplevering
@@ -114,12 +122,21 @@ users/{uid}
         ├── tasks/{taskId}
         │     - titel, deadline, phaseId, status (open | klaar), bron (handmatig | geparsed)
         ├── meerwerk/{itemId}
-        │     - omschrijving, bedrag, sluitingsdatum, phaseId
+        │     - omschrijving, bedrag, phaseId, notitie
         │     - status (overweeg | besteld | bevestigd)
+        │     // De deadline kent drie vormen — zie ADR-0011
+        │     - sluiting (vaste_datum | bouwmoment | onbekend)
+        │     - sluitingsdatum                       // bij vaste_datum
+        │     - sluitingAnkerType, sluitingOffsetDagen  // bij bouwmoment
         ├── termijnen/{termId}          // bouwdepot
         │     - omschrijving (bijv. "fundering gereed"), bedrag
         │     - gefactureerd, gedeclareerdBijBank, betaald  (booleans + datums)
-        └── gebreken/{defectId}         // oplevering
+        ├── gebreken/{defectId}   // opleverpunten; apart van tasks (ADR-0012)
+        │     - omschrijving, locatie, gemeldOp, hersteltermijn
+        │     - status (open | hersteld)
+        └── nabudget/{postId}     // wat er ná de oplevering nog komt
+              - omschrijving, geraamd, werkelijk, notitie
+              - status (geraamd | besteld | betaald)         // oplevering
               - omschrijving, locatie, gemeldOp, hersteltermijn
               - status (open | hersteld)
 ```
@@ -136,6 +153,15 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 > geen planning maar een **feit over de buitenwereld** — welke datum die partij als laatste
 > van je hoorde. Het verschil met de berekende datum ís de actielijst.
 
+> **De sluitingsdatum van meerwerk is de uitzondering die de regel bevestigt (ADR-0011).**
+> Die wordt wél als vaste datum opgeslagen, omdat het een administratieve termijn van de
+> aannemer is en géén bouwmoment: de keuzelijst gaat dicht vóór de start van de bouw en
+> schuift niet mee als de bouw verschuift. Meerwerk dat tíjdens de bouw opkomt hangt wél aan
+> een anker. Het veld `sluiting` zegt welke van de twee het is.
+>
+> De onderliggende regel blijft dus: **sla een datum alleen op als hij een feit over de
+> buitenwereld is, niet als hij uit de planning volgt.**
+
 > **`waardenBron` (ADR-0009).** Staat op `voorstel` zolang aanlooptijd en annuleertermijn
 > uit de standaardbibliotheek komen, en op `eigen` zodra de gebruiker ze aanpast. De UI
 > toont bij `voorstel` een disclaimer, bij `eigen` niet. Zonder dit veld is een schatting
@@ -147,36 +173,59 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 > **Volgorde herzien op 2026-07-29 (ADR-0008).** De betrokkenen- en schuif-impactmodule is
 > naar voren gehaald, vóór de fase-tijdlijn. Reden: dat is de acute pijn van gebruiker #1,
 > en het dwingt het datamodel meteen langs het moeilijkste stuk (afgeleide datums).
+>
+> **Uitgebreid op 2026-07-31 (ADR-0010).** Er is een fase 4 bijgekomen: het woningdossier.
+> De volledige, genummerde backlog met de afgesproken volgorde staat in
+> `docs/2026-07-31-bouwplan-en-backlog.md`; onderstaande lijst is de samenvatting.
 
 ### Klaar
 
 - [x] Gratis account aanmaken en inloggen (e-mail/wachtwoord)
-
-### MVP — nu aan de beurt
-
 - [x] Eén nieuwbouwproject aanmaken, inclusief de **opleverdatum als band** met staat
       (indicatief / bandbreedte / aangezegd)
 - [x] **Betrokkenen** vastleggen met aanlooptijd, annuleertermijn en communicatieregel,
       vanuit een standaardbibliotheek (`docs/2026-07-29-betrokkenen-standaardlijst.md`)
-- [ ] **Afspraken** als anker + offset, met `gecommuniceerdeDatum`
-- [ ] **Schuif-impact**: anker wijzigen → actielijst op urgentie, concept-berichten,
-      bijgewerkte planning met een diff t.o.v. de vorige versie
-- [ ] Dashboard: eerstvolgende beslismoment, wie wacht op bevestiging, waar de band knelt
+- [x] **Bouwmomenten** (ankers) invullen met datum, hardheid en bron — `/ankers`
+- [x] **Schuif-impact**: de actielijst op het dashboard, gesorteerd op urgentie, met de
+      zekerheid van elke berekening en de doorgegeven-knop
 
-### Fase 2
+### MVP — af (31 juli 2026)
 
-- [ ] Vaste **fase-tijdlijn** met per fase de standaard-actiepunten en valkuilen
-- [ ] Handmatig taken met deadlines toevoegen en afvinken
-- [ ] **Meerwerk-tracker** met sluitingsdatums gekoppeld aan de bouwfase
-- [ ] **Bouwdepot-overzicht**: gefactureerd / gedeclareerd / openstaand
+- [x] **Afspraken beheren**: zien, aanpassen, toevoegen en verwijderen (A1, A2)
+- [x] **Betrokkenen toevoegen en verwijderen**, inclusief contactgegevens (A3)
+- [x] **Opleverdatum en projectgegevens aanpassen** buiten de wizard (A4, A7)
+- [x] **Concept-berichten** bij elke regel op de actielijst (A5)
+- [x] **Wat-als** bij het verschuiven van een bouwmoment (A6)
+- [x] Technische schuld: `verify:rules`, één anker per type, project verwijderen,
+      foutafhandeling, opruimen (B1, B2, B3, B5, B6)
+- [ ] **Live zetten** (B4) — bewust uitgesteld tot na het lokale testen
+
+### Fase 2 — het bouwtraject compleet (31 juli 2026)
+
+- [x] Vaste **fase-tijdlijn** met per fase de standaard-actiepunten en valkuilen
+- [x] Handmatig taken met deadlines toevoegen en afvinken
+- [x] **Meerwerk-tracker**, met de sluitingsdatum in drie vormen (ADR-0011)
+- [x] **Bouwdepot-overzicht**: gefactureerd / gedeclareerd / betaald
+- [x] **Grafieken en totaalbeeld** over budget, meerwerk en depot
 - [ ] **Documentparser** (sectie 4): overeenkomst inlezen → ankerpunten en afspraken
 
-### Fase 3 — verdieping
+### Fase 3 — oplevering en garantie (31 juli 2026)
 
-- [ ] **Opleverchecklist** met gebreken, hersteltermijnen en 5%-opschortingsrecht
-- [ ] **Budgetoverzicht** incl. de vergeten posten ná oplevering (vloer, tuin, gordijnen)
-- [ ] Herinneringen via een scheduled Netlify Function
-- [ ] Meerdere projecten per gebruiker; PDF-export (client-side gegenereerd)
+- [x] **Opleverchecklist** met gebreken en hersteltermijnen
+- [x] **5%-opschortingsregeling**: het depot, de afgeleide termijn en de keuze (ADR-0012)
+- [x] **Onderhoudstermijn** als aftelklok, afgeleid uit anker of standaardtermijn
+- [x] **Garantietermijnen** Woningborg/SWK als aftelklok. Per onderdeel volgt in fase 4
+- [x] **Budgetoverzicht** met de vergeten posten ná oplevering (vloer, tuin, gordijnen)
+
+### Fase 4 — het woningdossier (ADR-0010)
+
+- [ ] **Woningpaspoort** en `woningStatus` (in_aanbouw / opgeleverd)
+- [ ] **Onderdelenregister**: merk, type, serienummer, installatiedatum, garantie
+- [ ] **Onderhoudsschema** uit een standaardbibliotheek, met interval en historie
+- [ ] **Terugkerende controles** (rookmelder, aardlekschakelaar, waterdruk)
+- [ ] **Logboek** van onderhoud en verbouwingen
+- [ ] Herinneringen via een scheduled Netlify Function — **voorwaarde** voor deze fase
+- [ ] Meterstanden, overdrachtsdossier, meerdere woningen, PDF-export
 
 ## 7. Security-uitgangspunten
 
@@ -210,7 +259,13 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 
 ## 9. Bewust niet doen
 
-- Geen opslag van originele documenten. Ooit.
+- Geen opslag van originele documenten. Ooit. **Ook niet in het woningdossier**, waar de
+  verleiding het grootst is (handleidingen, facturen, foto's). Wat wel mag: de gegevens
+  gestructureerd overnemen plus een `documentUrl` naar waar het bestand bij de gebruiker
+  staat. Zie ADR-0010 §3.
+- **Niet live gaan voordat het lokaal door en door getest is.** Besloten op 2026-07-31: eerst
+  alles bouwen en uitproberen tegen de Firestore-emulator, pas daarna Netlify koppelen. De
+  twee dingen die de emulator níét dekt staan in `STATE.md` onder de valkuilen.
 - Geen claim van juridisch of financieel advies.
 - Niet beginnen met multi-project of betalingen. Eerst één project dat écht klopt.
 - Geen features verzinnen die de bouwer zelf nog niet nodig had.

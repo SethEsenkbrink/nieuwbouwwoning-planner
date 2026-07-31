@@ -9,6 +9,14 @@ import WachtwoordVergeten from "@/routes/WachtwoordVergeten";
 import Dashboard from "@/routes/Dashboard";
 import ProjectWizard from "@/routes/ProjectWizard";
 import Betrokkenen from "@/routes/Betrokkenen";
+import Ankers from "@/routes/Ankers";
+import Afspraken from "@/routes/Afspraken";
+import Projectinstellingen from "@/routes/Projectinstellingen";
+import Tijdlijn from "@/routes/Tijdlijn";
+import Meerwerk from "@/routes/Meerwerk";
+import Bouwdepot from "@/routes/Bouwdepot";
+import Oplevering from "@/routes/Oplevering";
+import Nabudget from "@/routes/Nabudget";
 import NietGevonden from "@/routes/NietGevonden";
 
 /**
@@ -71,10 +79,74 @@ export default function App() {
             }
           />
           <Route
+            path="/project"
+            element={
+              <ProtectedRoute>
+                <Projectinstellingen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/betrokkenen"
             element={
               <ProtectedRoute>
                 <Betrokkenen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ankers"
+            element={
+              <ProtectedRoute>
+                <Ankers />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/afspraken"
+            element={
+              <ProtectedRoute>
+                <Afspraken />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tijdlijn"
+            element={
+              <ProtectedRoute>
+                <Tijdlijn />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/oplevering"
+            element={
+              <ProtectedRoute>
+                <Oplevering />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/na-oplevering"
+            element={
+              <ProtectedRoute>
+                <Nabudget />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bouwdepot"
+            element={
+              <ProtectedRoute>
+                <Bouwdepot />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/meerwerk"
+            element={
+              <ProtectedRoute>
+                <Meerwerk />
               </ProtectedRoute>
             }
           />
