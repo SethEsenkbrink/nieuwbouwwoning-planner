@@ -151,6 +151,46 @@ Daarna, in volgorde van het bouwplan:
 > achterstallig zijn op het moment dat iemand inlogt. Is dat structureel hoog, dan had
 > ADR-0010 §4 gelijk en moet de mailfunctie voorrang krijgen boven de rest van blok F.
 
+## `improvements/` — auditrapporten, af te handelen vóór de live versie
+
+Op 1 augustus heeft Seth via Antigravity de `improve`-skill gedraaid (`.agent/skills/improve/`).
+Resultaat: vier rapportmappen in `improvements/` met samen ~29 plannen.
+
+**Afspraak: hier wordt niet aan gewerkt totdat blok E en F uit het bouwplan af zijn.** Daarna
+wél, en vóór het live gaan — een deel raakt productie rechtstreeks.
+
+| Map | Inhoud |
+| --- | --- |
+| `2026-08-01-audit` | 6 plannen: code splitting, anker-document-id, dynamische Firestore-import, E4/E7/E8 |
+| `2026-08-01-deep-audit` | 10 plannen: error boundaries, rules-validatie, netlify-verify, caching, routes splitsen, memoisatie |
+| `2026-08-01-deep-gemini-3.6-flash` | Dezelfde 10, korter opgeschreven |
+| `2026-08-01-security-audit` | 2 plannen: rules-validatie, dependency-overrides |
+
+### Lees ze met deze kanttekeningen
+
+De audits kennen de ADR's niet, dus een paar bevindingen zijn achterhaald of onjuist. Niet
+blind uitvoeren:
+
+- **SEC-01 (`keys().hasOnly` ontbreekt)** — deels al gedaan: `onderhoudstaken` heeft het sinds
+  `5e6553d`. Voor de andere collecties geldt het nog wél, en het is een reële bevinding: op
+  onbekende veldnamen staat geen lengtelimiet. De claim "onbeperkt grote blobs" is wel
+  overdreven — `withinSizeLimit()` begrenst het aantal velden.
+- **DEP-01 (dependency-overrides)** — dat is **ADR-0007**, een bewuste keuze. `npm audit fix
+  --force` downgradet `@netlify/vite-plugin` elf versies. Niet zomaar weghalen.
+- **DIR-01 (documentparser) en DIR-02 (e-mail)** — geen bevindingen maar bekende, geplande
+  features: C5 en ADR-0014 §3. Ze staan al in het bouwplan voor ronde 8.
+- **PERF-01 (code splitting)** — bevestigt wat hieronder al als aandachtspunt staat.
+
+### Wat er wél nieuw uit kwam
+
+- **BUG-01: geen React Error Boundary.** Een fout in een diepe component geeft nu een wit
+  scherm. Nergens eerder genoteerd, en het is goedkoop op te lossen.
+- **DX-01: `netlify.toml` bouwt met `npm run build`, niet met `npm run verify`.** Code met
+  lint- of typefouten kan zo ongemerkt naar productie. **Dit hoort bij B4/F1 en moet dus
+  opgelost zijn vóór de eerste deploy.**
+- **PERF-02: geen offline persistence, en de twaalf subcollecties worden bij het verwijderen
+  sequentieel opgehaald.**
+
 ## Open vragen / wacht op Seth
 
 - **Aanlooptijden valideren.** De 38 startwaarden zijn schattingen; echte cijfers van keuken,
