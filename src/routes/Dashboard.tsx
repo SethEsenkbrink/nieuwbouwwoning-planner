@@ -204,7 +204,12 @@ export default function Dashboard() {
         </span>
       </div>
 
-      <h1 className="mt-s2 text-h2 text-ink">{(opgeleverd && adres) || project.naam}</h1>
+      {/* Na de oplevering is het adres de betere kop dan de projectnaam: je
+          beheert dan een huis, geen bouwproject. Staat er nog geen adres in het
+          paspoort, dan valt hij terug op de naam. */}
+      <h1 className="mt-s2 text-h2 text-ink">
+        {opgeleverd ? (adres ?? project.naam) : project.naam}
+      </h1>
       {opgeleverd ? (
         <p className="mt-1 text-body text-slate">De sleutels zijn overgedragen.</p>
       ) : (

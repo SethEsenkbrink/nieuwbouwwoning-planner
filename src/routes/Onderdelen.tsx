@@ -728,6 +728,17 @@ export default function Onderdelen() {
                 (b) => b.id === onderdeel.installateurBetrokkeneId,
               );
 
+              // Samengesteld uit de delen die er zijn, zodat de regel niet met
+              // een scheidingsteken begint als alleen de installateur bekend is.
+              const installatiedelen = [
+                onderdeel.installatieDatum
+                  ? `Geïnstalleerd op ${toonDatum(onderdeel.installatieDatum)}`
+                  : null,
+                installateur?.naam ?? null,
+              ].filter((deel) => deel !== null);
+              const installatieregel =
+                installatiedelen.length > 0 ? installatiedelen.join(" · ") : null;
+
               return (
                 <article key={onderdeel.id} className="brink-card p-s3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -808,12 +819,8 @@ export default function Onderdelen() {
                     </dl>
                   )}
 
-                  {(installateur ?? onderdeel.installatieDatum) && (
-                    <p className="mt-s2 text-sm text-granite">
-                      {onderdeel.installatieDatum &&
-                        `Geïnstalleerd op ${toonDatum(onderdeel.installatieDatum)}`}
-                      {installateur && ` · ${installateur.naam}`}
-                    </p>
+                  {installatieregel !== null && (
+                    <p className="mt-s2 text-sm text-granite">{installatieregel}</p>
                   )}
 
                   {onderdeel.notitie && (

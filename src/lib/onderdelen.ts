@@ -82,7 +82,7 @@ export function garantiesDieAflopen(
     .map((onderdeel) => ({ onderdeel, klok: berekenGarantieklok(onderdeel, vandaag) }))
     .filter(
       (regel): regel is { onderdeel: OnderdeelMetId; klok: Garantieklok } =>
-        regel.klok !== null && regel.klok.bijnaVoorbij,
+        regel.klok?.bijnaVoorbij === true,
     )
     .sort((a, b) => a.klok.dagenResterend - b.klok.dagenResterend);
 }
@@ -160,14 +160,19 @@ export function ordenSpecs(
 ): { sleutel: string; waarde: string }[] {
   if (!specs) return [];
 
-  const bekend = volgorde
-    .filter((sleutel) => specs[sleutel] !== undefined)
-    .map((sleutel) => ({ sleutel, waarde: specs[sleutel] as string }));
+  // `flatMap` in plaats van filter + map: dan hoeft de waarde niet gecast te
+  // worden om `noUncheckedIndexedAccess` tevreden te stellen. De compiler leidt
+  // uit de vroege `return []` af dat `waarde` hier een string is.
+  const bekend = volgorde.flatMap((sleutel) => {
+    const waarde = specs[sleutel];
+    return waarde === undefined ? [] : [{ sleutel, waarde }];
+  });
 
-  const rest = Object.keys(specs)
-    .filter((sleutel) => !volgorde.includes(sleutel))
-    .sort((a, b) => a.localeCompare(b, "nl"))
-    .map((sleutel) => ({ sleutel, waarde: specs[sleutel] as string }));
+  // `Object.entries` levert de waarde meteen mee, dus ook hier geen cast.
+  const rest = Object.entries(specs)
+    .filter(([sleutel]) => !volgorde.includes(sleutel))
+    .sort(([a], [b]) => a.localeCompare(b, "nl"))
+    .map(([sleutel, waarde]) => ({ sleutel, waarde }));
 
   return [...bekend, ...rest];
 }
