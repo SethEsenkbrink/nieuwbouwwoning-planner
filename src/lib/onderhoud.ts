@@ -79,12 +79,16 @@ export function naarMaand(datum: Date, maand: number, nietVoor?: Date): Date {
 
   const bruikbaar =
     nietVoor === undefined ? alle : alle.filter((k) => k.getTime() > nietVoor.getTime());
+
+  // Destructureren in plaats van indexeren: dan is `eerste` gewoon
+  // `Date | undefined` en volstaat één check, zonder cast of `!`-assertion.
   // Blijft er niets over — alleen mogelijk bij een absurde combinatie — dan is
   // de onveranderde datum beter dan een datum in het verleden.
-  if (bruikbaar.length === 0) return datum;
+  const [eerste, ...rest] = bruikbaar;
+  if (eerste === undefined) return datum;
 
-  let beste = bruikbaar[0] as Date;
-  for (const kandidaat of bruikbaar) {
+  let beste = eerste;
+  for (const kandidaat of rest) {
     const afstand = Math.abs(kandidaat.getTime() - datum.getTime());
     if (afstand < Math.abs(beste.getTime() - datum.getTime())) beste = kandidaat;
   }

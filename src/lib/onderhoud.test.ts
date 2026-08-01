@@ -23,6 +23,18 @@ function taak(velden: Partial<OnderhoudTaakMetId> = {}): OnderhoudTaakMetId {
   };
 }
 
+/**
+ * Voor tests die met de uitkomst dóórrekenen. Een cast of een `!` zou hier een
+ * ontbrekende stand stil doorlaten en pas verderop een onbegrijpelijke fout
+ * geven; dit faalt op de plek waar het misgaat, met een leesbare melding.
+ */
+function moetLukken<T>(waarde: T | null | undefined, wat: string): T {
+  if (waarde === null || waarde === undefined) {
+    throw new Error(`verwachtte ${wat}, maar kreeg niets`);
+  }
+  return waarde;
+}
+
 function onderdeel(velden: Partial<OnderdeelMetId> = {}): OnderdeelMetId {
   return {
     id: velden.id ?? "o1",
@@ -236,7 +248,7 @@ describe("berekenVolgendeOnderhoud — voorkeursmaand", () => {
     );
     const tweede = berekenVolgendeOnderhoud(
       taak({
-        laatstUitgevoerdOp: eerste?.volgendeOp as Date,
+        laatstUitgevoerdOp: moetLukken(eerste, "een eerste stand").volgendeOp,
         intervalDagen: 365,
         voorkeursmaand: 10,
       }),
@@ -274,8 +286,9 @@ describe("berekenVolgendeOnderhoud — voorkeursmaand", () => {
         {},
         VANDAAG,
       );
-      expect(stand?.volgendeOp.getTime()).toBeGreaterThan(laatst.getTime());
-      laatst = stand?.volgendeOp as Date;
+      const volgende = moetLukken(stand, `een stand in ronde ${i + 1}`).volgendeOp;
+      expect(volgende.getTime()).toBeGreaterThan(laatst.getTime());
+      laatst = volgende;
     }
   });
 
