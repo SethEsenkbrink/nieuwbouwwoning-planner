@@ -70,27 +70,31 @@ Wat er daardoor onopgemerkt in stond, alle drie nu weg:
 De TS2379 is opgelost met een gedeeld `Invoer<T>`-type in `converters.ts`; `baseUrl` is
 verwijderd (`paths` werkt zonder).
 
-## Laatste verificatie — 1 augustus, sessie 06
+## Laatste verificatie — 1 augustus, 12:36 · alles groen
 
-**In de sandbox gedraaid en groen:** `tsc --build --force` (de echte typecheck, zie hierboven),
-`verify:tokens`, `verify:headers`, `verify:rules` (24 enums / 119 waarden, negatief getest op
-twee scenario's).
+**Lokaal gedraaid door Seth**, met de gerepareerde typecheck-gate erin. Dit is de eerste
+verify in het project waarbij de typecheck daadwerkelijk iets heeft gecontroleerd.
 
-> **NOG TE DRAAIEN DOOR SETH, LOKAAL — dit is geen groene verify.**
-> `npm run verify` (voor lint, de 283 unit tests en de build) en `npm run rules:test`
-> (voor de 116 rules-tests, waarvan 37 nieuw). De rules zijn deze sessie op drie plekken
-> gewijzigd, dus `rules:test` is hier niet optioneel.
->
-> **Reken op lintmeldingen die er altijd al waren.** De typecheck-gate stond zes sessies
-> open; het is aannemelijk dat `eslint .` nu dingen vindt die nooit langs een werkende poort
-> zijn gekomen.
->
-> Lint, vitest en de emulator kunnen niet in de sandbox draaien — zie de tabel onder
-> "Bekende valkuilen". Een sessie die "lint is groen" meldt zonder dat het lokaal gedraaid
-> heeft, liegt.
+| Check | Uitkomst |
+| --- | --- |
+| `npm run verify` | typecheck (`tsc --build --force`) · lint · **283 tests in 16 bestanden** · tokens (50) · headers (10 + 14 CSP) · rules-pariteit (24 enums / 119 waarden) · build ✅ |
+| `npm run rules:test` | **116 tests** ✅ in 7,8 s — inclusief de 15 nieuwe op het woningdossier en 22 op onderdelen |
+| Build | 161 modules, `App` 260 kB (69 kB gzip), `index` 183 kB (58 kB gzip), `firebase` 567 kB (167 kB gzip) |
+
+Lint gaf vier fouten in de nieuwe code, alle vier hersteld in `e79c83b` (optional chain,
+twee type-assertions in `ordenSpecs`, en een `||` op de dashboardkop). Dat er ná zes sessies
+met een dode typecheck-gate maar vier lintfouten uitkwamen, is een aanwijzing dat de lintstap
+zelf wél altijd heeft gewerkt.
+
+Werktree is schoon.
 
 Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
-`71a21d1` (typecheck-gate + convertertests + twee UI-fixes).
+`71a21d1` (typecheck-gate + convertertests + twee UI-fixes), `e79c83b` (lintfixes),
+plus deze STATE-update.
+
+> **Bij het opstarten van een nieuwe sessie:** de laatste commit heeft een volledig groene
+> verify én groene rules-tests. Wijzig je iets aan de rules, draai dan `npm run rules:test`
+> vóórdat je verder bouwt.
 
 ## Direct volgende stap
 
@@ -203,8 +207,13 @@ een test op die het bewijst (`weigert een specs-map met te veel velden`).
 
 ## Bekende aandachtspunten voor later
 
-- **`firebase-*.js` is 566 kB (167 kB gzip)** en overschrijdt de waarschuwingsgrens van 500 kB.
+- **`firebase-*.js` is 567 kB (167 kB gzip)** en overschrijdt de waarschuwingsgrens van 500 kB.
   Op te lossen met een dynamische import van Firestore; nu geen probleem.
+- **`App-*.js` groeit gestaag mee:** 209 kB in sessie 05, **260 kB (69 kB gzip)** na blok E.
+  Elk nieuw scherm zit in dezelfde chunk. Zodra blok E af is, is route-based code splitting
+  waarschijnlijk meer waard dan het opsplitsen van de firebase-chunk — `/onderdelen` en
+  `/woning` heb je pas ná de oplevering nodig, en de bibliotheek van 17 onderdelen met alle
+  merken en specvelden zit nu in de bundle van iedereen die inlogt.
 - **Sourcemaps worden meegebouwd** (~4,7 MB). Prima om te debuggen, maar vóór een publieke
   deploy een bewuste keuze maken.
 - **`SOURCEMAP_BROKEN`-waarschuwing** van `@tailwindcss/vite`. Cosmetisch.
