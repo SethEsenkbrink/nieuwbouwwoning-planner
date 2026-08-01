@@ -491,6 +491,52 @@ service cloud.firestore {
         }
 
 
+        // ── onderhoudstaken/{taakId} — terugkerend werk (ADR-0014) ───────
+        // De enige plek waar de mechaniek uit ADR-0008 niet volstond: onderhoud
+        // herhaalt zich, bouwafspraken niet.
+        //
+        // ER STAAT GEEN VOLGENDE DATUM IN. Alleen `laatstUitgevoerdOp` (een
+        // feit over het verleden) en `intervalDagen`; de volgende beurt is
+        // altijd afgeleid. Zou hier een `volgendeOp` bijkomen, dan is dat een
+        // schending van ADR-0008 en moet die eerst herzien worden.
+
+        match /onderhoudstaken/{taakId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.titel, 300)
+            && request.resource.data.titel.size() > 0
+            // Ondergrens 1 dag: een interval van 0 zou de taak elke dag op de
+            // lijst zetten. Bovengrens 50 jaar — daarboven is het geen
+            // onderhoud meer maar een vervanging.
+            && isInt(request.resource.data.intervalDagen, 1, 18250)
+            && isOneOf(request.resource.data.waardenBron, ['voorstel', 'eigen'])
+            && optionalString(request.resource.data, 'omschrijving', 2000)
+            && optionalString(request.resource.data, 'onderdeelId', 200)
+            && optionalInt(request.resource.data, 'voorkeursmaand', 1, 12)
+            && optionalTimestamp(request.resource.data, 'laatstUitgevoerdOp')
+            && optionalString(request.resource.data, 'waarschuwing', 2000);
+        }
+
+
+        // ── onderhoudslogboek/{logId} — wat er is gedaan ─────────────────
+        // Wordt in dezelfde batch geschreven als het bijwerken van de taak.
+        // `uitgevoerdOp` is verplicht: een logregel zonder datum zegt niets.
+
+        match /onderhoudslogboek/{logId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && isString(request.resource.data.taakId, 200)
+            && request.resource.data.taakId.size() > 0
+            && request.resource.data.uitgevoerdOp is timestamp
+            && optionalString(request.resource.data, 'onderdeelId', 200)
+            && optionalString(request.resource.data, 'doorWie', 200)
+            && optionalNumber(request.resource.data, 'kosten')
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
+
+
         match /gebreken/{defectId} {
           allow get, list, delete: if isOwner(uid);
           allow create, update: if isOwner(uid)

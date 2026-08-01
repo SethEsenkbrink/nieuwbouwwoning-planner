@@ -32,6 +32,10 @@ import {
   nabudgetUitFirestore,
   onderdeelNaarFirestore,
   onderdeelUitFirestore,
+  onderhoudLogregelNaarFirestore,
+  onderhoudLogregelUitFirestore,
+  onderhoudTaakNaarFirestore,
+  onderhoudTaakUitFirestore,
   projectNaarFirestore,
   projectUitFirestore,
   taakNaarFirestore,
@@ -54,6 +58,9 @@ import {
   type NabudgetMetId,
   type OnderdeelData,
   type OnderdeelMetId,
+  type OnderhoudLogregelMetId,
+  type OnderhoudTaakData,
+  type OnderhoudTaakMetId,
   type ProjectData,
   type ProjectMetId,
   type TaakData,
@@ -220,6 +227,8 @@ const SUBCOLLECTIES = [
   "gebreken",
   "nabudget",
   "onderdelen",
+  "onderhoudstaken",
+  "onderhoudslogboek",
 ] as const;
 
 /**
@@ -862,4 +871,148 @@ export async function meldRegistratieAan(
       ...(referentie ? { referentie } : {}),
     },
   });
+}
+
+// ── Onderhoud — taken en logboek (ADR-0014) ────────────────────────────────
+
+export async function haalOnderhoudstaken(
+  uid: string,
+  projectId: string,
+): Promise<OnderhoudTaakMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "onderhoudstaken"));
+  return resultaat.docs.map((d) => onderhoudTaakUitFirestore(d.id, d.data()));
+}
+
+/**
+ * Aanmaken als `taakId` null is, anders volledig overschrijven.
+ *
+ * Overschrijven om dezelfde reden als bij de andere collecties: een
+ * `updateDoc` kan `voorkeursmaand` of `laatstUitgevoerdOp` niet wissen, want
+ * `zonderLegeVelden()` strip `undefined`. Een voorkeursmaand die blijft hangen
+ * na het uitzetten zou de reeks stil blijven verschuiven.
+ */
+export async function zetOnderhoudstaak(
+  uid: string,
+  projectId: string,
+  taakId: string | null,
+  taak: OnderhoudTaakData,
+): Promise<string> {
+  const ref =
+    taakId === null
+      ? doc(subPad(uid, projectId, "onderhoudstaken"))
+      : doc(db, "users", uid, "projects", projectId, "onderhoudstaken", taakId);
+  await setDoc(ref, onderhoudTaakNaarFirestore(taak));
+  return ref.id;
+}
+
+export async function verwijderOnderhoudstaak(
+  uid: string,
+  projectId: string,
+  taakId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "onderhoudstaken", taakId));
+}
+
+/**
+ * Vinkt een beurt af.
+ *
+ * DIT DOET TWEE DINGEN ATOMAIR (ADR-0014 §2):
+ *   1. `laatstUitgevoerdOp` op de taak bijwerken — daarmee schuift de volgende
+ *      beurt op;
+ *   2. een logregel wegschrijven met wat er precies gebeurd is.
+ *
+ * Eén `writeBatch`, zodat er nooit een bijgewerkte taak zonder logregel kan
+ * ontstaan. Zou stap 2 los mislukken, dan was de vorige beurt onherroepelijk
+ * overschreven zonder dat er iets voor in de plaats kwam — en historie is niet
+ * te reconstrueren.
+ *
+ * De taak gaat compleet mee omdat `setDoc` hem overschrijft; een half object
+ * zou de rest wissen.
+ */
+export async function vinkOnderhoudAf(
+  uid: string,
+  projectId: string,
+  taak: OnderhoudTaakMetId,
+  uitgevoerdOp: Date,
+  extra: { doorWie?: string; kosten?: number; notitie?: string } = {},
+): Promise<void> {
+  const batch = writeBatch(db);
+
+  const { id, ...rest } = taak;
+  batch.set(
+    doc(db, "users", uid, "projects", projectId, "onderhoudstaken", id),
+    onderhoudTaakNaarFirestore({ ...rest, laatstUitgevoerdOp: uitgevoerdOp }),
+  );
+
+  batch.set(
+    doc(subPad(uid, projectId, "onderhoudslogboek")),
+    onderhoudLogregelNaarFirestore({
+      taakId: id,
+      ...(taak.onderdeelId ? { onderdeelId: taak.onderdeelId } : {}),
+      uitgevoerdOp,
+      ...(extra.doorWie ? { doorWie: extra.doorWie } : {}),
+      ...(extra.kosten === undefined ? {} : { kosten: extra.kosten }),
+      ...(extra.notitie ? { notitie: extra.notitie } : {}),
+    }),
+  );
+
+  await batch.commit();
+}
+
+export async function haalOnderhoudslogboek(
+  uid: string,
+  projectId: string,
+): Promise<OnderhoudLogregelMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "onderhoudslogboek"));
+  return resultaat.docs
+    .map((d) => onderhoudLogregelUitFirestore(d.id, d.data()))
+    .sort((a, b) => b.uitgevoerdOp.getTime() - a.uitgevoerdOp.getTime());
+}
+
+/**
+ * Corrigeert of verwijdert een logregel.
+ *
+ * `laatstUitgevoerdOp` op de taak wordt hier NIET bijgewerkt: dat zou betekenen
+ * dat het verwijderen van een oude regel stilzwijgend de planning verschuift.
+ * Wie een vergissing herstelt, past de taak apart aan — zichtbaar in plaats van
+ * als bijwerking.
+ */
+export async function verwijderLogregel(
+  uid: string,
+  projectId: string,
+  logId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "onderhoudslogboek", logId));
+}
+
+/**
+ * Zet de aangevinkte standaardtaken in één batch klaar.
+ *
+ * `waardenBron` staat op `voorstel`: de intervallen komen uit de bibliotheek en
+ * zijn schattingen (ADR-0009). Past de gebruiker er één aan, dan gaat dat veld
+ * naar `eigen` — en dat gebeurt in deze laag, niet in een formulier.
+ */
+export async function voegStandaardOnderhoudToe(
+  uid: string,
+  projectId: string,
+  taken: readonly {
+    titel: string;
+    omschrijving?: string;
+    intervalDagen: number;
+    voorkeursmaand?: number;
+    onderdeelId?: string;
+    waarschuwing?: string;
+  }[],
+): Promise<number> {
+  if (taken.length === 0) return 0;
+
+  const batch = writeBatch(db);
+  for (const taak of taken) {
+    batch.set(
+      doc(subPad(uid, projectId, "onderhoudstaken")),
+      onderhoudTaakNaarFirestore({ ...taak, waardenBron: "voorstel" }),
+    );
+  }
+  await batch.commit();
+  return taken.length;
 }

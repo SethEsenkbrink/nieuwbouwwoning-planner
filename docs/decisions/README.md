@@ -27,6 +27,7 @@
 | [0011](ADR-0011-meerwerk-sluiting.md) | Meerwerk: sluiting in drie vormen | Geaccepteerd | Vaste datum is de norm en schuift níét mee; bouwmoment is de uitzondering |
 | [0012](ADR-0012-opschorting-en-gebreken.md) | 5%-depot als keuze, datum afgeleid | Geaccepteerd | Deadline afgeleid uit de onderhoudstermijn; bedrag niet uit de koopsom rekenen |
 | [0013](ADR-0013-onderdelenregister-specs-montage-en-energielabel.md) | Onderdelenregister: specs, montage, energielabel | Geaccepteerd | `specs` als vrije map, plug-and-play vs vast, registratieplicht netbeheerder, energielabel als 10-jaarsklok |
+| [0014](ADR-0014-onderhoudsschema-en-uitgestelde-herinneringen.md) | Onderhoudsschema en uitgestelde herinneringen | Geaccepteerd | `voorkeursmaand` naast `intervalDagen`, logboek meteen mee, **herziet ADR-0010 §4**: geen e-mail maar een lijst op het dashboard |
 
 ## De drie die je als eerste moet lezen
 

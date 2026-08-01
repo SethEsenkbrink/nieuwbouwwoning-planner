@@ -35,6 +35,7 @@ describe("actieveGroep", () => {
     // Het dossier begint waar het bouwtraject eindigt (ADR-0010).
     expect(actieveGroep("/woning")).toBe("oplevering");
     expect(actieveGroep("/onderdelen")).toBe("oplevering");
+    expect(actieveGroep("/onderhoud")).toBe("oplevering");
   });
 
   it("laat de wizard onder Project vallen en niet onder Dashboard", () => {
@@ -63,6 +64,7 @@ describe("actiefItem", () => {
     expect(actiefItem("/oplevering")).toBe("/oplevering");
     expect(actiefItem("/woning")).toBe("/woning");
     expect(actiefItem("/onderdelen")).toBe("/onderdelen");
+    expect(actiefItem("/onderhoud")).toBe("/onderhoud");
   });
 });
 

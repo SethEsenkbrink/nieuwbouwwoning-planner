@@ -31,6 +31,8 @@ import type {
   Montage,
   Onderdeel,
   OnderdeelCategorie,
+  OnderhoudLogregel,
+  OnderhoudTaak,
   Registratieplicht,
   Woningpaspoort,
   WoningStatus,
@@ -112,6 +114,9 @@ export type OnderdeelData = Omit<MetDatums<Onderdeel>, "registratieplicht"> & {
  */
 export type Invoer<T> = { [K in keyof T]?: T[K] | undefined };
 
+export type OnderhoudTaakData = MetDatums<OnderhoudTaak>;
+export type OnderhoudLogregelData = MetDatums<OnderhoudLogregel>;
+
 /** Zoals hierboven, plus het Firestore-id dat pas bij het lezen bekend is. */
 export type ProjectMetId = ProjectData & { id: string };
 export type AnkerMetId = AnkerData & { id: string };
@@ -124,6 +129,8 @@ export type TermijnMetId = TermijnData & { id: string };
 export type GebrekMetId = GebrekData & { id: string };
 export type NabudgetMetId = NabudgetData & { id: string };
 export type OnderdeelMetId = OnderdeelData & { id: string };
+export type OnderhoudTaakMetId = OnderhoudTaakData & { id: string };
+export type OnderhoudLogregelMetId = OnderhoudLogregelData & { id: string };
 
 // ── Hulpjes ────────────────────────────────────────────────────────────────
 
@@ -809,6 +816,80 @@ export function onderdeelUitFirestore(id: string, data: DocumentData): Onderdeel
     ...optioneel("garantieMaanden", leesGetal(data.garantieMaanden)),
     ...optioneel("registratieplicht", registratieUitFirestore(data.registratieplicht)),
     ...optioneel("documentUrl", leesString(data.documentUrl)),
+    ...optioneel("notitie", leesString(data.notitie)),
+  };
+}
+
+// ── Onderhoud (ADR-0014) ───────────────────────────────────────────────────
+
+export function onderhoudTaakNaarFirestore(taak: Invoer<OnderhoudTaakData>): DocumentData {
+  return zonderLegeVelden({
+    titel: taak.titel,
+    omschrijving: taak.omschrijving,
+    onderdeelId: taak.onderdeelId,
+    intervalDagen: taak.intervalDagen,
+    voorkeursmaand: taak.voorkeursmaand,
+    laatstUitgevoerdOp: naarTimestamp(taak.laatstUitgevoerdOp),
+    waardenBron: taak.waardenBron,
+    waarschuwing: taak.waarschuwing,
+  });
+}
+
+export function onderhoudTaakUitFirestore(id: string, data: DocumentData): OnderhoudTaakMetId {
+  const maand = leesGetal(data.voorkeursmaand);
+
+  return {
+    id,
+    titel: leesString(data.titel) ?? "Naamloze onderhoudstaak",
+    // Terugval op 365: een taak zonder bruikbaar interval zou anders elke dag
+    // op de lijst staan. Jaarlijks is de veiligste aanname — zichtbaar genoeg
+    // om gecorrigeerd te worden, niet zo vaak dat hij de lijst overneemt.
+    intervalDagen: leesGetal(data.intervalDagen) ?? 365,
+    // Terugval op "voorstel": liever onterecht een disclaimer tonen dan een
+    // schatting als eigen cijfer presenteren (ADR-0009).
+    waardenBron: leesEnum(data.waardenBron, WAARDENBRONNEN) ?? "voorstel",
+    ...optioneel("omschrijving", leesString(data.omschrijving)),
+    ...optioneel("onderdeelId", leesString(data.onderdeelId)),
+    // Een maand buiten 1–12 valt weg in plaats van door te lekken naar
+    // `naarMaand()`, dat er anders een datum in een niet-bestaande maand van
+    // zou maken.
+    ...optioneel(
+      "voorkeursmaand",
+      maand !== undefined && Number.isInteger(maand) && maand >= 1 && maand <= 12
+        ? maand
+        : undefined,
+    ),
+    ...optioneel("laatstUitgevoerdOp", leesDatum(data.laatstUitgevoerdOp)),
+    ...optioneel("waarschuwing", leesString(data.waarschuwing)),
+  };
+}
+
+export function onderhoudLogregelNaarFirestore(
+  regel: Invoer<OnderhoudLogregelData>,
+): DocumentData {
+  return zonderLegeVelden({
+    taakId: regel.taakId,
+    onderdeelId: regel.onderdeelId,
+    uitgevoerdOp: naarTimestamp(regel.uitgevoerdOp),
+    doorWie: regel.doorWie,
+    kosten: regel.kosten,
+    notitie: regel.notitie,
+  });
+}
+
+export function onderhoudLogregelUitFirestore(
+  id: string,
+  data: DocumentData,
+): OnderhoudLogregelMetId {
+  return {
+    id,
+    taakId: leesString(data.taakId) ?? "",
+    // Zonder datum is een logregel betekenisloos. Epoch is hier bewust: het
+    // valt op in de UI en het voorkomt een crash op een ontbrekende datum.
+    uitgevoerdOp: leesDatum(data.uitgevoerdOp) ?? new Date(0),
+    ...optioneel("onderdeelId", leesString(data.onderdeelId)),
+    ...optioneel("doorWie", leesString(data.doorWie)),
+    ...optioneel("kosten", leesGetal(data.kosten)),
     ...optioneel("notitie", leesString(data.notitie)),
   };
 }

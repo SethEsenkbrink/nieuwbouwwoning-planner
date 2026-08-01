@@ -69,6 +69,7 @@ export const NAVIGATIE: readonly Navgroep[] = [
       // einde van het bouwtraject begint en niet bij de projectgegevens.
       { pad: "/woning", label: "De woning" },
       { pad: "/onderdelen", label: "Onderdelen" },
+      { pad: "/onderhoud", label: "Onderhoud" },
     ],
   },
   { sleutel: "project", label: "Project", pad: "/project", items: [] },

@@ -19,6 +19,7 @@ import Oplevering from "@/routes/Oplevering";
 import Nabudget from "@/routes/Nabudget";
 import Woning from "@/routes/Woning";
 import Onderdelen from "@/routes/Onderdelen";
+import Onderhoud from "@/routes/Onderhoud";
 import NietGevonden from "@/routes/NietGevonden";
 
 /**
@@ -149,6 +150,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Onderdelen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/onderhoud"
+            element={
+              <ProtectedRoute>
+                <Onderhoud />
               </ProtectedRoute>
             }
           />

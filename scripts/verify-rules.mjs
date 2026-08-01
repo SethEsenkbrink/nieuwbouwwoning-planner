@@ -215,6 +215,7 @@ const BLOKKEN = [
     "match /onderdelen/{",
     { categorie: "OnderdeelCategorie", montage: "Montage" },
   ],
+  ["onderhoudstaken", "match /onderhoudstaken/{", { waardenBron: "WaardenBron" }],
 ];
 
 let aantalEnums = 0;

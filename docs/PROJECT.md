@@ -152,23 +152,34 @@ users/{uid}
         ├── nabudget/{postId}     // wat er ná de oplevering nog komt
         │     - omschrijving, geraamd, werkelijk, notitie
         │     - status (geraamd | besteld | betaald)
-        └── onderdelen/{onderdeelId}   // het woningdossier — ADR-0013
-              - naam, categorie (verwarming | ventilatie | warm_water
-                                | elektra | opwekking | opslag | water
-                                | zonwering | dak | gevel | sanitair
-                                | beveiliging | overig)
-              - merk, type, serienummer
-              - specs                  // VRIJE MAP sleutel→string, max 30.
-                                       // De bibliotheek stelt velden voor per
-                                       // categorie; eigen sleutels mogen.
-              - montage (vast_geinstalleerd | plug_and_play | nvt)
-              - blijftBijWoning        // LOS van montage — ADR-0013 §2
-              - installatieDatum, installateurBetrokkeneId
-              - garantieMaanden        // einddatum is afgeleid
-              - registratieplicht      // map: instantie, aangemeldOp,
-                                       // referentie, toelichting
-              - documentUrl            // een LINK, nooit een bestand (C2)
-              - notitie
+        ├── onderdelen/{onderdeelId}   // het woningdossier — ADR-0013
+        │     - naam, categorie (verwarming | ventilatie | warm_water
+        │                       | elektra | opwekking | opslag | water
+        │                       | zonwering | dak | gevel | sanitair
+        │                       | beveiliging | overig)
+        │     - merk, type, serienummer
+        │     - specs                  // VRIJE MAP sleutel→string, max 30.
+        │                              // De bibliotheek stelt velden voor per
+        │                              // categorie; eigen sleutels mogen.
+        │     - montage (vast_geinstalleerd | plug_and_play | nvt)
+        │     - blijftBijWoning        // LOS van montage — ADR-0013 §2
+        │     - installatieDatum, installateurBetrokkeneId
+        │     - garantieMaanden        // einddatum is afgeleid
+        │     - registratieplicht      // map: instantie, aangemeldOp,
+        │                              // referentie, toelichting
+        │     - documentUrl            // een LINK, nooit een bestand (C2)
+        │     - notitie
+        ├── onderhoudstaken/{taakId}   // terugkerend werk — ADR-0014
+        │     - titel, omschrijving, onderdeelId?
+        │     - intervalDagen          // 30 = maandelijks, 365 = jaarlijks
+        │     - voorkeursmaand (1-12)  // seizoenswerk; schuift naar de
+        │                              // DICHTSTBIJZIJNDE voorkomen
+        │     - laatstUitgevoerdOp     // een feit; de volgende keer is afgeleid
+        │     - waardenBron (voorstel | eigen)
+        │     - waarschuwing
+        └── onderhoudslogboek/{logId}  // wat er is gedaan
+              - taakId, onderdeelId?
+              - uitgevoerdOp, doorWie, kosten, notitie
 ```
 
 De canonieke TypeScript-definities staan in `src/types/model.ts` — **dat bestand is leidend**
@@ -254,10 +265,13 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 - [x] **Onderdelenregister**: merk, type, serienummer, specs, montagevorm, installatiedatum,
       garantieklok en registratieplicht — `/onderdelen`, met een bibliotheek van 17 onderdelen
       inclusief merken en typereeksen (ADR-0013)
-- [ ] **Onderhoudsschema** uit een standaardbibliotheek, met interval en historie
-- [ ] **Terugkerende controles** (rookmelder, aardlekschakelaar, waterdruk)
-- [ ] **Logboek** van onderhoud en verbouwingen
-- [ ] Herinneringen via een scheduled Netlify Function — **voorwaarde** voor deze fase
+- [x] **Onderhoudsschema** uit een standaardbibliotheek (30 taken), met `intervalDagen`,
+      `voorkeursmaand` voor seizoenswerk en historie — `/onderhoud` (ADR-0014)
+- [x] **Terugkerende controles** (rookmelder, aardlekschakelaar, waterdruk) — zitten in
+      dezelfde bibliotheek; het zijn onderhoudstaken met een kort interval
+- [x] **Logboek** van onderhoud — afvinken schrijft atomair een logregel (ADR-0014 §2)
+- [ ] Herinneringen via een scheduled Netlify Function — **uitgesteld tot ronde 8**
+      (ADR-0014 §3 herziet ADR-0010 §4). Tot die tijd: de onderhoudslijst op het dashboard
 - [ ] Meterstanden, overdrachtsdossier, meerdere woningen, PDF-export
 
 ## 7. Security-uitgangspunten

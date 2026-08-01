@@ -15,6 +15,7 @@ import {
   haalBetrokkenen,
   haalMeerwerk,
   haalOnderdelen,
+  haalOnderhoudstaken,
   haalTermijnen,
   werkAfspraakBij,
 } from "@/lib/projecten";
@@ -26,12 +27,14 @@ import { telMeerwerk } from "@/lib/meerwerk";
 import { telDepot } from "@/lib/depot";
 import { adresregel, bepaalEnergielabelstand, isOpgeleverd } from "@/lib/woning";
 import { garantiesDieAflopen, telOpenstaandeRegistraties } from "@/lib/onderdelen";
+import { maakOnderhoudslijst, toonInterval } from "@/lib/onderhoud";
 import type {
   AfspraakMetId,
   AnkerMetId,
   BetrokkeneMetId,
   MeerwerkMetId,
   OnderdeelMetId,
+  OnderhoudTaakMetId,
   ProjectMetId,
   TermijnMetId,
 } from "@/lib/converters";
@@ -71,6 +74,7 @@ export default function Dashboard() {
   const [meerwerk, setMeerwerk] = useState<MeerwerkMetId[]>([]);
   const [termijnen, setTermijnen] = useState<TermijnMetId[]>([]);
   const [onderdelen, setOnderdelen] = useState<OnderdeelMetId[]>([]);
+  const [onderhoudstaken, setOnderhoudstaken] = useState<OnderhoudTaakMetId[]>([]);
   const [bezigMetLaden, setBezigMetLaden] = useState(true);
   const [bezigMetId, setBezigMetId] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
@@ -101,6 +105,7 @@ export default function Dashboard() {
           geladenMeerwerk,
           geladenTermijnen,
           geladenOnderdelen,
+          geladenOnderhoud,
         ] = await Promise.all([
           haalAnkers(uid, gevonden.id),
           haalBetrokkenen(uid, gevonden.id),
@@ -108,6 +113,7 @@ export default function Dashboard() {
           haalMeerwerk(uid, gevonden.id),
           haalTermijnen(uid, gevonden.id),
           haalOnderdelen(uid, gevonden.id),
+          haalOnderhoudstaken(uid, gevonden.id),
         ]);
         if (!actueel) return;
 
@@ -118,6 +124,7 @@ export default function Dashboard() {
         setMeerwerk(geladenMeerwerk);
         setTermijnen(geladenTermijnen);
         setOnderdelen(geladenOnderdelen);
+        setOnderhoudstaken(geladenOnderhoud);
       } catch (f) {
         if (actueel) setFout(opslagFoutmelding(f, "Laden"));
       } finally {
@@ -187,13 +194,23 @@ export default function Dashboard() {
   const depotstand = telDepot(termijnen);
 
   // De omslag uit ADR-0010 §1: na de sleuteloverdracht verandert het dashboard
-  // van inhoud, niet van plek. Voor nu is dat de kop plus een verwijzing naar
-  // het dossier; de onderhoudslijst komt in blok E3.
+  // van inhoud, niet van plek. In `opgeleverd` staat de onderhoudslijst waar in
+  // de bouwfase de schuif-impact-actielijst staat.
   const opgeleverd = isOpgeleverd(project);
   const adres = adresregel(project.woningpaspoort);
   const labelstand = bepaalEnergielabelstand(project.woningpaspoort, opDag(new Date()));
   const aflopend = garantiesDieAflopen(onderdelen, opDag(new Date()));
   const registratiesOpen = telOpenstaandeRegistraties(onderdelen);
+
+  // DIT IS DE HERINNERING (ADR-0014 §3). Er gaat geen mail uit tot ronde 8, dus
+  // deze lijst is het enige dat de gebruiker eraan herinnert. Alleen wat nu
+  // aandacht vraagt — de volledige lijst staat op /onderhoud.
+  const onderhoudNu = maakOnderhoudslijst(
+    onderhoudstaken,
+    onderdelen,
+    project.opleverVerwacht,
+    opDag(new Date()),
+  ).filter((r) => r.stand.urgentie !== "later");
 
   return (
     <AppShell>
@@ -249,6 +266,57 @@ export default function Dashboard() {
             </Link>
           </Melding>
         </div>
+      )}
+
+      {/* ── De onderhoudslijst — de herinnering uit ADR-0014 §3 ──────────
+          Staat vóór de garanties, want achterstallig onderhoud is werk dat
+          klaarligt; een aflopende garantie is een kans die je kunt benutten. */}
+      {opgeleverd && onderhoudNu.length > 0 && (
+        <section className="mt-s4 max-w-3xl">
+          <h2 className="text-h3 text-ink">
+            {onderhoudNu.length === 1
+              ? "Eén onderhoudsbeurt vraagt aandacht"
+              : `${onderhoudNu.length} onderhoudsbeurten vragen aandacht`}
+          </h2>
+          <p className="mt-s2 text-body text-slate">
+            Vink af wat je gedaan hebt — dan schuift de volgende keer vanzelf op en komt het in
+            het logboek.
+          </p>
+
+          <div className="mt-s3 flex flex-col gap-2">
+            {onderhoudNu.map(({ taak, stand, onderdeelNaam }) => (
+              <div
+                key={taak.id}
+                className={`brink-card flex flex-wrap items-start justify-between gap-2 p-s3 ${
+                  stand.urgentie === "achterstallig" ? "border border-clay/40" : ""
+                }`}
+              >
+                <div>
+                  <Link to="/onderhoud" className="text-body font-semibold text-ink underline">
+                    {taak.titel}
+                  </Link>
+                  <p className="mt-1 text-sm text-slate">
+                    {toonInterval(taak.intervalDagen)}
+                    {onderdeelNaam && ` · ${onderdeelNaam}`}
+                  </p>
+                </div>
+                <span
+                  className={`rounded-pill px-3 py-1 text-sm ${
+                    stand.urgentie === "achterstallig"
+                      ? "bg-clay/15 text-clay-deep"
+                      : "bg-bone text-charcoal"
+                  }`}
+                >
+                  {stand.urgentie === "achterstallig"
+                    ? `${Math.abs(stand.dagenResterend)} dagen over tijd`
+                    : stand.dagenResterend === 0
+                      ? "vandaag"
+                      : `over ${stand.dagenResterend} dagen`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Het moment waarop informatie geld waard is: nog even laten nakijken

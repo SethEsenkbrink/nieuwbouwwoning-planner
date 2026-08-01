@@ -1428,3 +1428,264 @@ describe("onderdelen", () => {
     await assertFails(getDocs(collection(db, `users/${ALICE}/projects/p1/onderdelen`)));
   });
 });
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Onderhoud — taken en logboek (ADR-0014)
+ *
+ * De belangrijkste test in dit blok is de laatste: er mag geen volgende-datum
+ * in een onderhoudstaak staan. Dat is dezelfde bewaking als
+ * "slaat geen afspraakdatum op" bij de converters, maar dan op rules-niveau —
+ * en het is de regel die het makkelijkst per ongeluk sneuvelt zodra iemand
+ * denkt "handig, dan hoef ik niet te rekenen".
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const geldigeTaak = {
+  titel: "WTW-filters vervangen",
+  intervalDagen: 182,
+  waardenBron: "voorstel",
+};
+
+describe("onderhoudstaken", () => {
+  it("accepteert een volledige taak", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t1`), {
+        ...geldigeTaak,
+        omschrijving: "Beide filters uit de unit halen en vervangen",
+        onderdeelId: "o1",
+        voorkeursmaand: 10,
+        laatstUitgevoerdOp: Timestamp.fromDate(new Date("2026-03-15")),
+        waardenBron: "eigen",
+        waarschuwing: "Vuile filters kosten rendement",
+      }),
+    );
+  });
+
+  it("accepteert een minimale taak", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t2`), geldigeTaak),
+    );
+  });
+
+  it("weigert een taak zonder titel", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t3`),
+        zonderVeld(geldigeTaak, "titel"),
+      ),
+    );
+  });
+
+  it("weigert een lege titel", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t4`), {
+        ...geldigeTaak,
+        titel: "",
+      }),
+    );
+  });
+
+  it("weigert een taak zonder interval", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t5`),
+        zonderVeld(geldigeTaak, "intervalDagen"),
+      ),
+    );
+  });
+
+  /** Interval 0 zou de taak elke dag op de lijst zetten. */
+  it("weigert een interval van nul dagen", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t6`), {
+        ...geldigeTaak,
+        intervalDagen: 0,
+      }),
+    );
+  });
+
+  it("weigert een negatief interval", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t7`), {
+        ...geldigeTaak,
+        intervalDagen: -30,
+      }),
+    );
+  });
+
+  it("weigert een absurd lang interval", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t8`), {
+        ...geldigeTaak,
+        intervalDagen: 40000,
+      }),
+    );
+  });
+
+  it("weigert een interval dat geen geheel getal is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t9`), {
+        ...geldigeTaak,
+        intervalDagen: 182.5,
+      }),
+    );
+  });
+
+  it("accepteert een interval van tien jaar", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t10`), {
+        ...geldigeTaak,
+        titel: "Rookmelders vervangen",
+        intervalDagen: 3650,
+      }),
+    );
+  });
+
+  it("weigert een voorkeursmaand buiten 1–12", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t11`), {
+        ...geldigeTaak,
+        voorkeursmaand: 13,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t12`), {
+        ...geldigeTaak,
+        voorkeursmaand: 0,
+      }),
+    );
+  });
+
+  it("accepteert de randen van de maandschaal", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t13`), {
+        ...geldigeTaak,
+        voorkeursmaand: 1,
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t14`), {
+        ...geldigeTaak,
+        voorkeursmaand: 12,
+      }),
+    );
+  });
+
+  it("weigert een onbekende waardenBron", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t15`), {
+        ...geldigeTaak,
+        waardenBron: "geschat",
+      }),
+    );
+  });
+
+  it("weigert een laatstUitgevoerdOp die geen timestamp is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t16`), {
+        ...geldigeTaak,
+        laatstUitgevoerdOp: "2026-03-15",
+      }),
+    );
+  });
+
+  it("weigert dat Bob een taak bij Alice zet", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t17`), geldigeTaak),
+    );
+  });
+});
+
+describe("onderhoudslogboek", () => {
+  const geldigeRegel = {
+    taakId: "t1",
+    uitgevoerdOp: Timestamp.fromDate(new Date("2026-03-15")),
+  };
+
+  it("accepteert een volledige logregel", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudslogboek/l1`), {
+        ...geldigeRegel,
+        onderdeelId: "o1",
+        doorWie: "Zelf gedaan",
+        kosten: 45,
+        notitie: "Filters van Filterfabriek, maat 400",
+      }),
+    );
+  });
+
+  it("accepteert een minimale logregel", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudslogboek/l2`), geldigeRegel),
+    );
+  });
+
+  /** Zonder datum zegt een logregel niets — dat is de hele functie ervan. */
+  it("weigert een logregel zonder datum", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/onderhoudslogboek/l3`),
+        zonderVeld(geldigeRegel, "uitgevoerdOp"),
+      ),
+    );
+  });
+
+  it("weigert een logregel zonder taakId", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/onderhoudslogboek/l4`),
+        zonderVeld(geldigeRegel, "taakId"),
+      ),
+    );
+  });
+
+  it("weigert negatieve kosten", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudslogboek/l5`), {
+        ...geldigeRegel,
+        kosten: -45,
+      }),
+    );
+  });
+
+  it("weigert een notitie die als opslagplek wordt misbruikt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudslogboek/l6`), {
+        ...geldigeRegel,
+        notitie: "x".repeat(2001),
+      }),
+    );
+  });
+
+  it("weigert dat Bob het logboek van Alice leest", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), `users/${ALICE}/projects/p1/onderhoudslogboek/l7`),
+        geldigeRegel,
+      );
+    });
+    const db = alsGebruiker(BOB);
+    await assertFails(getDocs(collection(db, `users/${ALICE}/projects/p1/onderhoudslogboek`)));
+  });
+});

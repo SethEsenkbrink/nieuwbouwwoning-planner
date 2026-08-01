@@ -629,6 +629,74 @@ export interface Onderdeel {
   notitie?: string;
 }
 
+// ── Onderhoud — terugkerend werk aan de woning (ADR-0014) ──────────────────
+
+/**
+ * Een onderhoudstaak herhaalt zich; een bouwafspraak niet. Dat is het enige
+ * punt waarop de mechaniek uit ADR-0008 niet volstond (ADR-0010 §2).
+ *
+ * DE VOLGENDE BEURT WORDT NOOIT OPGESLAGEN. Alleen `laatstUitgevoerdOp` (een
+ * feit over het verleden, net als `gecommuniceerdeDatum`) en `intervalDagen`.
+ * De volgende datum volgt daaruit via `lib/onderhoud.ts`.
+ */
+export interface OnderhoudTaak {
+  /** Wat er moet gebeuren, bijv. "WTW-filters vervangen". Verplicht. */
+  titel: string;
+  omschrijving?: string;
+
+  /** Verwijzing naar een onderdelen/{onderdeelId}. Niet alles hangt aan een apparaat. */
+  onderdeelId?: string;
+
+  /** 30 = maandelijks, 365 = jaarlijks, 3650 = elke tien jaar. */
+  intervalDagen: number;
+
+  /**
+   * De maand waarin dit hoort te gebeuren (1–12), voor seizoenswerk
+   * (ADR-0014 §1).
+   *
+   * Is die gezet, dan verschuift de berekende datum naar de DICHTSTBIJZIJNDE
+   * voorkomen van die maand. Zonder dit veld bepaalt het moment van afvinken de
+   * hele reeks: goten die je één keer in maart afvinkt, staan daarna elk jaar
+   * in maart — en die fout plant zich voort.
+   */
+  voorkeursmaand?: number;
+
+  /** Wanneer het voor het laatst gedaan is. Leeg = nog nooit. */
+  laatstUitgevoerdOp?: Timestamp;
+
+  /** `voorstel` zolang het interval uit de bibliotheek komt (ADR-0009). */
+  waardenBron: WaardenBron;
+
+  /**
+   * Waarschuwing die bij deze taak hoort — bijv. dat een verouderd
+   * actief-koolfilter bacteriegroei kan bevorderen, of dat een rookmelder na
+   * tien jaar vervángen moet worden en schoonmaken dan niet meer helpt.
+   */
+  waarschuwing?: string;
+}
+
+/**
+ * Eén uitgevoerde beurt. Wordt in dezelfde batch geschreven als het bijwerken
+ * van `laatstUitgevoerdOp`, zodat er nooit een bijgewerkte taak zonder logregel
+ * kan bestaan (ADR-0014 §2).
+ *
+ * Zonder deze collectie zou elke beurt de vorige overschrijven: je ziet dan dát
+ * er iets gebeurde, maar niet wat, door wie of wat het kostte. Dat is het deel
+ * dat bij verkoop het waardevolst is, en het is niet achteraf te reconstrueren.
+ */
+export interface OnderhoudLogregel {
+  taakId: string;
+  /** Overgenomen van de taak op het moment van uitvoeren, voor het onderdeeloverzicht. */
+  onderdeelId?: string;
+  /** Een feit over het verleden, dus wél opgeslagen. */
+  uitgevoerdOp: Timestamp;
+  /** Wie het deed: "zelf", of de naam van het servicebedrijf. */
+  doorWie?: string;
+  /** Wat het kostte, in hele euro's. */
+  kosten?: number;
+  notitie?: string;
+}
+
 // ── Handige aliassen voor gelezen documenten ───────────────────────────────
 
 export type ProjectDoc = Project & MetId;
@@ -642,3 +710,5 @@ export type TermijnDoc = Termijn & MetId;
 export type GebrekDoc = Gebrek & MetId;
 export type NabudgetpostDoc = Nabudgetpost & MetId;
 export type OnderdeelDoc = Onderdeel & MetId;
+export type OnderhoudTaakDoc = OnderhoudTaak & MetId;
+export type OnderhoudLogregelDoc = OnderhoudLogregel & MetId;
