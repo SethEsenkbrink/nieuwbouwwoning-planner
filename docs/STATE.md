@@ -51,6 +51,7 @@ per punt staan in `2026-07-31-bouwplan-en-backlog.md`.
 | Unit tests | **337** in 17 bestanden (was 220), geen emulator nodig |
 | Rules-tests | **141** (was 79), apart met `npm run rules:test` |
 | ADR's | 14, met index in `decisions/README.md` |
+| Schermen | 13 achter login, plus de wizard en drie auth-schermen |
 | Verify-scripts | tokens (50) · headers (10 + 14 CSP) · rules-pariteit (25 enums, 121 waarden) |
 
 ## ⚠️ `npm run typecheck` heeft nooit iets gecontroleerd — opgelost op 1 augustus
@@ -141,13 +142,35 @@ duizenden.
 
 ## Direct volgende stap
 
-**E7 — meterstanden.** In volgorde van het bouwplan:
+### Eerst: `npm run verify` lokaal
 
-1. **E7 meterstanden** — handmatige opnames met een verbruikstrend. Bewust simpel; geen
-   koppeling met slimme meters.
-2. **E8 overdrachtsdossier** — client-side PDF. `blijftBijWoning` bepaalt wat erin komt
-   (ADR-0013 §2), en het onderhoudslogboek is het waardevolste deel.
-3. **C5 documentparser**, **B4/F1 live gaan** met de e-mailherinneringen uit ADR-0014 §3.
+**E4 is nog niet door de volledige gate geweest.** In de sandbox zijn typecheck en de drie
+verify-scripts groen, maar lint, de 337 tests en de build niet. De rules zijn bij E4 niet
+gewijzigd, dus `rules:test` mag deze keer overgeslagen worden.
+
+### Dan: E7 — meterstanden
+
+Bewust simpel volgens ADR-0010: handmatige opnames met een verbruikstrend, **geen koppeling
+met slimme meters**. Drie dingen om vooraf te beslissen:
+
+1. **Welke meters.** Stroom (piek/dal), gas, water — en bij zonnepanelen ook teruglevering.
+   Vaste lijst of vrij toevoegen?
+2. **Wat wordt opgeslagen.** De standen zijn feiten en gaan erin; het verbruik ertussen is
+   afgeleid en hoort er dus **niet** in (ADR-0008). Dat is dezelfde regel als bij de
+   afspraakdatums en bij `laatstUitgevoerdOp`.
+3. **Waar het hangt.** Er staat al een taak "Meterstanden noteren" met `voorkeursmaand: 1` in
+   de onderhoudsbibliotheek. Wordt dat de trigger, of komt er een apart scherm met een
+   eigen subcollectie?
+
+Het model zal een subcollectie `meterstanden` nodig hebben, dus: rules bijwerken,
+`verify:rules` uitbreiden, en **daarna deployen in dezelfde sessie** (zie de vorige paragraaf).
+
+### Daarna
+
+- **E8 overdrachtsdossier** — client-side PDF. `blijftBijWoning` bepaalt wat erin komt
+  (ADR-0013 §2), en het onderhoudslogboek is het waardevolste deel.
+- **De `improvements/`-wachtrij** (zie hieronder) — vóór het live gaan.
+- **C5 documentparser** en **B4/F1 live gaan** met de e-mailherinneringen uit ADR-0014 §3.
 
 > **Toets bij het live gaan (ADR-0014 §3):** kijk dan hoeveel onderhoudstaken er
 > achterstallig zijn op het moment dat iemand inlogt. Is dat structureel hoog, dan had

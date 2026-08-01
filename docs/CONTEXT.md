@@ -11,26 +11,35 @@
 ---
 
 Ik werk aan **Nieuwbouwplanner**, een webapp voor kopers van een nieuwbouwwoning.
-De projectmap is `09 - Brink Multimedia/Nieuwbouwplanner/`.
+De projectmap is `C:\dev\projecten\Brink Multimedia - main folder\Nieuwbouwplanner`.
 
 Dit project heeft een vast documentatiesysteem. **Lees eerst deze bestanden, in deze
 volgorde, voordat je iets voorstelt of bouwt:**
 
-1. `docs/PROJECT.md` — scope, harde constraints, datamodel, stack (de vaste waarheid)
-2. `docs/STATE.md` — waar we nu staan en wat de direct volgende stap is
-3. `docs/WORKFLOW.md` — de spelregels, inclusief jouw bijwerkplicht aan het eind
-4. `docs/decisions/` — de ADR's die raken aan waar we mee bezig zijn
-5. `docs/sessions/` — het laatste sessielog
-6. `../AGENTS.md` — de onwrikbare huisstijlregels van de werkruimte
+1. `AGENTS.md` — de leesvolgorde en de vijf fouten die het vaakst gemaakt worden
+2. `CLAUDE.md` — **wat je in een AI-sandbox wél en níét kunt draaien.** Lees dit vóór je een
+   commando uitvoert; `tsc --noEmit` controleert in dit project bijvoorbeeld niets
+3. `docs/PROJECT.md` — scope, harde constraints, datamodel, stack (de vaste waarheid)
+4. `docs/STATE.md` — waar we nu staan en wat de direct volgende stap is
+5. `docs/WORKFLOW.md` — de spelregels, inclusief jouw bijwerkplicht aan het eind
+6. `docs/decisions/` — de ADR's die raken aan waar we mee bezig zijn (lees in elk geval de
+   index in `decisions/README.md`)
+7. `docs/sessions/` — het laatste sessielog
+8. `../AGENTS.md` — de onwrikbare huisstijlregels van de werkruimte
 
 Bevestig daarna kort in eigen woorden:
 
 - wat de direct volgende stap is volgens `STATE.md`
 - welke constraints uit `PROJECT.md` §3 van toepassing zijn op die stap
 - of er open vragen in `STATE.md` staan die eerst een beslissing van mij nodig hebben
+- welke commando's je zélf kunt draaien en welke ik lokaal moet doen
 
-Ga pas daarna bouwen. Aan het eind van de sessie werk je verplicht `STATE.md` bij en schrijf
-je een sessielog in `docs/sessions/`, conform `WORKFLOW.md` §2.
+Ga pas daarna bouwen. Bij een taak van meerdere stappen: eerst een kort plan, wachten op mijn
+akkoord, dán uitvoeren.
+
+Aan het eind van de sessie werk je verplicht `STATE.md` bij en schrijf je een sessielog in
+`docs/sessions/`, conform `WORKFLOW.md` §2. Sluit af met een verificatiepass — die heeft in
+sessie 06 drie keer een echte bug gevonden die bij het bouwen niet opviel.
 
 ---
 
