@@ -27,6 +27,10 @@ import type {
   Task,
   Termijn,
   WaardenBron,
+  Energielabel,
+  Woningpaspoort,
+  WoningStatus,
+  Woningtype,
 } from "@/types/model";
 
 /**
@@ -64,7 +68,18 @@ export type MetDatums<T> = {
       : T[K];
 };
 
-export type ProjectData = MetDatums<Project>;
+export type WoningpaspoortData = MetDatums<Woningpaspoort>;
+
+/**
+ * `MetDatums` is bewust niet recursief: het mapt alleen `Timestamp` op het
+ * bovenste niveau. Het woningpaspoort is een geneste map met een `Timestamp`
+ * erin (`energielabelOpnameDatum`), en die zou dus ongemoeid blijven. Daarom
+ * hier expliciet vervangen — zichtbaar in plaats van verstopt in een slim
+ * mapped type dat bij de volgende geneste map opnieuw stilzwijgend faalt.
+ */
+export type ProjectData = Omit<MetDatums<Project>, "woningpaspoort"> & {
+  woningpaspoort?: WoningpaspoortData;
+};
 export type AnkerData = MetDatums<Anker>;
 export type BetrokkeneData = MetDatums<Betrokkene>;
 export type AfspraakData = MetDatums<Afspraak>;
@@ -224,6 +239,31 @@ const MEERWERKSLUITINGEN = [
   "bouwmoment",
   "onbekend",
 ] as const satisfies readonly MeerwerkSluiting[];
+const WONINGSTATUSSEN = ["in_aanbouw", "opgeleverd"] as const satisfies readonly WoningStatus[];
+const WONINGTYPES = [
+  "tussenwoning",
+  "hoekwoning",
+  "twee_onder_een_kap",
+  "vrijstaand",
+  "appartement",
+  "benedenwoning",
+  "bovenwoning",
+  "overig",
+] as const satisfies readonly Woningtype[];
+const ENERGIELABELS = [
+  "A+++++",
+  "A++++",
+  "A+++",
+  "A++",
+  "A+",
+  "A",
+  "B",
+  "C",
+  "D",
+  "E",
+  "F",
+  "G",
+] as const satisfies readonly Energielabel[];
 
 /**
  * De acht ankertypes, ook bruikbaar in de UI voor een keuzelijst.
@@ -233,6 +273,62 @@ const MEERWERKSLUITINGEN = [
  */
 export const ALLE_ANKERTYPES = ANKERTYPES;
 export const ALLE_CATEGORIEEN = CATEGORIEEN;
+export const ALLE_WONINGTYPES = WONINGTYPES;
+export const ALLE_ENERGIELABELS = ENERGIELABELS;
+
+// ── Woningpaspoort (ADR-0013 §5) ───────────────────────────────────────────
+
+/**
+ * Het paspoort is een geneste map. Is er niets ingevuld, dan komt `undefined`
+ * terug in plaats van een lege map: een leeg object zou in Firestore een veld
+ * bezetten en in de UI als "ingevuld" tellen.
+ */
+function paspoortNaarFirestore(
+  paspoort: WoningpaspoortData | undefined,
+): DocumentData | undefined {
+  if (!paspoort) return undefined;
+
+  const inhoud = zonderLegeVelden({
+    adres: paspoort.adres,
+    postcode: paspoort.postcode,
+    plaats: paspoort.plaats,
+    woningtype: paspoort.woningtype,
+    bouwjaar: paspoort.bouwjaar,
+    woonoppervlakte: paspoort.woonoppervlakte,
+    perceeloppervlakte: paspoort.perceeloppervlakte,
+    energielabel: paspoort.energielabel,
+    energielabelRegistratie: paspoort.energielabelRegistratie,
+    energielabelOpnameDatum: naarTimestamp(paspoort.energielabelOpnameDatum),
+    waarborgpolisnummer: paspoort.waarborgpolisnummer,
+    notaris: paspoort.notaris,
+    hypotheekverstrekker: paspoort.hypotheekverstrekker,
+  });
+
+  return Object.keys(inhoud).length === 0 ? undefined : inhoud;
+}
+
+function paspoortUitFirestore(waarde: unknown): WoningpaspoortData | undefined {
+  if (typeof waarde !== "object" || waarde === null || Array.isArray(waarde)) return undefined;
+  const data = waarde as DocumentData;
+
+  const paspoort: WoningpaspoortData = {
+    ...optioneel("adres", leesString(data.adres)),
+    ...optioneel("postcode", leesString(data.postcode)),
+    ...optioneel("plaats", leesString(data.plaats)),
+    ...optioneel("woningtype", leesEnum(data.woningtype, WONINGTYPES)),
+    ...optioneel("bouwjaar", leesGetal(data.bouwjaar)),
+    ...optioneel("woonoppervlakte", leesGetal(data.woonoppervlakte)),
+    ...optioneel("perceeloppervlakte", leesGetal(data.perceeloppervlakte)),
+    ...optioneel("energielabel", leesEnum(data.energielabel, ENERGIELABELS)),
+    ...optioneel("energielabelRegistratie", leesString(data.energielabelRegistratie)),
+    ...optioneel("energielabelOpnameDatum", leesDatum(data.energielabelOpnameDatum)),
+    ...optioneel("waarborgpolisnummer", leesString(data.waarborgpolisnummer)),
+    ...optioneel("notaris", leesString(data.notaris)),
+    ...optioneel("hypotheekverstrekker", leesString(data.hypotheekverstrekker)),
+  };
+
+  return Object.keys(paspoort).length === 0 ? undefined : paspoort;
+}
 
 // ── Project ────────────────────────────────────────────────────────────────
 
@@ -254,6 +350,8 @@ export function projectNaarFirestore(project: Partial<ProjectData>): DocumentDat
     opschortingStatus: project.opschortingStatus,
     opschortingBedrag: project.opschortingBedrag,
     opschortingNotitie: project.opschortingNotitie,
+    woningStatus: project.woningStatus,
+    woningpaspoort: paspoortNaarFirestore(project.woningpaspoort),
     aangemaaktOp: naarTimestamp(project.aangemaaktOp),
     bijgewerktOp: naarTimestamp(project.bijgewerktOp),
   });
@@ -278,6 +376,11 @@ export function projectUitFirestore(id: string, data: DocumentData): ProjectMetI
     ...optioneel("opschortingStatus", leesEnum(data.opschortingStatus, OPSCHORTINGSTATUSSEN)),
     ...optioneel("opschortingBedrag", leesGetal(data.opschortingBedrag)),
     ...optioneel("opschortingNotitie", leesString(data.opschortingNotitie)),
+    // Ontbreekt `woningStatus`, dan blijft hij afwezig en behandelt de app het
+    // project als `in_aanbouw` — zie `isOpgeleverd()` in `lib/woning.ts`.
+    // Projecten van vóór blok E hoeven dus niet gemigreerd te worden.
+    ...optioneel("woningStatus", leesEnum(data.woningStatus, WONINGSTATUSSEN)),
+    ...optioneel("woningpaspoort", paspoortUitFirestore(data.woningpaspoort)),
     aangemaaktOp: leesDatum(data.aangemaaktOp) ?? new Date(0),
     ...optioneel("bijgewerktOp", leesDatum(data.bijgewerktOp)),
   };

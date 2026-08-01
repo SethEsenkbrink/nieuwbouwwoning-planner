@@ -59,15 +59,38 @@ function leesUnie(naam) {
 
 // ── De rules uitlezen ──────────────────────────────────────────────────────
 
-/** De ankertypes staan in een eigen hulpfunctie en worden twee keer gebruikt. */
-function leesAnkerTypes() {
-  const m = rules.match(/function ankerTypes\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/);
+/**
+ * Sommige waardelijsten staan in een eigen hulpfunctie in de rules omdat ze op
+ * meer dan één plek gebruikt worden:
+ *
+ *   function ankerTypes() { return ['start_bouw', ...]; }
+ *
+ * Die worden hier uitgelezen, zodat `isOneOf(veld, ankerTypes())` verderop
+ * opgelost kan worden naar de daadwerkelijke lijst.
+ */
+function leesLijstFunctie(naam) {
+  const m = rules.match(new RegExp(`function ${naam}\\(\\)\\s*\\{\\s*return\\s*\\[([\\s\\S]*?)\\]`));
   if (!m) return null;
   const leden = m[1].match(/'([^']+)'/g);
   return leden ? leden.map((l) => l.slice(1, -1)) : null;
 }
 
-const ANKERTYPES_UIT_RULES = leesAnkerTypes();
+/**
+ * Elke hulpfunctie die een waardelijst teruggeeft. Komt er één bij in de rules,
+ * dan hoort hij hier ook — anders blijft `isOneOf(veld, nieuweLijst())`
+ * onopgemerkt en controleert dit script hem stilzwijgend niet.
+ */
+const LIJSTFUNCTIES = ["ankerTypes", "woningtypes", "energielabels"];
+
+const LIJSTEN_UIT_RULES = new Map(
+  LIJSTFUNCTIES.map((naam) => [naam, leesLijstFunctie(naam)]).filter(([, lijst]) => lijst !== null),
+);
+
+for (const naam of LIJSTFUNCTIES) {
+  if (!LIJSTEN_UIT_RULES.has(naam)) {
+    problems.push(`hulpfunctie ${naam}() niet gevonden in firestore.rules`);
+  }
+}
 
 /**
  * Knipt het stuk rules dat bij één `match`- of `function`-blok hoort: vanaf de
@@ -90,14 +113,20 @@ function blok(kop) {
  */
 function enumsIn(tekst) {
   const gevonden = new Map();
-  const re = /isOneOf\(\s*([\w.]+)\s*,\s*(\[[\s\S]*?\]|ankerTypes\(\))\s*\)/g;
+  const lijstNamen = LIJSTFUNCTIES.join("|");
+  const re = new RegExp(
+    `isOneOf\\(\\s*([\\w.]+)\\s*,\\s*(\\[[\\s\\S]*?\\]|(?:${lijstNamen})\\(\\))\\s*\\)`,
+    "g",
+  );
 
   for (const m of tekst.matchAll(re)) {
     const veld = m[1].split(".").pop();
     if (gevonden.has(veld)) continue; // create en update herhalen dezelfde regel
 
-    if (m[2].startsWith("ankerTypes")) {
-      if (ANKERTYPES_UIT_RULES) gevonden.set(veld, ANKERTYPES_UIT_RULES);
+    const viaFunctie = m[2].match(/^(\w+)\(\)$/);
+    if (viaFunctie) {
+      const lijst = LIJSTEN_UIT_RULES.get(viaFunctie[1]);
+      if (lijst) gevonden.set(veld, lijst);
       continue;
     }
     const leden = m[2].match(/'([^']+)'/g);
@@ -173,6 +202,14 @@ const BLOKKEN = [
   ],
   ["gebreken", "match /gebreken/{", { status: "GebrekStatus" }],
   ["nabudget", "match /nabudget/{", { status: "NabudgetStatus" }],
+  // Het woningdossier (ADR-0010, ADR-0013). Twee blokken, omdat het paspoort
+  // een geneste map is met een eigen validatiefunctie.
+  ["geldigWoningdossier", "function geldigWoningdossier(", { woningStatus: "WoningStatus" }],
+  [
+    "geldigPaspoort",
+    "function geldigPaspoort(",
+    { woningtype: "Woningtype", energielabel: "Energielabel" },
+  ],
 ];
 
 let aantalEnums = 0;

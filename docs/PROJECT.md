@@ -93,6 +93,21 @@ users/{uid}
         // volgt uit de oplevering plus de onderhoudstermijn.
         - opschortingStatus (onbekend | niet_gebruikt | in_depot | vrijgegeven)
         - opschortingBedrag, opschortingNotitie
+        // Het woningdossier — ADR-0010. Ontbreekt woningStatus, dan geldt
+        // in_aanbouw; projecten van vóór blok E hoeven niet gemigreerd.
+        - woningStatus (in_aanbouw | opgeleverd)
+        // GENESTE MAP, geen losse velden: een map telt in de rules als ÉÉN
+        // veld, waardoor withinSize(25) intact blijft. Zie ADR-0013 §5.
+        - woningpaspoort
+            - adres, postcode, plaats
+            - woningtype (tussenwoning | hoekwoning | twee_onder_een_kap
+                        | vrijstaand | appartement | benedenwoning
+                        | bovenwoning | overig)
+            - bouwjaar, woonoppervlakte, perceeloppervlakte
+            - energielabel (A+++++ … G, NTA 8800)
+            - energielabelRegistratie      // EP-online
+            - energielabelOpnameDatum      // + 10 jaar = de vervaldatum, afgeleid
+            - waarborgpolisnummer, notaris, hypotheekverstrekker
         ├── ankers/{ankerId}          // bouwmomenten waaraan afspraken hangen
         │     - type (start_bouw | begane_grond_gestort | ruwbouw_gereed
         │             | wind_waterdicht | dekvloer_gestort | oplevering
@@ -217,7 +232,8 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 
 ### Fase 4 — het woningdossier (ADR-0010)
 
-- [ ] **Woningpaspoort** en `woningStatus` (in_aanbouw / opgeleverd)
+- [x] **Woningpaspoort** en `woningStatus` (in_aanbouw / opgeleverd), met het energielabel
+      als tienjaarsklok — `/woning` (ADR-0013)
 - [ ] **Onderdelenregister**: merk, type, serienummer, installatiedatum, garantie
 - [ ] **Onderhoudsschema** uit een standaardbibliotheek, met interval en historie
 - [ ] **Terugkerende controles** (rookmelder, aardlekschakelaar, waterdruk)

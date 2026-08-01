@@ -22,6 +22,10 @@ import type { Timestamp } from "firebase/firestore";
  *     ├── gebreken/{defectId}
  *     └── nabudget/{postId}
  *
+ * Vanaf blok E (ADR-0010, ADR-0013) komt daar het woningdossier bij. Het
+ * woningpaspoort is een GENEST veld op het project en geen losse velden: een
+ * map telt in de rules als één veld, waardoor `withinSize(25)` intact blijft.
+ *
  * DE BELANGRIJKSTE REGEL IN DIT MODEL (ADR-0008):
  * een afspraakdatum wordt NOOIT opgeslagen. Alleen `ankerType` + `offsetDagen`.
  * De datum is altijd afgeleid via `src/lib/planning.ts`. Sla je hem wél op, dan
@@ -52,6 +56,96 @@ export type Garantiewaarborg = "woningborg" | "swk" | "geen" | "anders";
  * de app kennen.
  */
 export type OpleverStatus = "indicatief" | "bandbreedte" | "aangezegd";
+
+// ── Woningdossier: de tweede fase (ADR-0010, ADR-0013) ─────────────────────
+
+/**
+ * De fase waarin de woning verkeert. Dit ene veld bepaalt wat het dashboard
+ * bovenaan zet: in `in_aanbouw` de schuif-impact-actielijst, in `opgeleverd`
+ * de onderhoudslijst.
+ *
+ * Bewust handmatig om te zetten en NIET af te leiden uit de opleverdatum: een
+ * oplevering kan mislukken en een sleuteloverdracht kan uitgesteld worden. De
+ * app zou dan van vorm veranderen op precies het moment dat er nog van alles
+ * moet gebeuren. Zie ADR-0010 §1.
+ */
+export type WoningStatus = "in_aanbouw" | "opgeleverd";
+
+/**
+ * Het woningtype. Gesloten lijst — hij beschrijft de woningvoorraad, niet de
+ * voorkeur van de gebruiker, en bepaalt straks welke onderdelen en
+ * onderhoudstaken de bibliotheek voorstelt (een appartement heeft geen dakgoot).
+ */
+export type Woningtype =
+  | "tussenwoning"
+  | "hoekwoning"
+  | "twee_onder_een_kap"
+  | "vrijstaand"
+  | "appartement"
+  | "benedenwoning"
+  | "bovenwoning"
+  | "overig";
+
+/**
+ * De labelschaal volgens NTA 8800, geldig sinds 1 januari 2021. Gesloten lijst,
+ * want hij is wettelijk vastgelegd. Nieuwbouw komt sinds de BENG-eisen
+ * doorgaans op A++++ of hoger uit.
+ */
+export type Energielabel =
+  | "A+++++"
+  | "A++++"
+  | "A+++"
+  | "A++"
+  | "A+"
+  | "A"
+  | "B"
+  | "C"
+  | "D"
+  | "E"
+  | "F"
+  | "G";
+
+/**
+ * Wat er over de woning zelf vastligt — los van het bouwtraject.
+ *
+ * Dit is één GENEST veld op `Project` en geen dertien losse velden. Reden:
+ * `withinSize(25)` in de rules telt met `request.resource.data.size()`, en
+ * `Project` zit al op 18 velden. Als map kost het paspoort er één. Zie
+ * ADR-0013 §5.
+ *
+ * `aannemer`, `bouwnummer` en `garantiewaarborg` staan bewust NIET hier maar
+ * op het project zelf: die horen bij het bouwtraject en zijn al ingevuld
+ * voordat het paspoort relevant wordt.
+ */
+export interface Woningpaspoort {
+  adres?: string;
+  postcode?: string;
+  plaats?: string;
+  woningtype?: Woningtype;
+  bouwjaar?: number;
+  /** Gebruiksoppervlakte wonen in m², zoals in de brochure. */
+  woonoppervlakte?: number;
+  /** Perceeloppervlakte in m². Leeg bij een appartement. */
+  perceeloppervlakte?: number;
+
+  // ── Het energielabel als klok, niet als tekstje (ADR-0013 §4) ──────────
+  // Een label is TIEN JAAR geldig vanaf de opnamedatum en verloopt stil: is
+  // het verlopen, dan is het ook uit EP-online en MijnOverheid verdwenen, en
+  // bij verkoop heb je een geldig label nodig.
+  //
+  // De einddatum wordt NIET opgeslagen — die volgt uit de opnamedatum plus
+  // tien jaar (ADR-0008). De opnamedatum zelf is wél een feit en gaat er dus in.
+
+  energielabel?: Energielabel;
+  /** Het registratienummer in EP-online, waarmee het label terug te vinden is. */
+  energielabelRegistratie?: string;
+  energielabelOpnameDatum?: Timestamp;
+
+  /** Het polisnummer bij Woningborg of SWK — het waarborgtype staat op het project. */
+  waarborgpolisnummer?: string;
+  notaris?: string;
+  hypotheekverstrekker?: string;
+}
 
 export interface Project {
   /** Vrije naam van de gebruiker, bijv. "Ons huis in Almere". Verplicht. */
@@ -94,6 +188,14 @@ export interface Project {
    */
   opschortingBedrag?: number;
   opschortingNotitie?: string;
+
+  // ── Het woningdossier (ADR-0010) ────────────────────────────────────────
+  // Twee velden, waarvan het paspoort een geneste map is. Ontbreekt
+  // `woningStatus`, dan geldt `in_aanbouw` — bestaande projecten van vóór
+  // blok E hoeven dus niet gemigreerd te worden.
+
+  woningStatus?: WoningStatus;
+  woningpaspoort?: Woningpaspoort;
 
   aangemaaktOp: Timestamp;
   bijgewerktOp?: Timestamp;

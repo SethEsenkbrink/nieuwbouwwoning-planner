@@ -956,3 +956,201 @@ describe("nabudget", () => {
     await assertFails(setDoc(doc(db, `users/${ALICE}/projects/p1/nabudget/n6`), geldigePost));
   });
 });
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Het woningdossier (ADR-0010, ADR-0013)
+ *
+ * Twee velden op het project. `woningpaspoort` is een GENESTE MAP, en dat is
+ * de hele reden dat deze tests er zijn: een map telt in
+ * `request.resource.data.size()` als één veld, dus `withinSize(25)` beschermt
+ * de inhoud van die map niet. Zonder de eigen groottecheck in `geldigPaspoort`
+ * zou het paspoort precies de opslagplek zijn die constraint C2 uitsluit.
+ *
+ * Dat is dezelfde soort stille fout als `request.resource.size()` in sessie 03:
+ * het compileert, het deployt, en het weigert nooit iets.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("woningdossier op project", () => {
+  const basis = { naam: "Ons huis", aangemaaktOp: serverTimestamp() };
+
+  const geldigPaspoort = {
+    adres: "Dorpsstraat 1",
+    postcode: "1234 AB",
+    plaats: "Almere",
+    woningtype: "tussenwoning",
+    bouwjaar: 2026,
+    woonoppervlakte: 124,
+    perceeloppervlakte: 180,
+    energielabel: "A++++",
+    energielabelRegistratie: "0123456789",
+    energielabelOpnameDatum: Timestamp.fromDate(new Date("2026-09-01")),
+    waarborgpolisnummer: "WB-2026-4471",
+    notaris: "Notariskantoor Jansen",
+    hypotheekverstrekker: "Rabobank",
+  };
+
+  it("accepteert een project met een volledig paspoort", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1`), {
+        ...basis,
+        woningStatus: "opgeleverd",
+        woningpaspoort: geldigPaspoort,
+      }),
+    );
+  });
+
+  /**
+   * Het migratiepad: elk project van vóór blok E mist beide velden en moet
+   * gewoon te schrijven blijven.
+   */
+  it("accepteert een project zonder woningvelden", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(setDoc(doc(db, `users/${ALICE}/projects/p2`), basis));
+  });
+
+  it("accepteert een half ingevuld paspoort", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p3`), {
+        ...basis,
+        woningpaspoort: { adres: "Dorpsstraat 1" },
+      }),
+    );
+  });
+
+  it("weigert een onbekende woningStatus", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p4`), { ...basis, woningStatus: "bijna_klaar" }),
+    );
+  });
+
+  it("weigert een onbekend woningtype", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p5`), {
+        ...basis,
+        woningpaspoort: { woningtype: "woonboot" },
+      }),
+    );
+  });
+
+  it("weigert een energielabel buiten de NTA 8800-schaal", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p6`), {
+        ...basis,
+        woningpaspoort: { energielabel: "A+++++++" },
+      }),
+    );
+  });
+
+  it("accepteert alle uiteinden van de labelschaal", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p7`), {
+        ...basis,
+        woningpaspoort: { energielabel: "A+++++" },
+      }),
+    );
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p8`), {
+        ...basis,
+        woningpaspoort: { energielabel: "G" },
+      }),
+    );
+  });
+
+  it("weigert een onzinnig bouwjaar", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p9`), {
+        ...basis,
+        woningpaspoort: { bouwjaar: 12026 },
+      }),
+    );
+  });
+
+  it("weigert een bouwjaar dat geen geheel getal is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p10`), {
+        ...basis,
+        woningpaspoort: { bouwjaar: 2026.5 },
+      }),
+    );
+  });
+
+  it("weigert een negatieve oppervlakte", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p11`), {
+        ...basis,
+        woningpaspoort: { woonoppervlakte: -10 },
+      }),
+    );
+  });
+
+  /**
+   * DE BELANGRIJKSTE TEST VAN DIT BLOK.
+   *
+   * Zonder `data.woningpaspoort.size() <= 13` in de rules slaagt dit, want de
+   * documentlimiet telt de map als één veld. Dan is het paspoort een vrij
+   * beschrijfbare bak van duizend velden — een gat in constraint C2 van precies
+   * dezelfde vorm als het `.data`-gat uit sessie 03.
+   */
+  it("weigert een paspoort met meer velden dan het model kent", async () => {
+    const db = alsGebruiker(ALICE);
+    const opgeblazen: Record<string, string> = {};
+    for (let i = 0; i < 40; i += 1) opgeblazen[`veld${i}`] = "x";
+
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p12`), {
+        ...basis,
+        woningpaspoort: opgeblazen,
+      }),
+    );
+  });
+
+  it("weigert een paspoort dat geen map is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p13`), {
+        ...basis,
+        woningpaspoort: "Dorpsstraat 1, Almere",
+      }),
+    );
+  });
+
+  it("weigert een te lang adres", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p14`), {
+        ...basis,
+        woningpaspoort: { adres: "x".repeat(201) },
+      }),
+    );
+  });
+
+  it("weigert een opnamedatum die geen timestamp is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p15`), {
+        ...basis,
+        woningpaspoort: { energielabelOpnameDatum: "2026-09-01" },
+      }),
+    );
+  });
+
+  it("weigert dat Bob het paspoort van Alice zet", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p16`), {
+        ...basis,
+        woningpaspoort: geldigPaspoort,
+      }),
+    );
+  });
+});

@@ -23,6 +23,7 @@ import { INVULBARE_ANKERS } from "@/data/ankers";
 import { toonBedrag } from "@/lib/bedrag";
 import { telMeerwerk } from "@/lib/meerwerk";
 import { telDepot } from "@/lib/depot";
+import { adresregel, bepaalEnergielabelstand, isOpgeleverd } from "@/lib/woning";
 import type {
   AfspraakMetId,
   AnkerMetId,
@@ -178,19 +179,45 @@ export default function Dashboard() {
   const meerwerkstand = telMeerwerk(meerwerk, project.meerwerkbudget);
   const depotstand = telDepot(termijnen);
 
+  // De omslag uit ADR-0010 §1: na de sleuteloverdracht verandert het dashboard
+  // van inhoud, niet van plek. Voor nu is dat de kop plus een verwijzing naar
+  // het dossier; de onderhoudslijst komt in blok E3.
+  const opgeleverd = isOpgeleverd(project);
+  const adres = adresregel(project.woningpaspoort);
+  const labelstand = bepaalEnergielabelstand(project.woningpaspoort, opDag(new Date()));
+
   return (
     <AppShell>
       <div className="flex items-center gap-2">
         <span className="size-2 rounded-pill bg-clay" aria-hidden="true" />
-        <span className="text-eyebrow uppercase text-slate">Dashboard</span>
+        <span className="text-eyebrow uppercase text-slate">
+          {opgeleverd ? "Woningdossier" : "Dashboard"}
+        </span>
       </div>
 
-      <h1 className="mt-s2 text-h2 text-ink">{project.naam}</h1>
-      {project.aannemer && <p className="mt-1 text-body text-slate">{project.aannemer}</p>}
+      <h1 className="mt-s2 text-h2 text-ink">{(opgeleverd && adres) || project.naam}</h1>
+      {opgeleverd ? (
+        <p className="mt-1 text-body text-slate">De sleutels zijn overgedragen.</p>
+      ) : (
+        project.aannemer && <p className="mt-1 text-body text-slate">{project.aannemer}</p>
+      )}
 
       {fout && (
         <div className="mt-s3 max-w-3xl">
           <Melding soort="fout">{fout}</Melding>
+        </div>
+      )}
+
+      {/* Een verlopen energielabel blokkeert een verkoop en verdwijnt stil uit
+          EP-online. Daarom staat het hier bovenaan en niet alleen op /woning. */}
+      {opgeleverd && labelstand?.verlopen && (
+        <div className="mt-s3 max-w-3xl">
+          <Melding soort="fout">
+            Het energielabel is verlopen op {toonDatum(labelstand.verlooptOp)}.{" "}
+            <Link to="/woning" className="underline">
+              Bekijk de woning
+            </Link>
+          </Melding>
         </div>
       )}
 

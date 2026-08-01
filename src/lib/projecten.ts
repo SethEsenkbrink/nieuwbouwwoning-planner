@@ -56,7 +56,9 @@ import {
   type TaakMetId,
   type TermijnData,
   type TermijnMetId,
+  type WoningpaspoortData,
 } from "@/lib/converters";
+import type { WoningStatus } from "@/types/model";
 import { bepaalWaardenBron } from "@/lib/betrokkenen";
 import { STANDAARD_BETROKKENEN, type StandaardBetrokkene } from "@/data/betrokkenen-standaard";
 
@@ -157,6 +159,46 @@ export async function werkProjectBij(
     ...projectNaarFirestore(wijzigingen),
     bijgewerktOp: serverTimestamp(),
   });
+}
+
+/**
+ * Zet de woning van in aanbouw naar opgeleverd, of terug (ADR-0010 §1).
+ *
+ * Een eigen functie en geen `werkProjectBij({ woningStatus })`, omdat dit de
+ * omslag van de hele app is: het dashboard wisselt van inhoud. Als dat ooit
+ * meer moet doen — een anker zetten, een e-mail sturen — dan gebeurt dat hier
+ * en niet op vijf plekken in de UI.
+ *
+ * Terugzetten naar `in_aanbouw` mag bewust: een oplevering kan mislukken.
+ */
+export async function zetWoningStatus(
+  uid: string,
+  projectId: string,
+  status: WoningStatus,
+): Promise<void> {
+  await werkProjectBij(uid, projectId, { woningStatus: status });
+}
+
+/**
+ * Schrijft het woningpaspoort weg.
+ *
+ * LET OP — DIT VERVANGT DE HELE MAP, NIET VELD VOOR VELD.
+ * `updateDoc` met een map als waarde overschrijft die map integraal; alleen
+ * met dot-notation (`"woningpaspoort.adres"`) werk je één veld bij. Dat is
+ * hier precies goed: het formulier stuurt het complete paspoort mee, en
+ * `paspoortNaarFirestore()` strip de lege velden. Zo kan een veld wél
+ * leeggemaakt worden — bij een gewone `updateDoc` op losse velden zou dat niet
+ * lukken, want `zonderLegeVelden()` haalt `undefined` eruit.
+ *
+ * Gevolg voor wie dit aanroept: **stuur altijd het hele paspoort mee.** Een
+ * halve map betekent dat de rest verdwijnt.
+ */
+export async function werkWoningpaspoortBij(
+  uid: string,
+  projectId: string,
+  paspoort: WoningpaspoortData,
+): Promise<void> {
+  await werkProjectBij(uid, projectId, { woningpaspoort: paspoort });
 }
 
 /**

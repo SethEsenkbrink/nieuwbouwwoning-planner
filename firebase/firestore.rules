@@ -118,6 +118,61 @@ service cloud.firestore {
         && optionalTimestamp(data, 'opleverBronDatum');
     }
 
+    // Het woningdossier (ADR-0010, ADR-0013). Twee velden op het project:
+    // de fase, en het paspoort als GENESTE MAP.
+    //
+    // WAAROM EEN MAP EN GEEN LOSSE VELDEN.
+    // `withinSize(25)` telt met `request.resource.data.size()`, en dat telt een
+    // map als ÉÉN veld. Het paspoort heeft er dertien; los zou het de grens
+    // breken en moest de limiet omhoog — precies de bescherming uit constraint
+    // C2 die dan verwatert. Zie ADR-0013 §5.
+    //
+    // De keerzijde: de grootte van de map wordt niet meegeteld in de
+    // documentlimiet, dus hij krijgt hier een eigen begrenzing. Zonder die
+    // check zou het paspoort de opslagplek zijn die C2 juist uitsluit.
+    function geldigWoningdossier(data) {
+      return (!('woningStatus' in data) || data.woningStatus == null
+              || isOneOf(data.woningStatus, ['in_aanbouw', 'opgeleverd']))
+        && geldigPaspoort(data);
+    }
+
+    function geldigPaspoort(data) {
+      return !('woningpaspoort' in data)
+        || data.woningpaspoort == null
+        || (data.woningpaspoort is map
+            && data.woningpaspoort.size() <= 13
+            && optionalString(data.woningpaspoort, 'adres', 200)
+            && optionalString(data.woningpaspoort, 'postcode', 10)
+            && optionalString(data.woningpaspoort, 'plaats', 100)
+            && (!('woningtype' in data.woningpaspoort)
+                || data.woningpaspoort.woningtype == null
+                || isOneOf(data.woningpaspoort.woningtype, woningtypes()))
+            && optionalInt(data.woningpaspoort, 'bouwjaar', 1800, 2200)
+            && optionalNumber(data.woningpaspoort, 'woonoppervlakte')
+            && optionalNumber(data.woningpaspoort, 'perceeloppervlakte')
+            && (!('energielabel' in data.woningpaspoort)
+                || data.woningpaspoort.energielabel == null
+                || isOneOf(data.woningpaspoort.energielabel, energielabels()))
+            && optionalString(data.woningpaspoort, 'energielabelRegistratie', 60)
+            && optionalTimestamp(data.woningpaspoort, 'energielabelOpnameDatum')
+            && optionalString(data.woningpaspoort, 'waarborgpolisnummer', 60)
+            && optionalString(data.woningpaspoort, 'notaris', 200)
+            && optionalString(data.woningpaspoort, 'hypotheekverstrekker', 200));
+    }
+
+    // Dezelfde lijsten staan in src/types/model.ts (Woningtype, Energielabel)
+    // en worden door `npm run verify:rules` op pariteit gecontroleerd.
+    function woningtypes() {
+      return ['tussenwoning', 'hoekwoning', 'twee_onder_een_kap', 'vrijstaand',
+              'appartement', 'benedenwoning', 'bovenwoning', 'overig'];
+    }
+
+    // De labelschaal volgens NTA 8800. Wettelijk vastgelegd, dus gesloten.
+    function energielabels() {
+      return ['A+++++', 'A++++', 'A+++', 'A++', 'A+', 'A',
+              'B', 'C', 'D', 'E', 'F', 'G'];
+    }
+
 
     // ── users/{uid} ──────────────────────────────────────────────────────
     // Profielgegevens van de gebruiker zelf. Bewust minimaal: we slaan hier
@@ -151,6 +206,7 @@ service cloud.firestore {
           && optionalNumber(request.resource.data, 'meerwerkbudget')
           && geldigeOpschorting(request.resource.data)
           && geldigeOpleverband(request.resource.data)
+          && geldigWoningdossier(request.resource.data)
           && request.resource.data.aangemaaktOp == request.time;
 
         allow update: if isOwner(uid)
@@ -167,6 +223,7 @@ service cloud.firestore {
           && optionalNumber(request.resource.data, 'meerwerkbudget')
           && geldigeOpschorting(request.resource.data)
           && geldigeOpleverband(request.resource.data)
+          && geldigWoningdossier(request.resource.data)
           // aangemaaktOp is onveranderlijk.
           && request.resource.data.aangemaaktOp == resource.data.aangemaaktOp;
 
