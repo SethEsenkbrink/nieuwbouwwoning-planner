@@ -20,7 +20,9 @@ import type { Timestamp } from "firebase/firestore";
  *     ├── meerwerk/{itemId}
  *     ├── termijnen/{termId}
  *     ├── gebreken/{defectId}
- *     └── nabudget/{postId}
+ *     ├── nabudget/{postId}
+ *     ├── meters/{meterId}          (ADR-0015)
+ *     └── meterstanden/{opnameId}   (ADR-0015)
  *
  * Vanaf blok E (ADR-0010, ADR-0013) komt daar het woningdossier bij. Het
  * woningpaspoort is een GENEST veld op het project en geen losse velden: een
@@ -697,6 +699,115 @@ export interface OnderhoudLogregel {
   notitie?: string;
 }
 
+// ── Meters en meterstanden (ADR-0015) ──────────────────────────────────────
+
+/**
+ * Wat er gemeten wordt. Gesloten lijst, want hij stuurt de bibliotheek aan:
+ * per soort hangt er een eenheid, een aantal decimalen en een toelichting aan.
+ *
+ * De stroomregisters volgen de Nederlandse praktijk. Een aansluiting heeft
+ * ófwel één register (enkeltarief) ófwel twee (normaal- en daltarief), en bij
+ * zonnepanelen komt daar hetzelfde aantal teruglever-registers bij:
+ *
+ *   1.8.1 / 1.8.2   levering dal / normaal
+ *   2.8.1 / 2.8.2   teruglevering dal / normaal
+ *
+ * `overig` is de ontsnapping voor wat er niet in past: een tussenmeter op de
+ * warmtepomp, een laadpaal, een aparte meter op de thuisbatterij. Dan is
+ * `naam` verplicht en kiest de gebruiker zelf de eenheid — een lijst die
+ * veroudert mag geen harde regel worden (ADR-0015 §2).
+ */
+export type Metersoort =
+  | "stroom_enkel"
+  | "stroom_normaal"
+  | "stroom_dal"
+  | "teruglevering_enkel"
+  | "teruglevering_normaal"
+  | "teruglevering_dal"
+  | "gas"
+  | "water"
+  | "warmte"
+  | "overig";
+
+/**
+ * De eenheid waarin de meter telt. Bewust kort gehouden: alles wat een
+ * Nederlandse woning aan de meter heeft, valt hieronder.
+ *
+ *   kWh  stroom, teruglevering, tussenmeters
+ *   m3   gas en water
+ *   GJ   stadsverwarming
+ */
+export type Metereenheid = "kWh" | "m3" | "GJ";
+
+/**
+ * Eén meter in de woning — wát je meet, niet wat hij aanwees.
+ *
+ * DIT IS EEN EIGEN DOCUMENT EN GEEN TEKSTVELD OP DE OPNAME (ADR-0015 §1).
+ * Zou de meternaam op elke stand staan, dan splitst één typefout
+ * ("tussenmeter WP" naast "tussenmeter wp") de reeks stil in tweeën: de trend
+ * over de gesplitste helft klopt niet meer en er komt geen foutmelding. Dat is
+ * dezelfde soort stille fout als de `undefined === undefined`-koppeling uit
+ * sessie 06.
+ *
+ * `eenheid` en `meternummer` horen bij de méter en niet bij de opname;
+ * meesturen op elke stand zou duplicatie zijn die scheef groeit zodra iemand
+ * er één corrigeert.
+ */
+export interface Meter {
+  soort: Metersoort;
+
+  /**
+   * Eigen naam, bijv. "Tussenmeter warmtepomp". Leeg = het label uit de
+   * bibliotheek. VERPLICHT bij `soort: "overig"`, want dan is er geen label.
+   */
+  naam?: string;
+
+  eenheid: Metereenheid;
+
+  /** Het nummer op de meter zelf, handig bij een verhuizing of een storing. */
+  meternummer?: string;
+
+  notitie?: string;
+
+  /** `voorstel` zolang de eenheid uit de bibliotheek komt (ADR-0009). */
+  waardenBron: WaardenBron;
+}
+
+/**
+ * Eén opname: wat de meter aanwees, en wanneer je gekeken hebt. Allebei feiten
+ * over de buitenwereld, dus allebei opgeslagen (ADR-0008).
+ *
+ * WAT HIER NIET IN STAAT: `verbruik`, `verbruikPerDag`, `periodeDagen`. Die
+ * volgen uit twee opeenvolgende standen en worden elke keer opnieuw berekend
+ * in `lib/meterstanden.ts`. Corrigeer je een verkeerd overgetypte stand, dan
+ * kloppen de periodes ervóór én erná meteen weer; was het verbruik opgeslagen,
+ * dan was elke correctie een migratie.
+ *
+ * De rules dwingen dat af met `keys().hasOnly(...)` — na `onderhoudstaken` de
+ * tweede collectie met een gesloten veldenlijst. Zonder die whitelist kan een
+ * client alsnog een `verbruik` meesturen en staat de afgeleide waarde in de
+ * database. KOMT ER EEN VELD BIJ, DAN MOET HET OOK IN DIE LIJST.
+ */
+export interface Meterstand {
+  /** Verwijzing naar een meters/{meterId}. Verplicht. */
+  meterId: string;
+
+  /** Wanneer je gekeken hebt. */
+  opgenomenOp: Timestamp;
+
+  /**
+   * Wat er stond, in de eenheid van de meter. Mag decimalen hebben: gas en
+   * water lopen in m³ met drie cijfers achter de komma.
+   *
+   * Een stand loopt op. Staat er toch een lagere dan de vorige, dan is dat een
+   * typefout, een vervangen meter of een omloop bij 99999 — en dat wordt in de
+   * rekenkern gemarkeerd, niet rechtgerekend (ADR-0015 §4).
+   */
+  stand: number;
+
+  notitie?: string;
+}
+
 // ── Handige aliassen voor gelezen documenten ───────────────────────────────
 
 export type ProjectDoc = Project & MetId;
@@ -712,3 +823,5 @@ export type NabudgetpostDoc = Nabudgetpost & MetId;
 export type OnderdeelDoc = Onderdeel & MetId;
 export type OnderhoudTaakDoc = OnderhoudTaak & MetId;
 export type OnderhoudLogregelDoc = OnderhoudLogregel & MetId;
+export type MeterDoc = Meter & MetId;
+export type MeterstandDoc = Meterstand & MetId;

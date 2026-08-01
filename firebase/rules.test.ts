@@ -1739,3 +1739,555 @@ describe("onderhoudslogboek", () => {
     await assertFails(getDocs(collection(db, `users/${ALICE}/projects/p1/onderhoudslogboek`)));
   });
 });
+
+// ── Meters en meterstanden (ADR-0015) ──────────────────────────────────────
+
+describe("meters", () => {
+  const geldigeMeter = {
+    soort: "stroom_normaal",
+    eenheid: "kWh",
+    waardenBron: "voorstel",
+  };
+
+  it("accepteert een volledige meter", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m1`), {
+        ...geldigeMeter,
+        naam: "Tussenmeter warmtepomp",
+        meternummer: "E0043007000123456",
+        notitie: "Zit in de meterkast, onderste display",
+        waardenBron: "eigen",
+      }),
+    );
+  });
+
+  it("accepteert een minimale meter", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m2`), geldigeMeter));
+  });
+
+  it("accepteert alle tien de metersoorten", async () => {
+    const db = alsGebruiker(ALICE);
+    const soorten = [
+      "stroom_enkel",
+      "stroom_normaal",
+      "stroom_dal",
+      "teruglevering_enkel",
+      "teruglevering_normaal",
+      "teruglevering_dal",
+      "gas",
+      "water",
+      "warmte",
+      "overig",
+    ];
+    for (const soort of soorten) {
+      await assertSucceeds(
+        setDoc(doc(db, `users/${ALICE}/projects/p1/meters/soort-${soort}`), {
+          ...geldigeMeter,
+          soort,
+        }),
+      );
+    }
+  });
+
+  it("accepteert alle drie de eenheden", async () => {
+    const db = alsGebruiker(ALICE);
+    for (const eenheid of ["kWh", "m3", "GJ"]) {
+      await assertSucceeds(
+        setDoc(doc(db, `users/${ALICE}/projects/p1/meters/eenheid-${eenheid}`), {
+          ...geldigeMeter,
+          eenheid,
+        }),
+      );
+    }
+  });
+
+  it("weigert een onbekende metersoort", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m3`), {
+        ...geldigeMeter,
+        soort: "kernreactor",
+      }),
+    );
+  });
+
+  it("weigert een meter zonder soort", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m4`), zonderVeld(geldigeMeter, "soort")),
+    );
+  });
+
+  it("weigert een onbekende eenheid", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m5`), {
+        ...geldigeMeter,
+        eenheid: "liter",
+      }),
+    );
+  });
+
+  it("weigert een meter zonder eenheid", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m6`), zonderVeld(geldigeMeter, "eenheid")),
+    );
+  });
+
+  /** ADR-0009: zonder dit veld is een voorstel niet te onderscheiden van een eigen cijfer. */
+  it("weigert een meter zonder waardenBron", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/meters/m7`),
+        zonderVeld(geldigeMeter, "waardenBron"),
+      ),
+    );
+  });
+
+  it("weigert een onbekende waardenBron", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m8`), {
+        ...geldigeMeter,
+        waardenBron: "gegokt",
+      }),
+    );
+  });
+
+  it("weigert een notitie die als opslagplek wordt misbruikt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m9`), {
+        ...geldigeMeter,
+        notitie: "x".repeat(2001),
+      }),
+    );
+  });
+
+  it("weigert een naam langer dan de limiet", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m10`), {
+        ...geldigeMeter,
+        naam: "x".repeat(201),
+      }),
+    );
+  });
+
+  it("weigert een meternummer langer dan de limiet", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m14`), {
+        ...geldigeMeter,
+        meternummer: "x".repeat(61),
+      }),
+    );
+  });
+
+  // ── De gesloten veldenlijst ──────────────────────────────────────────────
+  // Zonder deze zou `withinSizeLimit()` dertien vrije veldnamen toelaten met
+  // onbegrensde lengte — en dan is een base64-afbeelding gewoon toegestaan,
+  // precies wat constraint C2 uitsluit.
+
+  it("weigert een onbekend veld op een meter", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m15`), {
+        ...geldigeMeter,
+        meterFoto: "data:image/png;base64,iVBORw0KGgo=",
+      }),
+    );
+  });
+
+  it("weigert een tweede notitieveld dat de lengtelimiet omzeilt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m16`), {
+        ...geldigeMeter,
+        notitie2: "x".repeat(5000),
+      }),
+    );
+  });
+
+  it("accepteert elk veld dat het model kent", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m17`), {
+        soort: "overig",
+        naam: "Tussenmeter warmtepomp",
+        eenheid: "kWh",
+        meternummer: "E00-123",
+        notitie: "Alle zes de velden uit Meter",
+        waardenBron: "eigen",
+      }),
+    );
+  });
+
+  // ── Naam verplicht bij `overig` ──────────────────────────────────────────
+  // Bij `overig` is er geen bibliotheeklabel om op terug te vallen. Stond die
+  // eis alleen in het formulier, dan levert elk ander schrijfpad (import, E8)
+  // een naamloze meter op.
+
+  it("weigert een eigen meter zonder naam", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m18`), {
+        ...geldigeMeter,
+        soort: "overig",
+      }),
+    );
+  });
+
+  it("weigert een eigen meter met een lege naam", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m19`), {
+        ...geldigeMeter,
+        soort: "overig",
+        naam: "",
+      }),
+    );
+  });
+
+  it("eist géén naam bij een soort uit de bibliotheek", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m20`), {
+        ...geldigeMeter,
+        soort: "water",
+        eenheid: "m3",
+      }),
+    );
+  });
+
+  it("weigert dat Bob de meters van Alice leest", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), `users/${ALICE}/projects/p1/meters/m11`), geldigeMeter);
+    });
+    const db = alsGebruiker(BOB);
+    await assertFails(getDocs(collection(db, `users/${ALICE}/projects/p1/meters`)));
+  });
+
+  it("weigert dat Bob een meter bij Alice aanmaakt", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m12`), geldigeMeter),
+    );
+  });
+
+  it("weigert een gast", async () => {
+    const db = alsGast();
+    await assertFails(setDoc(doc(db, `users/${ALICE}/projects/p1/meters/m13`), geldigeMeter));
+  });
+});
+
+describe("meterstanden", () => {
+  const geldigeStand = {
+    meterId: "m1",
+    opgenomenOp: Timestamp.fromDate(new Date("2026-07-01")),
+    stand: 12345,
+  };
+
+  it("accepteert een volledige opname", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s1`), {
+        ...geldigeStand,
+        notitie: "Afgelezen samen met de jaarafrekening",
+      }),
+    );
+  });
+
+  it("accepteert een minimale opname", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s2`), geldigeStand),
+    );
+  });
+
+  /** Een net vervangen meter begint bij 0 — dat is een geldige stand. */
+  it("accepteert een stand van nul", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s3`), {
+        ...geldigeStand,
+        stand: 0,
+      }),
+    );
+  });
+
+  /** Gas en water lopen in m³ met drie decimalen. */
+  it("accepteert een stand met decimalen", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s4`), {
+        ...geldigeStand,
+        stand: 1234.567,
+      }),
+    );
+  });
+
+  it("weigert een negatieve stand", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s5`), {
+        ...geldigeStand,
+        stand: -1,
+      }),
+    );
+  });
+
+  it("weigert een absurd hoge stand", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s6`), {
+        ...geldigeStand,
+        stand: 100000001,
+      }),
+    );
+  });
+
+  it("weigert een stand als tekst", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s7`), {
+        ...geldigeStand,
+        stand: "12345",
+      }),
+    );
+  });
+
+  it("weigert een opname zonder stand", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/meterstanden/s8`),
+        zonderVeld(geldigeStand, "stand"),
+      ),
+    );
+  });
+
+  it("weigert een opname zonder datum", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/meterstanden/s9`),
+        zonderVeld(geldigeStand, "opgenomenOp"),
+      ),
+    );
+  });
+
+  it("weigert een opname zonder meterId", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/meterstanden/s10`),
+        zonderVeld(geldigeStand, "meterId"),
+      ),
+    );
+  });
+
+  it("weigert een leeg meterId", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s11`), {
+        ...geldigeStand,
+        meterId: "",
+      }),
+    );
+  });
+
+  it("weigert een meterId langer dan de limiet", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s20`), {
+        ...geldigeStand,
+        meterId: "x".repeat(201),
+      }),
+    );
+  });
+
+  /**
+   * `is timestamp` is de enige bewaking op dit veld; zonder deze test is dat
+   * alleen negatief bewezen (via "zonder datum").
+   */
+  it("weigert een datum als tekst", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s21`), {
+        ...geldigeStand,
+        opgenomenOp: "2026-07-01",
+      }),
+    );
+  });
+
+  it("accepteert de bovengrens van de stand precies", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s22`), {
+        ...geldigeStand,
+        stand: 100000000,
+      }),
+    );
+  });
+
+  // ── Geen opname in de toekomst ───────────────────────────────────────────
+  // Een verkeerd jaartal is de stilste fout in deze collectie: het verbruik
+  // wordt door een veel te groot aantal dagen gedeeld en de uitkomst ziet er
+  // plausibel uit. Er komt géén melding uit, want de stand zelf klopt.
+
+  it("weigert een opname met een datum ver in de toekomst", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s23`), {
+        ...geldigeStand,
+        opgenomenOp: Timestamp.fromDate(new Date(Date.now() + 400 * 24 * 60 * 60 * 1000)),
+      }),
+    );
+  });
+
+  /**
+   * De marge van twee dagen is er omdat `opgenomenOp` UTC-middernacht is: wie
+   * in Nederland om 00:30 zomertijd een stand van "vandaag" noteert, schrijft
+   * een tijdstip weg dat op de server nog in de toekomst ligt.
+   */
+  it("accepteert vandaag als UTC-middernacht, ook net na middernacht lokaal", async () => {
+    const db = alsGebruiker(ALICE);
+    const vandaagUtc = new Date();
+    vandaagUtc.setUTCHours(0, 0, 0, 0);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s24`), {
+        ...geldigeStand,
+        opgenomenOp: Timestamp.fromDate(vandaagUtc),
+      }),
+    );
+  });
+
+  it("accepteert een opname van jaren geleden", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s25`), {
+        ...geldigeStand,
+        opgenomenOp: Timestamp.fromDate(new Date("2020-01-01")),
+      }),
+    );
+  });
+
+  it("weigert een document dat te veel velden heeft", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s26`), {
+        ...geldigeStand,
+        a: 1,
+        b: 2,
+        c: 3,
+        d: 4,
+        e: 5,
+        f: 6,
+        g: 7,
+        h: 8,
+        i: 9,
+        j: 10,
+        k: 11,
+        l: 12,
+        m: 13,
+        n: 14,
+        o: 15,
+        p: 16,
+        q: 17,
+      }),
+    );
+  });
+
+  // ── De gesloten veldenlijst (ADR-0015 §3) ────────────────────────────────
+  // Dit is de reden dat deze collectie een `keys().hasOnly(...)` heeft: zonder
+  // die whitelist glipt een afgeleide waarde erdoorheen, en dan is precies de
+  // fout gemaakt die ADR-0008 uitsluit.
+
+  it("WEIGERT een meegestuurd verbruik — dat is afgeleid, geen feit", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s12`), {
+        ...geldigeStand,
+        verbruik: 350,
+      }),
+    );
+  });
+
+  it("weigert een meegestuurd verbruikPerDag", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s13`), {
+        ...geldigeStand,
+        verbruikPerDag: 11.7,
+      }),
+    );
+  });
+
+  it("weigert een onbekend veld, ook als het onschuldig lijkt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s14`), {
+        ...geldigeStand,
+        meterstandFoto: "data:image/png;base64,iVBORw0KGgo=",
+      }),
+    );
+  });
+
+  /**
+   * De tegenhanger van de test hierboven: de whitelist moet COMPLEET zijn.
+   * Ontbreekt er een veld dat het model wél kent, dan weigert élke write met
+   * een generieke permissiefout. `npm run verify:rules` controleert dit sinds
+   * ADR-0015 ook zonder emulator; deze test bewijst het in de praktijk.
+   */
+  it("accepteert elk veld dat het model kent", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s15`), {
+        meterId: "m1",
+        opgenomenOp: Timestamp.fromDate(new Date("2026-07-01")),
+        stand: 12345,
+        notitie: "Alle vier de velden uit Meterstand",
+      }),
+    );
+  });
+
+  it("weigert een notitie die als opslagplek wordt misbruikt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s16`), {
+        ...geldigeStand,
+        notitie: "x".repeat(2001),
+      }),
+    );
+  });
+
+  it("weigert dat Bob de meterstanden van Alice leest", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), `users/${ALICE}/projects/p1/meterstanden/s17`),
+        geldigeStand,
+      );
+    });
+    const db = alsGebruiker(BOB);
+    await assertFails(getDocs(collection(db, `users/${ALICE}/projects/p1/meterstanden`)));
+  });
+
+  it("weigert dat Bob een opname bij Alice wegschrijft", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s18`), geldigeStand),
+    );
+  });
+
+  it("weigert een gast", async () => {
+    const db = alsGast();
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/meterstanden/s19`), geldigeStand),
+    );
+  });
+});

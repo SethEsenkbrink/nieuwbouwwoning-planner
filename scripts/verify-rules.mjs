@@ -80,7 +80,14 @@ function leesLijstFunctie(naam) {
  * dan hoort hij hier ook — anders blijft `isOneOf(veld, nieuweLijst())`
  * onopgemerkt en controleert dit script hem stilzwijgend niet.
  */
-const LIJSTFUNCTIES = ["ankerTypes", "woningtypes", "energielabels", "onderdeelCategorieen"];
+const LIJSTFUNCTIES = [
+  "ankerTypes",
+  "woningtypes",
+  "energielabels",
+  "onderdeelCategorieen",
+  "metersoorten",
+  "metereenheden",
+];
 
 const LIJSTEN_UIT_RULES = new Map(
   LIJSTFUNCTIES.map((naam) => [naam, leesLijstFunctie(naam)]).filter(([, lijst]) => lijst !== null),
@@ -216,6 +223,15 @@ const BLOKKEN = [
     { categorie: "OnderdeelCategorie", montage: "Montage" },
   ],
   ["onderhoudstaken", "match /onderhoudstaken/{", { waardenBron: "WaardenBron" }],
+  // Meters en meterstanden (ADR-0015). `meterstanden` heeft geen enum — die
+  // collectie kent alleen een meterId, een datum, een getal en een notitie.
+  // Zijn veiligheid zit in de `keys().hasOnly(...)`, en die wordt hieronder
+  // apart gecontroleerd.
+  [
+    "meters",
+    "match /meters/{",
+    { soort: "Metersoort", eenheid: "Metereenheid", waardenBron: "WaardenBron" },
+  ],
 ];
 
 let aantalEnums = 0;
@@ -235,6 +251,91 @@ for (const [naam, kop, velden] of BLOKKEN) {
     aantalEnums += 1;
     aantalWaarden += uitModel?.length ?? 0;
   }
+}
+
+// ── De gesloten veldenlijsten (keys().hasOnly) ─────────────────────────────
+//
+// Twee collecties hebben een whitelist in de rules in plaats van alleen een
+// aantal-limiet: `onderhoudstaken` en `meterstanden`. Bij allebei is dat de
+// enige bescherming tegen een meegestuurd afgeleid veld (`volgendeOp`,
+// `verbruik`) — precies wat ADR-0008 uitsluit.
+//
+// De prijs van die whitelist is dat hij COMPLEET moet blijven: komt er een
+// veld bij in `model.ts` en niet in de lijst, dan weigert élke write met een
+// generieke permissiefout. Dat is tot nu toe alleen door een rules-test
+// afgedekt, en die draait niet in `npm run verify` (hij vereist de emulator).
+// Vandaar deze check, die geen emulator nodig heeft.
+
+/**
+ * De veldnamen van een interface uit `model.ts`.
+ *
+ * Commentaar wordt eerst weggehaald, anders telt een `@param foo:` uit een
+ * doc-comment mee als veld.
+ */
+function leesInterfaceVelden(naam) {
+  const m = model.match(new RegExp(`export interface ${naam}\\s*\\{([\\s\\S]*?)\\n\\}`, "m"));
+  if (!m) return null;
+
+  const zonderCommentaar = m[1].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  const velden = [...zonderCommentaar.matchAll(/^\s*(\w+)\??\s*:/gm)].map((v) => v[1]);
+  return velden.length > 0 ? velden : null;
+}
+
+/** De lijst uit `request.resource.data.keys().hasOnly([...])` in een blok. */
+function hasOnlyIn(tekst) {
+  const m = tekst.match(/keys\(\)\.hasOnly\(\s*\[([\s\S]*?)\]/);
+  if (!m) return null;
+  const leden = m[1].match(/'([^']+)'/g);
+  return leden ? leden.map((l) => l.slice(1, -1)) : null;
+}
+
+const WHITELISTS = [
+  ["onderhoudstaken", "match /onderhoudstaken/{", "OnderhoudTaak"],
+  ["meters", "match /meters/{", "Meter"],
+  ["meterstanden", "match /meterstanden/{", "Meterstand"],
+];
+
+let aantalWhitelists = 0;
+
+for (const [naam, kop, interfaceNaam] of WHITELISTS) {
+  const tekst = blok(kop);
+  if (tekst === null) {
+    problems.push(`whitelist "${naam}": blok niet gevonden in firestore.rules`);
+    continue;
+  }
+
+  const uitRules = hasOnlyIn(tekst);
+  const uitModel = leesInterfaceVelden(interfaceNaam);
+
+  if (uitRules === null) {
+    problems.push(
+      `${naam}: geen keys().hasOnly(...) meer gevonden.\n` +
+        `    Gevolg: een afgeleid veld kan alsnog opgeslagen worden (ADR-0008).`,
+    );
+    continue;
+  }
+  if (uitModel === null) {
+    problems.push(`${naam}: interface ${interfaceNaam} niet gevonden in model.ts`);
+    continue;
+  }
+
+  const ontbreekt = uitModel.filter((v) => !uitRules.includes(v));
+  const teveel = uitRules.filter((v) => !uitModel.includes(v));
+
+  if (ontbreekt.length > 0) {
+    problems.push(
+      `${naam}.hasOnly: staat in ${interfaceNaam} maar NIET in de whitelist → ${ontbreekt.join(", ")}\n` +
+        `    Gevolg: ELKE write op deze collectie wordt geweigerd.`,
+    );
+  }
+  if (teveel.length > 0) {
+    problems.push(
+      `${naam}.hasOnly: staat in de whitelist maar NIET in ${interfaceNaam} → ${teveel.join(", ")}\n` +
+        `    Gevolg: de rules laten een veld toe dat het model niet kent.`,
+    );
+  }
+
+  aantalWhitelists += 1;
 }
 
 // ── De derde plek: de standaardbibliotheek ─────────────────────────────────
@@ -266,5 +367,6 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `✓ Model-/rules-pariteit OK — ${aantalEnums} enums, ${aantalWaarden} waarden komen overeen`,
+  `✓ Model-/rules-pariteit OK — ${aantalEnums} enums, ${aantalWaarden} waarden en ` +
+    `${aantalWhitelists} gesloten veldenlijsten komen overeen`,
 );

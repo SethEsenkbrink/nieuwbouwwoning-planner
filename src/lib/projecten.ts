@@ -28,6 +28,10 @@ import {
   gebrekUitFirestore,
   meerwerkNaarFirestore,
   meerwerkUitFirestore,
+  meterNaarFirestore,
+  meterUitFirestore,
+  meterstandNaarFirestore,
+  meterstandUitFirestore,
   nabudgetNaarFirestore,
   nabudgetUitFirestore,
   onderdeelNaarFirestore,
@@ -54,6 +58,10 @@ import {
   type GebrekMetId,
   type MeerwerkData,
   type MeerwerkMetId,
+  type MeterData,
+  type MeterMetId,
+  type MeterstandData,
+  type MeterstandMetId,
   type NabudgetData,
   type NabudgetMetId,
   type OnderdeelData,
@@ -229,6 +237,8 @@ const SUBCOLLECTIES = [
   "onderdelen",
   "onderhoudstaken",
   "onderhoudslogboek",
+  "meters",
+  "meterstanden",
 ] as const;
 
 /**
@@ -1042,4 +1052,115 @@ export async function maakGarantiecontrole(
     onderdeelId,
     waardenBron: "voorstel",
   });
+}
+
+// ── Meters en meterstanden (ADR-0015) ──────────────────────────────────────
+
+export async function haalMeters(uid: string, projectId: string): Promise<MeterMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "meters"));
+  return resultaat.docs.map((d) => meterUitFirestore(d.id, d.data()));
+}
+
+/**
+ * Aanmaken als `meterId` null is, anders volledig overschrijven.
+ *
+ * `setDoc` en niet `updateDoc`, om dezelfde reden als bij de andere
+ * collecties: `zonderLegeVelden()` strip `undefined`, dus een `updateDoc` kan
+ * `naam`, `meternummer` of `notitie` niet leegmaken. Een meternummer dat na
+ * een metervervanging blijft hangen is precies het soort restje waar je later
+ * op afgaat.
+ */
+export async function zetMeter(
+  uid: string,
+  projectId: string,
+  meterId: string | null,
+  meter: MeterData,
+): Promise<string> {
+  const ref =
+    meterId === null
+      ? doc(subPad(uid, projectId, "meters"))
+      : doc(db, "users", uid, "projects", projectId, "meters", meterId);
+  await setDoc(ref, meterNaarFirestore(meter));
+  return ref.id;
+}
+
+/**
+ * Verwijdert een meter én al zijn opnames.
+ *
+ * DE OPNAMES MOETEN MEE. Blijven ze staan, dan hangen ze aan een `meterId` die
+ * nergens meer bestaat: ze tellen nooit meer mee, zijn via geen enkel scherm
+ * bereikbaar, en ze blijven wél in het overdrachtsdossier (E8) opduiken zodra
+ * dat de collectie uitleest. Dat is dezelfde soort wees-data als een project
+ * waarvan de subcollecties blijven staan.
+ *
+ * De meter gaat als LAATSTE, net als het projectdocument bij
+ * `verwijderProject()`: valt de verbinding halverwege weg, dan staat de meter
+ * er nog en kan de gebruiker het opnieuw proberen.
+ */
+export async function verwijderMeter(
+  uid: string,
+  projectId: string,
+  meterId: string,
+): Promise<number> {
+  const opnames = await getDocs(subPad(uid, projectId, "meterstanden"));
+  // Via de converter en niet via `d.data().meterId`: `DocumentData` heeft een
+  // `any`-indexsignatuur, en die rechtstreeks uitlezen valt over
+  // `no-unsafe-member-access`. Elke andere leesactie in dit bestand doet
+  // hetzelfde — de converter is de enige plek waar ruwe Firestore-data
+  // binnenkomt.
+  const vanDezeMeter = opnames.docs.filter(
+    (d) => meterstandUitFirestore(d.id, d.data()).meterId === meterId,
+  );
+
+  let verwijderd = 0;
+  for (let i = 0; i < vanDezeMeter.length; i += 400) {
+    const groep = vanDezeMeter.slice(i, i + 400);
+    const batch = writeBatch(db);
+    for (const d of groep) batch.delete(d.ref);
+    await batch.commit();
+    verwijderd += groep.length;
+  }
+
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "meters", meterId));
+  return verwijderd;
+}
+
+/**
+ * Alle opnames van alle meters, chronologisch (oudste eerst).
+ *
+ * Bewust de hele collectie in één keer, zonder `where` op `meterId`: dat zou
+ * een query per meter betekenen én een composite index. Bij een woningdossier
+ * gaat het om tientallen documenten per jaar, dus filteren gebeurt in het
+ * geheugen via `opnamesVan()`.
+ */
+export async function haalMeterstanden(
+  uid: string,
+  projectId: string,
+): Promise<MeterstandMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "meterstanden"));
+  return resultaat.docs
+    .map((d) => meterstandUitFirestore(d.id, d.data()))
+    .sort((a, b) => a.opgenomenOp.getTime() - b.opgenomenOp.getTime());
+}
+
+export async function zetMeterstand(
+  uid: string,
+  projectId: string,
+  opnameId: string | null,
+  stand: MeterstandData,
+): Promise<string> {
+  const ref =
+    opnameId === null
+      ? doc(subPad(uid, projectId, "meterstanden"))
+      : doc(db, "users", uid, "projects", projectId, "meterstanden", opnameId);
+  await setDoc(ref, meterstandNaarFirestore(stand));
+  return ref.id;
+}
+
+export async function verwijderMeterstand(
+  uid: string,
+  projectId: string,
+  opnameId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "meterstanden", opnameId));
 }

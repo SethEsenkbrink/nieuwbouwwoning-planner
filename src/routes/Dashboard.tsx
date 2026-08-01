@@ -14,6 +14,8 @@ import {
   haalAnkers,
   haalBetrokkenen,
   haalMeerwerk,
+  haalMeters,
+  haalMeterstanden,
   haalOnderdelen,
   haalOnderhoudstaken,
   haalTermijnen,
@@ -39,11 +41,14 @@ import {
   garantiecontroleVoor,
   type StandaardOnderhoud,
 } from "@/data/onderhoud-standaard";
+import { metersMetAchterstalligeOpname } from "@/lib/meterstanden";
 import type {
   AfspraakMetId,
   AnkerMetId,
   BetrokkeneMetId,
   MeerwerkMetId,
+  MeterMetId,
+  MeterstandMetId,
   OnderdeelMetId,
   OnderhoudTaakMetId,
   ProjectMetId,
@@ -86,6 +91,8 @@ export default function Dashboard() {
   const [termijnen, setTermijnen] = useState<TermijnMetId[]>([]);
   const [onderdelen, setOnderdelen] = useState<OnderdeelMetId[]>([]);
   const [onderhoudstaken, setOnderhoudstaken] = useState<OnderhoudTaakMetId[]>([]);
+  const [meters, setMeters] = useState<MeterMetId[]>([]);
+  const [meteropnames, setMeteropnames] = useState<MeterstandMetId[]>([]);
   const [bezigMetLaden, setBezigMetLaden] = useState(true);
   const [bezigMetId, setBezigMetId] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
@@ -117,6 +124,8 @@ export default function Dashboard() {
           geladenTermijnen,
           geladenOnderdelen,
           geladenOnderhoud,
+          geladenMeters,
+          geladenOpnames,
         ] = await Promise.all([
           haalAnkers(uid, gevonden.id),
           haalBetrokkenen(uid, gevonden.id),
@@ -125,6 +134,8 @@ export default function Dashboard() {
           haalTermijnen(uid, gevonden.id),
           haalOnderdelen(uid, gevonden.id),
           haalOnderhoudstaken(uid, gevonden.id),
+          haalMeters(uid, gevonden.id),
+          haalMeterstanden(uid, gevonden.id),
         ]);
         if (!actueel) return;
 
@@ -136,6 +147,8 @@ export default function Dashboard() {
         setTermijnen(geladenTermijnen);
         setOnderdelen(geladenOnderdelen);
         setOnderhoudstaken(geladenOnderhoud);
+        setMeters(geladenMeters);
+        setMeteropnames(geladenOpnames);
       } catch (f) {
         if (actueel) setFout(opslagFoutmelding(f, "Laden"));
       } finally {
@@ -240,6 +253,9 @@ export default function Dashboard() {
   // Aflopende garanties waar nog geen taak aan hangt (blok E4). Onderdelen
   // mét een taak vallen weg: daar heeft de garantie de beurt al vervroegd.
   const zonderTaak = garantiesZonderTaak(onderdelen, onderhoudstaken, opDag(new Date()));
+  // Meters waarvan de laatste stand te oud is (ADR-0015). Alleen zinvol als er
+  // meters zijn: een lege lijst hoort geen sectie op te leveren.
+  const meterAchterstand = metersMetAchterstalligeOpname(meters, meteropnames, opDag(new Date()));
   const registratiesOpen = telOpenstaandeRegistraties(onderdelen);
 
   // DIT IS DE HERINNERING (ADR-0014 §3). Er gaat geen mail uit tot ronde 8, dus
@@ -413,6 +429,49 @@ export default function Dashboard() {
                 </div>
               );
             })}
+          </div>
+        </section>
+      )}
+
+      {/* ── Meters zonder verse stand (blok E7, ADR-0015) ────────────────
+          Staat ná het onderhoud en de garanties: een gemiste opname kost geen
+          geld, een gemiste garantie wel. Het is een notitie-achterstand, geen
+          deadline. */}
+      {opgeleverd && meterAchterstand.length > 0 && (
+        <section className="mt-s4 max-w-3xl">
+          <h2 className="text-h3 text-ink">
+            {meterAchterstand.length === 1
+              ? "Van één meter is er al een tijd geen stand genoteerd"
+              : `Van ${meterAchterstand.length} meters is er al een tijd geen stand genoteerd`}
+          </h2>
+          <p className="mt-s2 text-body text-slate">
+            Zonder tweede stand valt er geen verbruik te berekenen — en het verschil zie je pas
+            achteraf.
+          </p>
+
+          <div className="mt-s3 flex flex-col gap-2">
+            {meterAchterstand.map((overzicht) => (
+              <div
+                key={overzicht.meter.id}
+                className="brink-card flex flex-wrap items-start justify-between gap-2 p-s3"
+              >
+                <div>
+                  <Link
+                    to="/meterstanden"
+                    className="text-body font-semibold text-ink underline"
+                  >
+                    {overzicht.naam}
+                  </Link>
+                  <p className="mt-1 text-sm text-slate">
+                    {overzicht.laatste === undefined
+                      ? "Nog nooit een stand genoteerd"
+                      : `Laatste stand ${toonDatum(overzicht.laatste.opgenomenOp)} — ${
+                          overzicht.dagenSindsOpname ?? 0
+                        } dagen geleden`}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
       )}

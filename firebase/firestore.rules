@@ -173,6 +173,24 @@ service cloud.firestore {
               'B', 'C', 'D', 'E', 'F', 'G'];
     }
 
+    // Staat óók in src/types/model.ts (Metersoort, Metereenheid); pariteit
+    // wordt bewaakt door `npm run verify:rules`.
+    //
+    // De stroomregisters volgen de Nederlandse praktijk: een aansluiting heeft
+    // ófwel één register (enkeltarief) ófwel twee (normaal 1.8.2 / dal 1.8.1),
+    // en bij zonnepanelen komt daar hetzelfde aantal teruglever-registers bij
+    // (2.8.2 / 2.8.1). `overig` is er zodat een tussenmeter op de warmtepomp of
+    // een laadpaal niet op een verouderde lijst stukloopt.
+    function metersoorten() {
+      return ['stroom_enkel', 'stroom_normaal', 'stroom_dal',
+              'teruglevering_enkel', 'teruglevering_normaal',
+              'teruglevering_dal', 'gas', 'water', 'warmte', 'overig'];
+    }
+
+    function metereenheden() {
+      return ['kWh', 'm3', 'GJ'];
+    }
+
     // Staat óók in src/types/model.ts (OnderdeelCategorie); pariteit wordt
     // bewaakt door `npm run verify:rules`.
     function onderdeelCategorieen() {
@@ -550,6 +568,90 @@ service cloud.firestore {
             && optionalString(request.resource.data, 'onderdeelId', 200)
             && optionalString(request.resource.data, 'doorWie', 200)
             && optionalNumber(request.resource.data, 'kosten')
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
+
+
+        // ── meters/{meterId} — WÁT je meet (ADR-0015) ────────────────────
+        // De meter is een eigen document en geen tekstveld op de opname. Zou
+        // de meternaam op elke stand staan, dan splitst één typefout
+        // ("tussenmeter WP" naast "tussenmeter wp") de reeks stil in tweeën:
+        // de trend klopt niet meer en er komt geen foutmelding.
+        //
+        // `soort` en `eenheid` zijn gesloten lijsten; `naam` is bewust vrij.
+        // Een lijst die veroudert mag geen harde regel worden (ADR-0015 §2).
+
+        match /meters/{meterId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            // Gesloten veldenlijst, net als bij `meterstanden`. De veldlimiet
+            // alleen laat dertien vrije veldnamen met onbegrensde lengte toe,
+            // en dan is een `meterFoto` met base64 erin gewoon toegestaan —
+            // precies wat constraint C2 en ADR-0010 §3 uitsluiten.
+            && request.resource.data.keys().hasOnly([
+                 'soort', 'naam', 'eenheid', 'meternummer', 'notitie',
+                 'waardenBron'
+               ])
+            && isOneOf(request.resource.data.soort, metersoorten())
+            && isOneOf(request.resource.data.eenheid, metereenheden())
+            && isOneOf(request.resource.data.waardenBron, ['voorstel', 'eigen'])
+            && optionalString(request.resource.data, 'naam', 200)
+            // Bij `overig` is er geen bibliotheeklabel om op terug te vallen,
+            // dus dan is de naam verplicht. Stond die eis alleen in het
+            // formulier, dan levert elk ander schrijfpad (import, E8) een
+            // naamloze meter op.
+            && (request.resource.data.soort != 'overig'
+                || (('naam' in request.resource.data)
+                    && request.resource.data.naam is string
+                    && request.resource.data.naam.size() > 0))
+            && optionalString(request.resource.data, 'meternummer', 60)
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
+
+
+        // ── meterstanden/{opnameId} — wat de meter AANWEES (ADR-0015) ────
+        // Twee feiten: wat er stond en wanneer je gekeken hebt. Meer niet.
+        //
+        // ER STAAT GEEN VERBRUIK IN. Dat volgt uit twee opeenvolgende standen
+        // en wordt in `lib/meterstanden.ts` elke keer opnieuw berekend. Zou
+        // het hier opgeslagen worden, dan is elke correctie van een verkeerd
+        // overgetypte stand een migratie — dezelfde fout als een vaste
+        // afspraakdatum (ADR-0008).
+        //
+        // DIT IS NA `onderhoudstaken` DE TWEEDE COLLECTIE MET EEN GESLOTEN
+        // VELDENLIJST, en om precies dezelfde reden: de veldlimiet alleen
+        // houdt een meegestuurde `verbruik` niet tegen. Komt er een veld bij
+        // in `model.ts`, dan MOET het hier ook bij — vergeet je dat, dan
+        // weigert élke write met een generieke permissiefout.
+
+        match /meterstanden/{opnameId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSizeLimit()
+            && request.resource.data.keys().hasOnly([
+                 'meterId', 'opgenomenOp', 'stand', 'notitie'
+               ])
+            && isString(request.resource.data.meterId, 200)
+            && request.resource.data.meterId.size() > 0
+            && request.resource.data.opgenomenOp is timestamp
+            // GEEN OPNAME IN DE TOEKOMST. Een verkeerd jaartal is de stilste
+            // fout in deze collectie: het verbruik wordt dan gedeeld door een
+            // veel te groot aantal dagen en de uitkomst ziet er plausibel uit.
+            // Er komt geen enkele melding uit, want de stand zelf klopt.
+            //
+            // De marge van twee dagen is er omdat `opgenomenOp` UTC-middernacht
+            // is: wie in Nederland om 00:30 zomertijd een stand van "vandaag"
+            // noteert, schrijft een tijdstip weg dat op de server nog in de
+            // toekomst ligt. Zonder marge weigert die write. Twee dagen is
+            // ruim genoeg daarvoor en blokkeert nog steeds elke jaartalfout.
+            && request.resource.data.opgenomenOp < request.time + duration.value(2, 'd')
+            // Een meterstand loopt op vanaf 0 en kan niet negatief zijn. De
+            // bovengrens is ruim: een gasmeter in m³ met drie decimalen komt
+            // nooit in de buurt, en een tussenmeter op een laadpaal ook niet.
+            && request.resource.data.stand is number
+            && request.resource.data.stand >= 0
+            && request.resource.data.stand <= 100000000
             && optionalString(request.resource.data, 'notitie', 2000);
         }
 

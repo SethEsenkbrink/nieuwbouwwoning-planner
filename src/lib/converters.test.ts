@@ -7,12 +7,18 @@ import {
   ankerUitFirestore,
   betrokkeneNaarFirestore,
   betrokkeneUitFirestore,
+  meterNaarFirestore,
+  meterUitFirestore,
+  meterstandNaarFirestore,
+  meterstandUitFirestore,
   onderdeelNaarFirestore,
   onderdeelUitFirestore,
   projectNaarFirestore,
   projectUitFirestore,
   zonderLegeVelden,
   type BetrokkeneData,
+  type MeterData,
+  type MeterstandData,
   type OnderdeelData,
   type ProjectData,
 } from "@/lib/converters";
@@ -437,5 +443,187 @@ describe("onderdelen", () => {
       registratieplicht: { instantie: "", referentie: "x" },
     });
     expect("registratieplicht" in data).toBe(false);
+  });
+});
+
+// ── Meters en meterstanden (ADR-0015) ──────────────────────────────────────
+
+describe("meterconverters", () => {
+  const meter: MeterData = {
+    soort: "stroom_normaal",
+    eenheid: "kWh",
+    waardenBron: "voorstel",
+  };
+
+  it("schrijft een minimale meter weg zonder lege velden", () => {
+    const data = meterNaarFirestore(meter);
+    expect(data).toEqual({ soort: "stroom_normaal", eenheid: "kWh", waardenBron: "voorstel" });
+    expect("naam" in data).toBe(false);
+    expect("meternummer" in data).toBe(false);
+  });
+
+  it("neemt alle optionele velden mee als ze gevuld zijn", () => {
+    const data = meterNaarFirestore({
+      ...meter,
+      naam: "Tussenmeter warmtepomp",
+      meternummer: "E0043007000123456",
+      notitie: "Onderste display",
+    });
+    expect(data.naam).toBe("Tussenmeter warmtepomp");
+    expect(data.meternummer).toBe("E0043007000123456");
+    expect(data.notitie).toBe("Onderste display");
+  });
+
+  it("leest een volledige meter terug", () => {
+    const gelezen = meterUitFirestore("m1", {
+      soort: "gas",
+      naam: "Gasmeter garage",
+      eenheid: "m3",
+      meternummer: "G4-0012",
+      notitie: "Achter het luik",
+      waardenBron: "eigen",
+    });
+    expect(gelezen).toEqual({
+      id: "m1",
+      soort: "gas",
+      naam: "Gasmeter garage",
+      eenheid: "m3",
+      meternummer: "G4-0012",
+      notitie: "Achter het luik",
+      waardenBron: "eigen",
+    });
+  });
+
+  it("valt bij een onbekende soort terug op overig", () => {
+    const gelezen = meterUitFirestore("m1", {
+      soort: "kernreactor",
+      eenheid: "kWh",
+      waardenBron: "eigen",
+    });
+    expect(gelezen.soort).toBe("overig");
+  });
+
+  it("valt bij een onbekende eenheid terug op kWh", () => {
+    const gelezen = meterUitFirestore("m1", {
+      soort: "water",
+      eenheid: "emmers",
+      waardenBron: "eigen",
+    });
+    expect(gelezen.eenheid).toBe("kWh");
+  });
+
+  /** ADR-0009: liever onterecht een disclaimer dan een schatting als eigen cijfer. */
+  it("valt bij een ontbrekende waardenBron terug op voorstel", () => {
+    const gelezen = meterUitFirestore("m1", { soort: "water", eenheid: "m3" });
+    expect(gelezen.waardenBron).toBe("voorstel");
+  });
+
+  it("negeert een lege naam in plaats van hem als naam te bewaren", () => {
+    const gelezen = meterUitFirestore("m1", {
+      soort: "water",
+      naam: "",
+      eenheid: "m3",
+      waardenBron: "eigen",
+    });
+    expect(gelezen.naam).toBeUndefined();
+  });
+});
+
+describe("meterstandconverters", () => {
+  const stand: MeterstandData = {
+    meterId: "m1",
+    opgenomenOp: d("2026-07-01"),
+    stand: 12345,
+  };
+
+  it("schrijft de datum weg als Timestamp", () => {
+    const data = meterstandNaarFirestore(stand);
+    expect(data.opgenomenOp).toBeInstanceOf(Timestamp);
+    expect(data.stand).toBe(12345);
+  });
+
+  it("leest de datum terug als Date", () => {
+    const gelezen = meterstandUitFirestore("s1", {
+      meterId: "m1",
+      opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
+      stand: 12345,
+    });
+    expect(gelezen.opgenomenOp).toEqual(d("2026-07-01"));
+    expect(gelezen.stand).toBe(12345);
+  });
+
+  it("bewaart decimalen, voor gas en water", () => {
+    const gelezen = meterstandUitFirestore("s1", {
+      meterId: "m1",
+      opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
+      stand: 1234.567,
+    });
+    expect(gelezen.stand).toBeCloseTo(1234.567, 10);
+  });
+
+  it("accepteert een stand van nul — een vervangen meter begint daar", () => {
+    const gelezen = meterstandUitFirestore("s1", {
+      meterId: "m1",
+      opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
+      stand: 0,
+    });
+    expect(gelezen.stand).toBe(0);
+  });
+
+  /**
+   * Een negatieve stand zou het verbruik van twee opeenvolgende periodes
+   * vergiftigen. Hij valt terug op 0, en de rekenkern markeert de periode
+   * eromheen vanzelf als onbetrouwbaar.
+   */
+  it("weigert een negatieve stand en valt terug op nul", () => {
+    const gelezen = meterstandUitFirestore("s1", {
+      meterId: "m1",
+      opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
+      stand: -500,
+    });
+    expect(gelezen.stand).toBe(0);
+  });
+
+  it("valt bij een stand die geen getal is terug op nul", () => {
+    const gelezen = meterstandUitFirestore("s1", {
+      meterId: "m1",
+      opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
+      stand: "12345",
+    });
+    expect(gelezen.stand).toBe(0);
+  });
+
+  it("valt bij een ontbrekende datum terug op epoch in plaats van te crashen", () => {
+    const gelezen = meterstandUitFirestore("s1", { meterId: "m1", stand: 100 });
+    expect(gelezen.opgenomenOp).toEqual(new Date(0));
+  });
+
+  /**
+   * De rules hebben hier een `keys().hasOnly(...)`, maar de converter is de
+   * tweede laag: wat er ook in het document staat, er komt nooit een afgeleid
+   * veld uit.
+   */
+  it("laat een opgeslagen verbruik niet doorlekken naar het model", () => {
+    const gelezen = meterstandUitFirestore("s1", {
+      meterId: "m1",
+      opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
+      stand: 12345,
+      verbruik: 350,
+    });
+    expect("verbruik" in gelezen).toBe(false);
+  });
+
+  /**
+   * De tegenhanger van de rules-whitelist, aan de schrijfkant. De converter
+   * noemt zijn velden expliciet, dus er kan er nooit één bijkomen zonder dat
+   * iemand het opschrijft. Deze test legt die lijst vast: breidt hij uit, dan
+   * moet ook `keys().hasOnly(...)` in de rules mee (en `verify:rules` zegt dat).
+   */
+  it("schrijft precies de vier velden weg die het model kent", () => {
+    const data = meterstandNaarFirestore({
+      ...stand,
+      notitie: "Samen met de jaarafrekening",
+    });
+    expect(Object.keys(data).sort()).toEqual(["meterId", "notitie", "opgenomenOp", "stand"]);
   });
 });

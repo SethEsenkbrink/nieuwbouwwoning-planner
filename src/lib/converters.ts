@@ -16,6 +16,10 @@ import type {
   MeerwerkItem,
   MeerwerkSluiting,
   MeerwerkStatus,
+  Metereenheid,
+  Metersoort,
+  Meter,
+  Meterstand,
   Nabudgetpost,
   NabudgetStatus,
   OpleverStatus,
@@ -117,6 +121,9 @@ export type Invoer<T> = { [K in keyof T]?: T[K] | undefined };
 export type OnderhoudTaakData = MetDatums<OnderhoudTaak>;
 export type OnderhoudLogregelData = MetDatums<OnderhoudLogregel>;
 
+export type MeterData = MetDatums<Meter>;
+export type MeterstandData = MetDatums<Meterstand>;
+
 /** Zoals hierboven, plus het Firestore-id dat pas bij het lezen bekend is. */
 export type ProjectMetId = ProjectData & { id: string };
 export type AnkerMetId = AnkerData & { id: string };
@@ -131,6 +138,8 @@ export type NabudgetMetId = NabudgetData & { id: string };
 export type OnderdeelMetId = OnderdeelData & { id: string };
 export type OnderhoudTaakMetId = OnderhoudTaakData & { id: string };
 export type OnderhoudLogregelMetId = OnderhoudLogregelData & { id: string };
+export type MeterMetId = MeterData & { id: string };
+export type MeterstandMetId = MeterstandData & { id: string };
 
 // ── Hulpjes ────────────────────────────────────────────────────────────────
 
@@ -172,6 +181,16 @@ function leesString(waarde: unknown): string | undefined {
 
 function leesGetal(waarde: unknown): number | undefined {
   return typeof waarde === "number" && Number.isFinite(waarde) ? waarde : undefined;
+}
+
+/**
+ * Zoals `leesGetal`, maar weigert ook negatieve waarden. Gebruikt voor de
+ * meterstand: die telt op vanaf 0 en kan niet onder nul komen. Een negatieve
+ * waarde zou twee opeenvolgende verbruiksperiodes onbruikbaar maken.
+ */
+function leesPositiefGetal(waarde: unknown): number | undefined {
+  const getal = leesGetal(waarde);
+  return getal !== undefined && getal >= 0 ? getal : undefined;
 }
 
 /**
@@ -314,6 +333,19 @@ const ENERGIELABELS = [
   "F",
   "G",
 ] as const satisfies readonly Energielabel[];
+const METERSOORTEN = [
+  "stroom_enkel",
+  "stroom_normaal",
+  "stroom_dal",
+  "teruglevering_enkel",
+  "teruglevering_normaal",
+  "teruglevering_dal",
+  "gas",
+  "water",
+  "warmte",
+  "overig",
+] as const satisfies readonly Metersoort[];
+const METEREENHEDEN = ["kWh", "m3", "GJ"] as const satisfies readonly Metereenheid[];
 
 /**
  * De acht ankertypes, ook bruikbaar in de UI voor een keuzelijst.
@@ -890,6 +922,73 @@ export function onderhoudLogregelUitFirestore(
     ...optioneel("onderdeelId", leesString(data.onderdeelId)),
     ...optioneel("doorWie", leesString(data.doorWie)),
     ...optioneel("kosten", leesGetal(data.kosten)),
+    ...optioneel("notitie", leesString(data.notitie)),
+  };
+}
+
+// ── Meters en meterstanden (ADR-0015) ──────────────────────────────────────
+
+export function meterNaarFirestore(meter: Invoer<MeterData>): DocumentData {
+  return zonderLegeVelden({
+    soort: meter.soort,
+    naam: meter.naam,
+    eenheid: meter.eenheid,
+    meternummer: meter.meternummer,
+    notitie: meter.notitie,
+    waardenBron: meter.waardenBron,
+  });
+}
+
+export function meterUitFirestore(id: string, data: DocumentData): MeterMetId {
+  // Terugval op "overig": een onbekende soort mag geen meter laten verdwijnen
+  // uit het overzicht. Bij `overig` toont de UI de eigen naam, en die staat er
+  // dan meestal wél.
+  const soort = leesEnum(data.soort, METERSOORTEN) ?? "overig";
+
+  return {
+    id,
+    soort,
+    // Terugval op kWh: verreweg de meest voorkomende eenheid, en fout genoeg
+    // om op te vallen bij een gasmeter. Een meter zonder eenheid zou anders
+    // een getal zonder betekenis tonen.
+    eenheid: leesEnum(data.eenheid, METEREENHEDEN) ?? "kWh",
+    // Zelfde terugval als bij de onderhoudstaak: liever onterecht een
+    // disclaimer dan een schatting als eigen cijfer presenteren (ADR-0009).
+    waardenBron: leesEnum(data.waardenBron, WAARDENBRONNEN) ?? "voorstel",
+    ...optioneel("naam", leesString(data.naam)),
+    ...optioneel("meternummer", leesString(data.meternummer)),
+    ...optioneel("notitie", leesString(data.notitie)),
+  };
+}
+
+export function meterstandNaarFirestore(stand: Invoer<MeterstandData>): DocumentData {
+  return zonderLegeVelden({
+    meterId: stand.meterId,
+    opgenomenOp: naarTimestamp(stand.opgenomenOp),
+    stand: stand.stand,
+    notitie: stand.notitie,
+  });
+  // LET OP: hier hoort NOOIT een `verbruik` of `verbruikPerDag` bij te komen.
+  // Dat volgt uit twee opeenvolgende standen en wordt in `lib/meterstanden.ts`
+  // elke keer opnieuw berekend (ADR-0008, ADR-0015 §3). De rule op deze
+  // collectie heeft een `keys().hasOnly(...)` die zo'n veld hard weigert.
+}
+
+export function meterstandUitFirestore(id: string, data: DocumentData): MeterstandMetId {
+  return {
+    id,
+    meterId: leesString(data.meterId) ?? "",
+    // Epoch als terugval, net als bij de logregel: een opname zonder datum is
+    // betekenisloos, maar mag de app niet laten crashen. Hij valt op in de UI.
+    opgenomenOp: leesDatum(data.opgenomenOp) ?? new Date(0),
+    // Een meterstand is nooit negatief. Een negatieve waarde zou het verbruik
+    // van twee opeenvolgende periodes vergiftigen, dus hij valt hier weg.
+    //
+    // De terugval is 0 en niet "laat de opname weg": 0 is een geldige stand
+    // (een net vervangen meter begint daar), en de rekenkern markeert de
+    // periode eromheen vanzelf als onbetrouwbaar. Zichtbaar fout is beter dan
+    // stilzwijgend verdwenen.
+    stand: leesPositiefGetal(data.stand) ?? 0,
     ...optioneel("notitie", leesString(data.notitie)),
   };
 }
