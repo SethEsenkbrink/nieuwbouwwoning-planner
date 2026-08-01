@@ -102,29 +102,35 @@ Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
 > vóórdat je verder bouwt — zeker bij `onderhoudstaken`, waar een vergeten veld in de
 > `hasOnly`-lijst élke write weigert.
 
-## ⚠️ De rules in Firebase lopen achter op de code
+## Rules en indexes staan in productie — 1 augustus 14:02
 
-Ontdekt op 1 augustus: de laatste rules-deploy in de Firebase-console dateert van **30 juli
-18:04**. De rules zijn sindsdien in vier commits gewijzigd (`7b80825` blok D, `a6a46de` E1,
-`0093810` E2, `c84c731` + `5e6553d` E3).
+De rules liepen **vier commits achter**: de console stond nog op de versie van 30 juli 18:04,
+terwijl blok D, E1, E2 en E3 de rules alle vier hadden gewijzigd. Opgemerkt doordat Seth ernaar
+vroeg, niet doordat iets faalde — de emulator draait tegen het bestand op schijf en had er
+geen weet van.
 
-**Dit is geen lek.** De rules staan op default deny, dus alles wat er niet in staat wordt
-geweigerd. Maar zou je de app tegen productie draaien, dan faalt élke write op de nieuwe
-collecties met een permissiefout die niets over de oorzaak zegt.
+Op 1 augustus gedeployed met `firebase deploy --only firestore` (rules én indexes). De
+server-side compilatie kwam schoon door, inclusief de `keys().hasOnly(...)` op
+`onderhoudstaken`.
 
-Deployen kost seconden en is risicoloos zolang er geen productiedata is:
+> **De regel die hieruit volgt:** `npm run rules:test` groen is **niet** hetzelfde als
+> *gedeployed*. Wijzig je de rules, deploy dan in dezelfde sessie. Geeft de CLI
+> `Authentication Error`, dan is `firebase login --reauth` de fix — niet `firebase login:ci`,
+> dat is voor headless servers en levert een langlevend geheim op.
 
-```powershell
-firebase login --reauth          # het CLI-token verloopt periodiek
-firebase deploy --only firestore:rules
-```
+**Over de indexes:** de twee composite indexes (`tasks: status + deadline` en
+`meerwerk: status + sluitingsdatum`) worden door **geen enkele query** gebruikt. Alle
+Firestore-toegang loopt via `lib/projecten.ts`, en daar staat nergens een `where` + `orderBy`
+op dezelfde collectie; sorteren gebeurt overal client-side. Vermoedelijk in sessie 01
+vooruitlopend aangemaakt op queries die er nooit kwamen.
 
-De deploy compileert de rules server-side vóór het uitrollen — een syntaxfout in
-`keys().hasOnly(...)` valt dus daar om en niet in productie.
+Niet schadelijk — een ongebruikte index kost wat opslag en schrijftijd — maar wel dood gewicht
+dat suggereert dat er queries zijn die er niet zijn. **Bewust laten staan** tot E4 en E8 af
+zijn; dan is pas duidelijk of er alsnog een nodig is.
 
-> **Regel die hieruit volgt:** `npm run rules:test` groen is niet hetzelfde als *gedeployed*.
-> De emulator draait tegen het lokale bestand. Werk je aan de rules, deploy dan in dezelfde
-> sessie of noteer het hier.
+De drie collecties uit blok E hebben géén index nodig: ze halen de hele subcollectie op en
+sorteren in het geheugen. Bij een woningdossier gaat het om tientallen documenten, niet
+duizenden.
 
 ## Direct volgende stap
 
