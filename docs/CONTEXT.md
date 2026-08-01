@@ -45,6 +45,7 @@ De drie bestanden vullen elkaar aan en overlappen niet:
 | `PROJECT.md` | Wát bouwen we, onder welke regels | Zelden |
 | `STATE.md` | Waar staan we, wat nu | Elke sessie |
 | `decisions/` | Waaróm is het zo | Bij elke keuze, nooit met terugwerkende kracht |
+| `../CLAUDE.md` | Waar draait het, en wat kan ik uitvoeren | Bij een omgevings- of versiewijziging |
 
 Een nieuwe chat die deze drie leest, weet net zoveel als de vorige — zonder dat de
 volledige gespreksgeschiedenis nodig is.

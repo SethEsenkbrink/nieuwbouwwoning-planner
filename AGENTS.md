@@ -15,6 +15,10 @@ constraints die het project bij elkaar houden.
 5. **`docs/sessions/`** — het laatste sessielog
 6. **`../AGENTS.md`** — de onwrikbare huisstijlregels van de werkruimte
 
+**Ga je zelf commando's uitvoeren? Lees dan eerst `CLAUDE.md` in deze map.** Daar staat welke
+commando's in een AI-sandbox wél werken en welke alleen op de machine van Seth — plus waarom
+`tsc --noEmit` in dit project niets controleert.
+
 `docs/CONTEXT.md` bevat een startprompt die dit in één keer afdwingt in een nieuwe chat.
 
 ## De vijf dingen die het vaakst misgaan
