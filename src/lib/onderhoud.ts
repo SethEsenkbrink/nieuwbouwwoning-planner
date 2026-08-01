@@ -1,4 +1,5 @@
 import type { OnderdeelMetId, OnderhoudTaakMetId } from "@/lib/converters";
+import { overMaanden } from "@/lib/oplevering";
 import { opDag, verschilInDagen, voegDagenToe } from "@/lib/planning";
 
 /**
@@ -37,6 +38,20 @@ export interface Onderhoudsstand {
   gerekendVanaf: Date;
   /** Is de datum verschoven door `voorkeursmaand`? */
   verschovenNaarMaand: boolean;
+
+  /**
+   * De fabrieksgarantie van het gekoppelde onderdeel verloopt vóór de volgende
+   * beurt (blok E4). Dan telt die datum, niet het interval.
+   *
+   * Dit is het moment waarop informatie geld waard is: laat je de warmtepomp
+   * nakijken zolang de garantie loopt, dan betaalt de fabrikant een defect.
+   * Een dag later is het je eigen rekening.
+   *
+   * LET OP: dit verandert het INTERVAL niet. Het is een eenmalige, vervroegde
+   * deadline. Is de beurt gedaan, dan loopt de reeks weer op `intervalDagen`
+   * verder — de garantie komt immers niet terug.
+   */
+  garantieVerlooptOp?: Date;
 }
 
 /**
@@ -96,8 +111,11 @@ export function naarMaand(datum: Date, maand: number, nietVoor?: Date): Date {
 }
 
 export interface OnderhoudContext {
-  /** Het onderdeel waar de taak aan hangt, als dat er is. */
-  onderdeel?: Pick<OnderdeelMetId, "installatieDatum"> | undefined;
+  /**
+   * Het onderdeel waar de taak aan hangt, als dat er is. `garantieMaanden`
+   * hoort erbij sinds blok E4: een aflopende garantie vervroegt de beurt.
+   */
+  onderdeel?: Pick<OnderdeelMetId, "installatieDatum" | "garantieMaanden"> | undefined;
   /** De opleverdatum van het project — het laatste vangnet. */
   opleverdatum?: Date | undefined;
 }
@@ -124,11 +142,22 @@ export function berekenVolgendeOnderhoud(
   const zonderCorrectie = voegDagenToe(basis, taak.intervalDagen);
   // `basis` als ondergrens: de correctie mag nooit tot op of vóór de laatste
   // beurt schuiven. Zie de uitleg bij `naarMaand()`.
-  const volgendeOp =
+  const uitInterval =
     taak.voorkeursmaand === undefined
       ? zonderCorrectie
       : naarMaand(zonderCorrectie, taak.voorkeursmaand, basis);
 
+  // ── De garantiedeadline (blok E4) ────────────────────────────────────────
+  // Verloopt de fabrieksgarantie vóór de volgende geplande beurt, dan telt die
+  // datum. Alleen als hij in de TOEKOMST ligt: een garantie die al voorbij is
+  // levert geen deadline meer op, alleen spijt.
+  const garantie = garantieEinde(context.onderdeel);
+  const vervroegd =
+    garantie !== null &&
+    garantie.getTime() > vandaag.getTime() &&
+    garantie.getTime() < uitInterval.getTime();
+
+  const volgendeOp = vervroegd && garantie ? garantie : uitInterval;
   const dagenResterend = verschilInDagen(volgendeOp, vandaag);
 
   return {
@@ -137,8 +166,29 @@ export function berekenVolgendeOnderhoud(
     bron,
     urgentie: bepaalUrgentie(dagenResterend),
     gerekendVanaf: basis,
-    verschovenNaarMaand: volgendeOp.getTime() !== zonderCorrectie.getTime(),
+    // De voorkeursmaand-correctie geldt over het interval, ook als de garantie
+    // daarna nog vervroegt — anders zou de UI de verschuiving verzwijgen.
+    verschovenNaarMaand: uitInterval.getTime() !== zonderCorrectie.getTime(),
+    ...(vervroegd && garantie ? { garantieVerlooptOp: garantie } : {}),
   };
+}
+
+/**
+ * De einddatum van de fabrieksgarantie op een onderdeel, of `null`.
+ *
+ * Dezelfde berekening als `berekenGarantieklok()` in `lib/onderdelen.ts`, maar
+ * die functie leeft aan de andere kant van de scheiding: `onderdelen.ts` gaat
+ * over het register, dit bestand over de planning. Ze importeren elkaar niet,
+ * en dat is opzet — anders krijg je een cirkel zodra het register ooit iets uit
+ * de planning nodig heeft.
+ */
+function garantieEinde(
+  onderdeel: Pick<OnderdeelMetId, "installatieDatum" | "garantieMaanden"> | undefined,
+): Date | null {
+  if (!onderdeel?.installatieDatum) return null;
+  const maanden = onderdeel.garantieMaanden;
+  if (maanden === undefined || maanden <= 0) return null;
+  return overMaanden(onderdeel.installatieDatum, maanden);
 }
 
 /**
@@ -246,6 +296,42 @@ export function takenZonderStartpunt(
     const onderdeel = onderdelen.find((o) => o.id === taak.onderdeelId);
     return berekenVolgendeOnderhoud(taak, { onderdeel, opleverdatum }, vandaag) === null;
   });
+}
+
+/**
+ * Onderdelen waarvan de garantie binnenkort afloopt en waar nog géén
+ * onderhoudstaak aan hangt (blok E4).
+ *
+ * Dit is het gat tussen weten en doen: het register kent de garantiedatum, maar
+ * zonder taak gebeurt er niets mee. De UI biedt hier één klik om alsnog een
+ * taak aan te maken.
+ *
+ * Onderdelen mét een taak vallen hier weg — die worden al vervroegd via
+ * `garantieVerlooptOp` op de stand, en twee keer waarschuwen voor hetzelfde is
+ * ruis.
+ */
+export function garantiesZonderTaak(
+  onderdelen: readonly OnderdeelMetId[],
+  taken: readonly OnderhoudTaakMetId[],
+  vandaag: Date,
+  binnenDagen = 90,
+): { onderdeel: OnderdeelMetId; verlooptOp: Date; dagenResterend: number }[] {
+  const gekoppeld = new Set(
+    taken.map((t) => t.onderdeelId).filter((id): id is string => id !== undefined),
+  );
+
+  return onderdelen
+    .filter((o) => !gekoppeld.has(o.id))
+    .flatMap((onderdeel) => {
+      const verlooptOp = garantieEinde(onderdeel);
+      if (verlooptOp === null) return [];
+
+      const dagenResterend = verschilInDagen(verlooptOp, vandaag);
+      if (dagenResterend < 0 || dagenResterend > binnenDagen) return [];
+
+      return [{ onderdeel, verlooptOp, dagenResterend }];
+    })
+    .sort((a, b) => a.dagenResterend - b.dagenResterend);
 }
 
 export interface Onderhoudsstanden {

@@ -70,24 +70,6 @@ export function telOpenstaandeRegistraties(onderdelen: readonly OnderdeelMetId[]
 }
 
 /**
- * Onderdelen waarvan de garantie binnen `BIJNA_VOORBIJ_DAGEN` afloopt, van
- * dichtstbijzijnd naar verst. Dit is de lijst die op het dashboard hoort zodra
- * de woning opgeleverd is.
- */
-export function garantiesDieAflopen(
-  onderdelen: readonly OnderdeelMetId[],
-  vandaag: Date,
-): { onderdeel: OnderdeelMetId; klok: Garantieklok }[] {
-  return onderdelen
-    .map((onderdeel) => ({ onderdeel, klok: berekenGarantieklok(onderdeel, vandaag) }))
-    .filter(
-      (regel): regel is { onderdeel: OnderdeelMetId; klok: Garantieklok } =>
-        regel.klok?.bijnaVoorbij === true,
-    )
-    .sort((a, b) => a.klok.dagenResterend - b.klok.dagenResterend);
-}
-
-/**
  * Wat er straks in het overdrachtsdossier terechtkomt (E8) — en wat níét.
  *
  * De scheiding komt uit `blijftBijWoning` en niet uit `montage`, precies zoals

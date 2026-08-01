@@ -17,6 +17,7 @@ import {
   haalOnderdelen,
   haalOnderhoudstaken,
   haalTermijnen,
+  maakGarantiecontrole,
   werkAfspraakBij,
 } from "@/lib/projecten";
 import { maakActielijst, telHandmatigeBetrokkenen } from "@/lib/actielijst";
@@ -26,13 +27,18 @@ import { toonBedrag } from "@/lib/bedrag";
 import { telMeerwerk } from "@/lib/meerwerk";
 import { telDepot } from "@/lib/depot";
 import { adresregel, bepaalEnergielabelstand, isOpgeleverd } from "@/lib/woning";
-import { garantiesDieAflopen, telOpenstaandeRegistraties } from "@/lib/onderdelen";
+import { telOpenstaandeRegistraties } from "@/lib/onderdelen";
 import {
   dagenOverTijd,
   dagenTeGaan,
+  garantiesZonderTaak,
   maakOnderhoudslijst,
   toonInterval,
 } from "@/lib/onderhoud";
+import {
+  garantiecontroleVoor,
+  type StandaardOnderhoud,
+} from "@/data/onderhoud-standaard";
 import type {
   AfspraakMetId,
   AnkerMetId,
@@ -169,6 +175,33 @@ export default function Dashboard() {
     }
   }
 
+  /**
+   * Maakt een onderhoudstaak aan vanuit een aflopende garantie (blok E4).
+   *
+   * De taak wordt gekoppeld aan het onderdeel — dat is wat de garantiedeadline
+   * laat werken. Zonder `onderdeelId` weet de rekenkern niet welke garantie
+   * erbij hoort en blijft de taak gewoon op zijn interval staan.
+   */
+  async function plancontrole(onderdeelId: string, voorstel: StandaardOnderhoud) {
+    if (!uid || !project) return;
+
+    setBezigMetId(onderdeelId);
+    setFout(null);
+    try {
+      await maakGarantiecontrole(uid, project.id, onderdeelId, {
+        titel: voorstel.titel,
+        omschrijving: voorstel.omschrijving,
+        intervalDagen: voorstel.intervalDagen,
+        ...(voorstel.waarschuwing ? { waarschuwing: voorstel.waarschuwing } : {}),
+      });
+      herlaad();
+    } catch (f) {
+      setFout(opslagFoutmelding(f, "De taak aanmaken"));
+    } finally {
+      setBezigMetId(null);
+    }
+  }
+
   if (!uid || bezigMetLaden) return <Laadscherm />;
 
   if (fout && !project) {
@@ -204,7 +237,9 @@ export default function Dashboard() {
   const opgeleverd = isOpgeleverd(project);
   const adres = adresregel(project.woningpaspoort);
   const labelstand = bepaalEnergielabelstand(project.woningpaspoort, opDag(new Date()));
-  const aflopend = garantiesDieAflopen(onderdelen, opDag(new Date()));
+  // Aflopende garanties waar nog geen taak aan hangt (blok E4). Onderdelen
+  // mét een taak vallen weg: daar heeft de garantie de beurt al vervroegd.
+  const zonderTaak = garantiesZonderTaak(onderdelen, onderhoudstaken, opDag(new Date()));
   const registratiesOpen = telOpenstaandeRegistraties(onderdelen);
 
   // DIT IS DE HERINNERING (ADR-0014 §3). Er gaat geen mail uit tot ronde 8, dus
@@ -304,6 +339,11 @@ export default function Dashboard() {
                     {toonInterval(taak.intervalDagen)}
                     {onderdeelNaam && ` · ${onderdeelNaam}`}
                   </p>
+                  {stand.garantieVerlooptOp && (
+                    <p className="mt-1 text-sm text-clay-deep">
+                      Vervroegd — garantie verloopt {toonDatum(stand.garantieVerlooptOp)}
+                    </p>
+                  )}
                 </div>
                 <span
                   className={`rounded-pill px-3 py-1 text-sm ${
@@ -324,30 +364,56 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* Het moment waarop informatie geld waard is: nog even laten nakijken
-          vóórdat de garantie afloopt en het je eigen rekening wordt. */}
-      {aflopend.length > 0 && (
+      {/* ── Aflopende garanties zonder onderhoudstaak (blok E4) ──────────
+          Het moment waarop informatie geld waard is: laat het nakijken zolang
+          de fabrikant nog betaalt. Onderdelen mét een taak staan al hierboven,
+          want daar heeft de garantie de beurt vervroegd. */}
+      {zonderTaak.length > 0 && (
         <section className="mt-s4 max-w-3xl">
           <h2 className="text-h3 text-ink">
-            {aflopend.length === 1
-              ? "Eén garantie loopt binnenkort af"
-              : `${aflopend.length} garanties lopen binnenkort af`}
+            {zonderTaak.length === 1
+              ? "Eén garantie loopt af zonder dat er onderhoud gepland staat"
+              : `${zonderTaak.length} garanties lopen af zonder dat er onderhoud gepland staat`}
           </h2>
           <p className="mt-s2 text-body text-slate">
-            Dit is het moment om het te laten nakijken — daarna is het je eigen rekening.
+            Laat het nakijken zolang de garantie loopt — daarna is een defect je eigen rekening.
           </p>
-          <ul className="mt-s2 flex flex-col gap-1">
-            {aflopend.map(({ onderdeel, klok }) => (
-              <li key={onderdeel.id} className="text-body text-ink">
-                <Link to="/onderdelen" className="underline">
-                  {onderdeel.naam}
-                </Link>{" "}
-                <span className="text-sm text-slate">
-                  — nog {klok.dagenResterend} dagen, tot {toonDatum(klok.verstrijktOp)}
-                </span>
-              </li>
-            ))}
-          </ul>
+
+          <div className="mt-s3 flex flex-col gap-2">
+            {zonderTaak.map(({ onderdeel, verlooptOp, dagenResterend }) => {
+              const voorstel = garantiecontroleVoor(onderdeel.naam);
+              return (
+                <div
+                  key={onderdeel.id}
+                  className="brink-card flex flex-wrap items-start justify-between gap-2 p-s3"
+                >
+                  <div>
+                    <p className="text-body font-semibold text-ink">{onderdeel.naam}</p>
+                    <p className="mt-1 text-sm text-slate">
+                      Garantie tot {toonDatum(verlooptOp)} — {dagenTeGaan(dagenResterend)}
+                    </p>
+                    {voorstel && (
+                      <p className="mt-1 text-sm text-granite">Voorstel: {voorstel.titel}</p>
+                    )}
+                  </div>
+
+                  {voorstel ? (
+                    <Knop
+                      variant="secundair"
+                      bezig={bezigMetId === onderdeel.id}
+                      onClick={() => void plancontrole(onderdeel.id, voorstel)}
+                    >
+                      Onderhoud inplannen
+                    </Knop>
+                  ) : (
+                    <Link to="/onderhoud" className="text-sm text-olive-deep underline">
+                      Taak toevoegen
+                    </Link>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </section>
       )}
 

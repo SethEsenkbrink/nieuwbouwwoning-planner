@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   berekenVolgendeOnderhoud,
+  garantiesZonderTaak,
   maakOnderhoudslijst,
   naarMaand,
   takenZonderStartpunt,
@@ -386,5 +387,177 @@ describe("toonMaand", () => {
     expect(toonMaand(undefined)).toBeUndefined();
     expect(toonMaand(0)).toBeUndefined();
     expect(toonMaand(13)).toBeUndefined();
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * De garantiedeadline (blok E4)
+ *
+ * Verloopt de fabrieksgarantie vóór de volgende geplande beurt, dan telt die
+ * datum. Dit is het moment waarop informatie geld waard is: laat je het toestel
+ * nakijken zolang de garantie loopt, dan betaalt de fabrikant een defect. Een
+ * dag later is het je eigen rekening.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("garantiedeadline", () => {
+  it("vervroegt de beurt als de garantie eerder verloopt", () => {
+    // Omvormer geïnstalleerd 1 okt 2024, 24 maanden garantie → 1 okt 2026.
+    // De taak zou pas 1 juli 2027 aan de beurt zijn.
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 365 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 10, 1), garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    expect(stand?.volgendeOp).toEqual(d(2026, 10, 1));
+    expect(stand?.garantieVerlooptOp).toEqual(d(2026, 10, 1));
+    expect(stand?.dagenResterend).toBe(61);
+  });
+
+  it("laat de beurt staan als de garantie later verloopt", () => {
+    // Warmtepomp met 60 maanden garantie → 2029. De beurt is eerder.
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 6, 1), intervalDagen: 730 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 9, 15), garantieMaanden: 60 }) },
+      VANDAAG,
+    );
+    expect(stand?.volgendeOp).toEqual(d(2028, 5, 31));
+    expect(stand?.garantieVerlooptOp).toBeUndefined();
+  });
+
+  /**
+   * Een garantie die al voorbij is levert geen deadline meer op. Zou hij dat
+   * wel doen, dan stond de taak permanent op achterstallig met een reden die
+   * niets meer oplost.
+   */
+  it("negeert een garantie die al verlopen is", () => {
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 365 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2020, 1, 1), garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    expect(stand?.volgendeOp).toEqual(d(2027, 7, 1));
+    expect(stand?.garantieVerlooptOp).toBeUndefined();
+  });
+
+  it("negeert een onderdeel zonder garantietermijn", () => {
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 365 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 10, 1) }) },
+      VANDAAG,
+    );
+    expect(stand?.garantieVerlooptOp).toBeUndefined();
+  });
+
+  it("negeert een onderdeel zonder installatiedatum", () => {
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 365 }),
+      { onderdeel: onderdeel({ garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    expect(stand?.garantieVerlooptOp).toBeUndefined();
+  });
+
+  it("werkt zonder gekoppeld onderdeel", () => {
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 365 }),
+      {},
+      VANDAAG,
+    );
+    expect(stand?.garantieVerlooptOp).toBeUndefined();
+  });
+
+  /**
+   * De garantie verandert het INTERVAL niet. Na de vervroegde beurt loopt de
+   * reeks weer op `intervalDagen` — de garantie komt immers niet terug.
+   */
+  it("laat het interval ongemoeid na een vervroegde beurt", () => {
+    const eerste = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 365 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 10, 1), garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    const na = berekenVolgendeOnderhoud(
+      taak({
+        laatstUitgevoerdOp: moetLukken(eerste, "een eerste stand").volgendeOp,
+        intervalDagen: 365,
+      }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 10, 1), garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    // Een jaar na de vervroegde beurt, en zonder nieuwe garantiedeadline.
+    expect(na?.volgendeOp).toEqual(d(2027, 10, 1));
+    expect(na?.garantieVerlooptOp).toBeUndefined();
+  });
+
+  it("maakt de taak achterstallig als de garantie binnen de urgentiegrens valt", () => {
+    // Garantie verloopt over 20 dagen → "binnenkort".
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 3650 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 8, 21), garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    expect(stand?.urgentie).toBe("binnenkort");
+    expect(stand?.garantieVerlooptOp).toEqual(d(2026, 8, 21));
+  });
+});
+
+describe("garantiesZonderTaak", () => {
+  const omvormer = onderdeel({
+    id: "omvormer",
+    naam: "Omvormer",
+    categorie: "opwekking",
+    installatieDatum: d(2024, 10, 1),
+    garantieMaanden: 24,
+  });
+  const warmtepomp = onderdeel({
+    id: "warmtepomp",
+    naam: "Warmtepomp",
+    installatieDatum: d(2024, 9, 15),
+    garantieMaanden: 60,
+  });
+
+  it("geeft onderdelen met een aflopende garantie zonder taak", () => {
+    const resultaat = garantiesZonderTaak([omvormer, warmtepomp], [], VANDAAG);
+    expect(resultaat.map((r) => r.onderdeel.id)).toEqual(["omvormer"]);
+    expect(resultaat[0]?.dagenResterend).toBe(61);
+  });
+
+  /** Met een taak wordt de garantie al via `garantieVerlooptOp` afgehandeld. */
+  it("laat onderdelen weg waar al een taak aan hangt", () => {
+    const resultaat = garantiesZonderTaak(
+      [omvormer],
+      [taak({ id: "t1", onderdeelId: "omvormer" })],
+      VANDAAG,
+    );
+    expect(resultaat).toEqual([]);
+  });
+
+  it("negeert een garantie die al verlopen is", () => {
+    const oud = onderdeel({
+      id: "oud",
+      installatieDatum: d(2020, 1, 1),
+      garantieMaanden: 24,
+    });
+    expect(garantiesZonderTaak([oud], [], VANDAAG)).toEqual([]);
+  });
+
+  it("negeert een garantie die nog ver weg is", () => {
+    expect(garantiesZonderTaak([warmtepomp], [], VANDAAG)).toEqual([]);
+  });
+
+  it("sorteert op wat het eerst verloopt", () => {
+    const bijna = onderdeel({
+      id: "bijna",
+      installatieDatum: d(2024, 8, 21),
+      garantieMaanden: 24,
+    });
+    const resultaat = garantiesZonderTaak([omvormer, bijna], [], VANDAAG);
+    expect(resultaat.map((r) => r.onderdeel.id)).toEqual(["bijna", "omvormer"]);
+  });
+
+  it("respecteert een eigen venster", () => {
+    expect(garantiesZonderTaak([omvormer], [], VANDAAG, 30)).toEqual([]);
+    expect(garantiesZonderTaak([omvormer], [], VANDAAG, 90)).toHaveLength(1);
   });
 });

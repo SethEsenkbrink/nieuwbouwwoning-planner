@@ -1016,3 +1016,30 @@ export async function voegStandaardOnderhoudToe(
   await batch.commit();
   return taken.length;
 }
+
+/**
+ * Maakt één onderhoudstaak aan vanuit een aflopende garantie (blok E4).
+ *
+ * Aparte functie naast `voegStandaardOnderhoudToe()` omdat de aanleiding
+ * anders is: daar kiest de gebruiker uit een lijst, hier reageert hij op een
+ * signaal. De taak wordt meteen aan het onderdeel gekoppeld, want dat is wat de
+ * garantiedeadline laat werken — zonder `onderdeelId` weet de rekenkern niet
+ * welke garantie erbij hoort.
+ */
+export async function maakGarantiecontrole(
+  uid: string,
+  projectId: string,
+  onderdeelId: string,
+  taak: {
+    titel: string;
+    omschrijving?: string;
+    intervalDagen: number;
+    waarschuwing?: string;
+  },
+): Promise<string> {
+  return zetOnderhoudstaak(uid, projectId, null, {
+    ...taak,
+    onderdeelId,
+    waardenBron: "voorstel",
+  });
+}

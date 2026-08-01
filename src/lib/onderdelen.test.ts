@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   berekenGarantieklok,
-  garantiesDieAflopen,
   onderdeelstand,
   ordenSpecs,
   registratieOpenstaand,
@@ -194,37 +193,6 @@ describe("onderdeelstand en sortering", () => {
     const invoer = [voorbij, registratie];
     sorteerOnderdelen(invoer, VANDAAG);
     expect(invoer.map((o) => o.id)).toEqual(["voorbij", "registratie"]);
-  });
-});
-
-describe("garantiesDieAflopen", () => {
-  it("geeft alleen wat binnen 90 dagen afloopt, dichtstbijzijnd eerst", () => {
-    const lijst = [
-      onderdeel({
-        id: "ver",
-        installatieDatum: new Date(Date.UTC(2026, 0, 1)),
-        garantieMaanden: 60,
-      }),
-      onderdeel({
-        id: "later",
-        installatieDatum: new Date(Date.UTC(2024, 9, 1)),
-        garantieMaanden: 24,
-      }),
-      onderdeel({
-        id: "eerder",
-        installatieDatum: new Date(Date.UTC(2024, 7, 15)),
-        garantieMaanden: 24,
-      }),
-      onderdeel({ id: "geen-datum", garantieMaanden: 24 }),
-    ];
-    expect(garantiesDieAflopen(lijst, VANDAAG).map((r) => r.onderdeel.id)).toEqual([
-      "eerder",
-      "later",
-    ]);
-  });
-
-  it("geeft een lege lijst als er niets afloopt", () => {
-    expect(garantiesDieAflopen([onderdeel()], VANDAAG)).toEqual([]);
   });
 });
 

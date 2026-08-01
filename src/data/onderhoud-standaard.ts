@@ -1,4 +1,5 @@
 import type { OnderdeelCategorie } from "@/types/model";
+import { STANDAARD_ONDERDELEN, type StandaardOnderdeel } from "@/data/onderdelen-standaard";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -47,6 +48,26 @@ export interface StandaardOnderhoud {
   /** Kun je dit zelf, of heb je een monteur nodig? */
   zelfTeDoen: boolean;
 }
+
+/**
+ * De taak die je wilt voorstellen als de garantie van een onderdeel afloopt
+ * (blok E4): "laat het nakijken zolang de fabrikant nog betaalt".
+ *
+ * Per onderdeelsleutel de sleutel van de servicebeurt uit de lijst hieronder.
+ * Staat een onderdeel er niet bij, dan valt de UI terug op een vrije taak — dat
+ * is beter dan een controle voorstellen die niets met garantie te maken heeft.
+ */
+export const GARANTIECONTROLE_PER_ONDERDEEL: Readonly<Record<string, string>> = {
+  warmtepomp: "warmtepomp_onderhoud",
+  cv_ketel: "cv_onderhoud",
+  wtw_unit: "wtw_filters",
+  boiler: "anode_controleren",
+  waterontharder: "waterontharder_service",
+  zonnepanelen: "zonnepanelen_opbrengst",
+  dakbedekking: "dak_inspectie",
+  kozijnen: "kozijnen_rubbers",
+  zonwering: "zonwering_controle",
+};
 
 export const STANDAARD_ONDERHOUD: readonly StandaardOnderhoud[] = [
   // ── Ventilatie ──────────────────────────────────────────────────────────
@@ -381,3 +402,32 @@ export const STANDAARD_ONDERHOUD: readonly StandaardOnderhoud[] = [
     zelfTeDoen: true,
   },
 ];
+
+/**
+ * Bij welk standaardonderdeel hoort dit opgeslagen onderdeel? Match op naam,
+ * want de bibliotheeksleutel wordt niet opgeslagen — de bibliotheek is een
+ * hulpmiddel bij het invullen, geen verwijzing die moet blijven kloppen als de
+ * lijst verandert.
+ */
+export function standaardOnderdeelVoor(onderdeelNaam: string): StandaardOnderdeel | undefined {
+  const genormaliseerd = onderdeelNaam.trim().toLowerCase();
+  return STANDAARD_ONDERDELEN.find((o) => o.naam.toLowerCase() === genormaliseerd);
+}
+
+/**
+ * De voorgestelde garantiecontrole voor een onderdeel (blok E4): "laat het
+ * nakijken zolang de fabrikant nog betaalt".
+ *
+ * `undefined` als er geen passende taak is. De UI valt dan terug op een vrije
+ * taak met de naam van het onderdeel erin — beter dan een controle voorstellen
+ * die niets met garantie te maken heeft.
+ */
+export function garantiecontroleVoor(onderdeelNaam: string): StandaardOnderhoud | undefined {
+  const standaard = standaardOnderdeelVoor(onderdeelNaam);
+  if (!standaard) return undefined;
+
+  const taaksleutel = GARANTIECONTROLE_PER_ONDERDEEL[standaard.sleutel];
+  if (taaksleutel === undefined) return undefined;
+
+  return STANDAARD_ONDERHOUD.find((o) => o.sleutel === taaksleutel);
+}

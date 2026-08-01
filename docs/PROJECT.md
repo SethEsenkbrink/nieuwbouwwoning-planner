@@ -255,7 +255,7 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 - [x] **Opleverchecklist** met gebreken en hersteltermijnen
 - [x] **5%-opschortingsregeling**: het depot, de afgeleide termijn en de keuze (ADR-0012)
 - [x] **Onderhoudstermijn** als aftelklok, afgeleid uit anker of standaardtermijn
-- [x] **Garantietermijnen** Woningborg/SWK als aftelklok. Per onderdeel volgt in fase 4
+- [x] **Garantietermijnen** Woningborg/SWK als aftelklok. Per onderdeel: zie fase 4 (E4)
 - [x] **Budgetoverzicht** met de vergeten posten ná oplevering (vloer, tuin, gordijnen)
 
 ### Fase 4 — het woningdossier (ADR-0010)
@@ -269,6 +269,9 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
       `voorkeursmaand` voor seizoenswerk en historie — `/onderhoud` (ADR-0014)
 - [x] **Terugkerende controles** (rookmelder, aardlekschakelaar, waterdruk) — zitten in
       dezelfde bibliotheek; het zijn onderhoudstaken met een kort interval
+- [x] **Garantie-aftelklokken per onderdeel** (E4): verloopt de fabrieksgarantie vóór de
+      volgende beurt, dan telt díé datum. Een aflopende garantie zonder taak levert op het
+      dashboard één klik op om er alsnog een in te plannen
 - [x] **Logboek** van onderhoud — afvinken schrijft atomair een logregel (ADR-0014 §2)
 - [ ] Herinneringen via een scheduled Netlify Function — **uitgesteld tot ronde 8**
       (ADR-0014 §3 herziet ADR-0010 §4). Tot die tijd: de onderhoudslijst op het dashboard

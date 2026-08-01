@@ -25,7 +25,7 @@ import {
   voorkeursmaandVerstoortInterval,
   type Onderhoudsregel,
 } from "@/lib/onderhoud";
-import { STANDAARD_ONDERHOUD } from "@/data/onderhoud-standaard";
+import { STANDAARD_ONDERHOUD, standaardOnderdeelVoor } from "@/data/onderhoud-standaard";
 import {
   haalActiefProject,
   haalOnderdelen,
@@ -304,8 +304,11 @@ export default function Onderhoud() {
         (s) => {
           // Koppel aan een onderdeel dat de gebruiker al heeft, als de naam
           // overeenkomt. Lukt dat niet, dan blijft de taak los staan.
+          // Koppel aan een onderdeel dat de gebruiker al heeft. De
+          // bibliotheek noemt de sleutel; `standaardOnderdeelVoor()` vertaalt
+          // de opgeslagen naam terug naar diezelfde sleutel.
           const onderdeel = onderdelen.find(
-            (o) => o.naam.toLowerCase() === standaardOnderdeelnaam(s.onderdeelSleutel),
+            (o) => standaardOnderdeelVoor(o.naam)?.sleutel === s.onderdeelSleutel,
           );
           return {
             titel: s.titel,
@@ -679,28 +682,6 @@ export default function Onderhoud() {
   );
 }
 
-/** Vertaalt een onderdeelsleutel uit de bibliotheek naar de naam die erbij hoort. */
-function standaardOnderdeelnaam(sleutel: string | undefined): string {
-  if (!sleutel) return "";
-  const namen: Record<string, string> = {
-    warmtepomp: "warmtepomp",
-    cv_ketel: "cv-ketel",
-    wtw_unit: "wtw-unit (balansventilatie)",
-    boiler: "boiler / warmtapwatervat",
-    waterontharder: "waterontharder",
-    drinkwaterfilter: "drinkwaterfilter",
-    groepenkast: "groepenkast",
-    zonnepanelen: "zonnepanelen",
-    rookmelders: "rookmelders",
-    kozijnen: "kozijnen en beglazing",
-    hang_en_sluitwerk: "hang- en sluitwerk",
-    dakbedekking: "dakbedekking",
-    zonwering: "zonwering",
-    vloerverwarmingsverdeler: "vloerverwarmingsverdeler",
-  };
-  return namen[sleutel] ?? "";
-}
-
 interface KaartProps {
   regel: Onderhoudsregel;
   logboek: readonly OnderhoudLogregelMetId[];
@@ -781,6 +762,18 @@ function Onderhoudskaart({
         {stand.verschovenNaarMaand &&
           ` · verschoven naar ${toonMaand(taak.voorkeursmaand)}`}
       </p>
+
+      {/* De garantiedeadline (blok E4). Dit is geen detail maar de reden dat
+          de beurt naar voren is gehaald — zonder uitleg lijkt de datum fout. */}
+      {stand.garantieVerlooptOp && (
+        <div className="mt-s2">
+          <Melding soort="fout">
+            Vervroegd: de fabrieksgarantie verloopt op {toonDatum(stand.garantieVerlooptOp)}.
+            Laat het nakijken zolang de fabrikant nog betaalt — daarna is een defect je eigen
+            rekening.
+          </Melding>
+        </div>
+      )}
 
       {taak.waardenBron === "voorstel" && (
         <p className="mt-1 text-sm text-granite">
