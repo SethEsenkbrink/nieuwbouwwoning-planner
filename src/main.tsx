@@ -1,6 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles/brink-theme.css";
+// Ná de huisstijl, zodat de printregels de tokens kunnen gebruiken en waar
+// nodig een schermregel overschrijven (ADR-0016).
+import "./styles/print.css";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {

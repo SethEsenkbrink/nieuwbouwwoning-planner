@@ -39,7 +39,10 @@ akkoord, dán uitvoeren.
 
 Aan het eind van de sessie werk je verplicht `STATE.md` bij en schrijf je een sessielog in
 `docs/sessions/`, conform `WORKFLOW.md` §2. Sluit af met een verificatiepass — die heeft in
-sessie 06 drie keer een echte bug gevonden die bij het bouwen niet opviel.
+sessie 06 en 07 elke keer echte bugs gevonden die bij het bouwen niet opvielen.
+
+Wijzig je de Firestore-rules, zeg dan aan het eind expliciet dat ik moet deployen. Groene
+`rules:test` betekent níét dat de rules in productie staan.
 
 ---
 

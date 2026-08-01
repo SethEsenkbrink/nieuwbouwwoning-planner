@@ -1,0 +1,195 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * print.css — het overdrachtsdossier op papier (ADR-0016, blok E8)
+ *
+ * APART BESTAND, en niet in `brink-theme.css`. Die is de Tailwind-v4-vertaling
+ * van `brink-ui/tokens.js` en wordt door `npm run verify:tokens` regel voor
+ * regel vergeleken met het fundament. Printregels horen daar niet in: ze zijn
+ * eigen aan dit project en zouden bij de volgende `sync-huisstijl.mjs` in de
+ * weg zitten.
+ *
+ * DE BELANGRIJKSTE REGEL HIER STAAT ER NIET.
+ * Er is geen enkele regel die een achtergrondvlak print, en dat is opzet
+ * (ADR-0016 §3). Browsers printen achtergrondkleuren standaard NIET — dat zit
+ * achter een vinkje "Achtergrondafbeeldingen" onder "Meer instellingen", en
+ * dat kent vrijwel niemand. Een ontwerp met gevulde blokken komt er dus bij de
+ * meeste mensen kaal uit.
+ *
+ * Daarom draagt dit dossier de huisstijl via LIJNEN, KADERS en ACCENTKLEUR OP
+ * TEKST. Dat print altijd, ongeacht die instelling. `print-color-adjust: exact`
+ * staat er wél bij zodat het mét de instelling nóg beter oogt — maar het
+ * ontwerp mag er niet van afhangen.
+ *
+ * Alle kleuren komen uit de tokens van `brink-theme.css`. Geen losse hex-
+ * waarden, conform AGENTS.md regel 4.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/* ── Op het scherm ─────────────────────────────────────────────────────────
+   De voorbeeldweergave krijgt de breedte van een A4-tekstkolom, zodat wat je
+   ziet ook is wat er uit komt. Zonder dit oogt het dossier op een breed scherm
+   prima en breekt het op papier op onverwachte plekken. */
+
+.dossier {
+  max-width: 170mm;
+}
+
+/* ── Het printresultaat ────────────────────────────────────────────────── */
+
+@media print {
+  /* A4 met een ruime binnenmarge. De browser zet zelf een kop- en voettekst
+     met URL, datum en paginanummer in de resterende ruimte; eigen paginanummers
+     via `@page { @bottom-right { … } }` worden door Chrome niet ondersteund
+     (ADR-0016 §2). */
+  @page {
+    size: A4;
+    margin: 18mm 16mm;
+  }
+
+  /* Vraag om exacte kleuren. Werkt alleen als de gebruiker achtergronden
+     aanzet; het ontwerp hieronder gaat er níét van uit. */
+  html,
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    background: none !important;
+  }
+
+  /* De AppShell zet `bg-canvas` op een div binnen de body. Zonder deze regel
+     krijgt elke pagina een volvlak zandkleur zodra iemand achtergronden áánzet
+     — onbedoeld, en het kost een patroon inkt. */
+  body * {
+    background: none !important;
+  }
+
+  /* ── Tekstgrootte ─────────────────────────────────────────────────────
+     Twee selectoren diep (`.dossier .text-body`) zodat ze winnen van de
+     Tailwind-utility met dezelfde naam. Alleen `body { font-size }` zetten
+     doet níéts: elk element in het dossier draagt een expliciete
+     grootteclass, en die overschrijft de erfelijke waarde.
+
+     16px van het scherm kost bij een logboek van enige omvang een halve
+     pagina extra; 10,5pt leest op papier prettiger en scheelt bladen. */
+
+  .dossier {
+    line-height: 1.45;
+  }
+
+  .dossier .text-body {
+    font-size: 10.5pt;
+  }
+
+  .dossier .text-sm {
+    font-size: 9pt;
+  }
+
+  .dossier .text-h2 {
+    font-size: 20pt;
+  }
+
+  .dossier .text-h3 {
+    font-size: 13pt;
+  }
+
+  .dossier .text-eyebrow {
+    font-size: 8.5pt;
+  }
+
+  /* Alles wat bij de app hoort en niet bij het document: header, navigatie,
+     knoppen, formulieren, de app-footer. */
+  .niet-printen {
+    display: none !important;
+  }
+
+  /* De AppShell centreert en beperkt de breedte; op papier doet `@page` dat. */
+  .dossier {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Geen schaduwen en geen afgeronde hoeken op papier: die vertalen naar een
+     grijzig vlak of naar niets, en kosten alleen inkt. */
+  .dossier * {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* ── Paginabreuk ──────────────────────────────────────────────────────
+     Elke hoofdsectie begint op een nieuwe pagina, behalve de eerste. Zo staat
+     "Onderhoudslogboek" nooit onderaan een bladzijde met één regel eronder. */
+
+  .dossier-sectie {
+    break-before: page;
+  }
+
+  /* Het paspoort volgt direct op het voorblad en hoort op dezelfde pagina.
+     `:first-of-type` zou hier niets doen — het eerste `section`-kind is het
+     voorblad, en dat draagt `dossier-voorblad` en niet `dossier-sectie`. */
+  .dossier-voorblad + .dossier-sectie {
+    break-before: auto;
+  }
+
+  /* Een onderdeelkaart of een logboekregel mag nooit over twee pagina's
+     gesplitst worden — dan staat het serienummer los van het apparaat. */
+  .dossier-blok {
+    break-inside: avoid;
+  }
+
+  /* Een kop mag niet als laatste regel van een pagina eindigen. */
+  .dossier h1,
+  .dossier h2,
+  .dossier h3 {
+    break-after: avoid;
+  }
+
+  /* Losse regels aan het begin of eind van een pagina voorkomen. */
+  .dossier p,
+  .dossier li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* ── Tabellen ─────────────────────────────────────────────────────────
+     `thead` herhaalt zich automatisch bovenaan elke pagina zolang de tabel
+     `display: table` houdt. Tailwind-classes die dat naar flex of grid zetten
+     breken dat, dus het logboek en de meterstanden gebruiken echte tabellen. */
+
+  .dossier table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .dossier thead {
+    display: table-header-group;
+  }
+
+  .dossier tr {
+    break-inside: avoid;
+  }
+
+  /* Lijnen in plaats van gevulde koppen — zie de kop van dit bestand. */
+  .dossier th {
+    border-bottom: 1.5pt solid var(--color-ink);
+    text-align: left;
+    padding: 3pt 6pt 3pt 0;
+  }
+
+  .dossier td {
+    border-bottom: 0.5pt solid var(--color-taupe);
+    padding: 3pt 6pt 3pt 0;
+    vertical-align: top;
+  }
+
+  /* ── Links ────────────────────────────────────────────────────────────
+     Een `documentUrl` verwijst naar waar de handleiding bij de gebruiker staat
+     (ADR-0010 §3). Op papier is de linktekst zonder adres waardeloos, dus het
+     adres komt erachter. Alleen bij echte adressen, niet bij interne routes. */
+
+  .dossier a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 8.5pt;
+    color: var(--color-granite);
+    word-break: break-all;
+  }
+}

@@ -295,6 +295,20 @@ export default function Woning() {
             disabled={bezigMetStatus}
           />
         </div>
+
+        {/* Het dossier is het eindpunt van deze hele fase (ADR-0016). Hij
+            hoort hier omdat dit het scherm is waar de omslag zit, en niet
+            weggestopt onderaan een menu. */}
+        {status === "opgeleverd" && (
+          <p className="mt-s3 text-body text-slate">
+            Draag je de woning over?{" "}
+            <Link to="/overdrachtsdossier" className="underline">
+              Stel het overdrachtsdossier samen
+            </Link>{" "}
+            — het paspoort, wat er in huis zit, het onderhoudslogboek en de meterstanden in één
+            document.
+          </p>
+        )}
       </section>
 
       {/* ── Het energielabel als klok ───────────────────────────────────── */}

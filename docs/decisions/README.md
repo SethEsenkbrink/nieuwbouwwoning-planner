@@ -28,6 +28,8 @@
 | [0012](ADR-0012-opschorting-en-gebreken.md) | 5%-depot als keuze, datum afgeleid | Geaccepteerd | Deadline afgeleid uit de onderhoudstermijn; bedrag niet uit de koopsom rekenen |
 | [0013](ADR-0013-onderdelenregister-specs-montage-en-energielabel.md) | Onderdelenregister: specs, montage, energielabel | Geaccepteerd | `specs` als vrije map, plug-and-play vs vast, registratieplicht netbeheerder, energielabel als 10-jaarsklok |
 | [0014](ADR-0014-onderhoudsschema-en-uitgestelde-herinneringen.md) | Onderhoudsschema en uitgestelde herinneringen | Geaccepteerd | `voorkeursmaand` naast `intervalDagen`, logboek meteen mee, **herziet ADR-0010 §4**: geen e-mail maar een lijst op het dashboard |
+| [0015](ADR-0015-meterstanden-als-losse-collectie.md) | Meterstanden: meter en opname zijn twee dingen | Geaccepteerd | Twee subcollecties i.p.v. een meternaam per opname; verbruik altijd afgeleid; een dalende stand wordt gemarkeerd, niet rechtgerekend |
+| [0016](ADR-0016-overdrachtsdossier-als-printweergave.md) | Overdrachtsdossier als printweergave | Geaccepteerd | Geen PDF-bibliotheek: de huisstijl blijft op één plek en de bundel groeit niet. Ontwerp mag niet van achtergrondkleuren afhangen |
 
 ## De drie die je als eerste moet lezen
 
@@ -40,14 +42,15 @@ Begin je nieuw op dit project, lees dan in deze volgorde:
 
 De rest lees je zodra je aan dat onderwerp komt.
 
-## Terugkerend patroon in 0008, 0009, 0011 en 0012
+## Terugkerend patroon in 0008, 0009, 0011, 0012 en 0015
 
-Vier ADR's gaan uiteindelijk over dezelfde regel, telkens in een ander jasje:
+Vijf ADR's gaan uiteindelijk over dezelfde regel, telkens in een ander jasje:
 
 > **Sla een datum alleen op als hij een feit over de buitenwereld is, niet als hij uit de
 > planning volgt.**
 
 Opgeslagen omdat het feiten zijn: `gecommuniceerdeDatum` (wat weet die partij nu),
 `sluitingsdatum` van meerwerk (een administratieve termijn van de aannemer),
-`gemeldOp` van een gebrek. Afgeleid omdat ze uit de planning volgen: elke afspraakdatum, de
-uiterste datum voor het 5%-depot, alle garantietermijnen.
+`gemeldOp` van een gebrek, `stand` + `opgenomenOp` van een meteropname. Afgeleid omdat ze uit
+de planning of uit andere feiten volgen: elke afspraakdatum, de uiterste datum voor het
+5%-depot, alle garantietermijnen, en het verbruik tussen twee meterstanden.

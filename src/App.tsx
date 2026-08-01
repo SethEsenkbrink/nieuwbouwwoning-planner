@@ -20,6 +20,8 @@ import Nabudget from "@/routes/Nabudget";
 import Woning from "@/routes/Woning";
 import Onderdelen from "@/routes/Onderdelen";
 import Onderhoud from "@/routes/Onderhoud";
+import Meterstanden from "@/routes/Meterstanden";
+import Overdrachtsdossier from "@/routes/Overdrachtsdossier";
 import NietGevonden from "@/routes/NietGevonden";
 
 /**
@@ -158,6 +160,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Onderhoud />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/meterstanden"
+            element={
+              <ProtectedRoute>
+                <Meterstanden />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/overdrachtsdossier"
+            element={
+              <ProtectedRoute>
+                <Overdrachtsdossier />
               </ProtectedRoute>
             }
           />

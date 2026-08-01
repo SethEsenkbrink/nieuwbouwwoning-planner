@@ -70,6 +70,8 @@ export const NAVIGATIE: readonly Navgroep[] = [
       { pad: "/woning", label: "De woning" },
       { pad: "/onderdelen", label: "Onderdelen" },
       { pad: "/onderhoud", label: "Onderhoud" },
+      { pad: "/meterstanden", label: "Meterstanden" },
+      { pad: "/overdrachtsdossier", label: "Dossier" },
     ],
   },
   { sleutel: "project", label: "Project", pad: "/project", items: [] },

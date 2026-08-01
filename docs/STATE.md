@@ -1,6 +1,6 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-08-01 · sessie 06 (E1 t/m E4)
+> **Bijgewerkt:** 2026-08-01 · sessie 07 (E7 en E8 — **blok E is af**)
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
 > Geen geschiedenis hier — die staat in `sessions/`. Houd dit kort.
 
@@ -8,12 +8,12 @@
 
 ## In één alinea
 
-De app dekt het hele bouwtraject én het woningdossier tot en met het onderhoud. Blokken
-**A t/m D zijn af**, en van blok E staan **E1 (woningpaspoort), E2 (onderdelenregister),
-E3 (onderhoudsschema), E4 (garantieklokken per onderdeel), E5 (terugkerende controles) en
-E6 (logboek)** er nu ook. Wat nog komt is **E7 (meterstanden)** en **E8 (overdrachtsdossier)**,
-plus live gaan met de e-mailherinneringen en de documentparser. De rules staan in productie;
-de app draait nog alleen lokaal.
+De app dekt het hele traject: van de koopovereenkomst tot en met het overdragen van de woning
+aan de volgende eigenaar. **Blok A t/m E is af** — E8 (het overdrachtsdossier) was het laatste
+punt. Wat nog openstaat is **C5 (documentparser)**, **blok F** (live gaan, export,
+toegankelijkheid, mobiel) en de e-mailherinneringen uit ADR-0014 §3, plus de
+`improvements/`-wachtrij. De rules van E7 zijn nog **niet gedeployed**; de app draait alleen
+lokaal.
 
 ## De kernlus, in één zin
 
@@ -37,22 +37,25 @@ doet — met een kant-en-klaar bericht en een knop die vastlegt dat je het hebt 
 | `/woning` | Fase (in aanbouw / opgeleverd), woningpaspoort en de energielabelklok |
 | `/onderdelen` | Wat er in huis zit: merk, type, serienummer, specs, garantie, meldplicht |
 | `/onderhoud` | Terugkerend werk met interval en voorkeursmaand, afvinken met logboek. Een aflopende garantie vervroegt de beurt |
+| `/meterstanden` | Meters en opnames, met verbruik per periode en per dag. Een gedaalde stand of een dubbele dag wordt gemeld, niet weggerekend |
+| `/overdrachtsdossier` | Het hele dossier als printbaar document: paspoort, wat er blíjft, logboek, meterstanden. Browser maakt de PDF |
 | `/project` | Opleverdatum, projectgegevens en het project verwijderen |
 
 **Blok A** kernlus afmaken · **B** technische schuld (B4 live gaan uitgesteld) ·
-**C** bouwtraject compleet · **D** oplevering en garantie · **E1 t/m E6**
-woningpaspoort, onderdelenregister, onderhoudsschema, garantiekoppeling en logboek. Details
-per punt staan in `2026-07-31-bouwplan-en-backlog.md`.
+**C** bouwtraject compleet · **D** oplevering en garantie · **E1 t/m E8** het volledige
+woningdossier, van paspoort tot overdracht. Details per punt staan in
+`2026-07-31-bouwplan-en-backlog.md`.
 
 ## Cijfers
 
 | | |
 | --- | --- |
-| Unit tests | **337** in 17 bestanden (was 220), geen emulator nodig |
-| Rules-tests | **141** (was 79), apart met `npm run rules:test` |
-| ADR's | 14, met index in `decisions/README.md` |
-| Schermen | 13 achter login, plus de wizard en drie auth-schermen |
-| Verify-scripts | tokens (50) · headers (10 + 14 CSP) · rules-pariteit (25 enums, 121 waarden) |
+| Unit tests | **~480** in 19 bestanden (was 337) — exacte telling na `npm run verify` |
+| Rules-tests | **~189** (was 141), apart met `npm run rules:test` |
+| ADR's | 16, met index in `decisions/README.md` |
+| Schermen | 15 achter login, plus de wizard en drie auth-schermen |
+| Runtime-dependencies | **3** — firebase, react, react-router. E8 voegde er geen toe (ADR-0016) |
+| Verify-scripts | tokens (50) · headers (10 + 14 CSP) · rules-pariteit (28 enums, 136 waarden, **3 gesloten veldenlijsten**) |
 
 ## ⚠️ `npm run typecheck` heeft nooit iets gecontroleerd — opgelost op 1 augustus
 
@@ -77,40 +80,47 @@ verwijderd (`paths` werkt zonder).
 
 ## Laatste verificatie
 
-**E1 t/m E3 — 1 augustus 13:49, lokaal gedraaid en volledig groen.**
+**In de sandbox groen (sessie 07):** `tsc --build --force` (exit 0, tsbuildinfo gecontroleerd)
+en de drie verify-scripts. De `verify:rules`-uitbreiding is **negatief getest op vijf
+scenario's** — veld uit een whitelist halen, verzonnen veld toevoegen, hulpfunctie hernoemen,
+enumwaarde weghalen — en faalde alle vijf keer met een bruikbare melding.
 
-| Check | Uitkomst |
-| --- | --- |
-| `npm run verify` | typecheck (`tsc --build --force`) · lint · **318 tests in 17 bestanden** · tokens (50) · headers (10 + 14 CSP) · rules-pariteit (25 enums / 121 waarden) · build ✅ |
-| `npm run rules:test` | **141 tests** ✅ in 8,3 s |
-| Build | 164 modules, `App` 290 kB (76 kB gzip), `index` 183 kB (58 kB gzip), `firebase` 567 kB (167 kB gzip) |
+De verificatiepass vond **tien bevindingen**, waarvan één met dezelfde vorm als de twee bugs
+uit sessie 06. Alle relevante zijn hersteld, met regressietests.
 
-De drie tests op de `keys().hasOnly(...)` van `onderhoudstaken` zijn groen, inclusief
-**"accepteert elk veld dat het model kent"** — die bewijst dat de whitelist compleet is en
-niet per ongeluk een veld mist.
+> ### ⚠️ NOG TE DOEN DOOR SETH — in deze volgorde
+>
+> 1. `npm run verify` — E4, E7 én E8 zijn nog niet door lint, de tests en de build geweest
+> 2. `npm run rules:test` — **verplicht**, de rules zijn bij E7 gewijzigd. E8 raakte ze niet
+> 3. `firebase deploy --only firestore` — **verplicht**, `meters` en `meterstanden` zijn
+>    nieuw. Zonder deploy weigert élke write op die twee collecties in productie
+> 4. `/overdrachtsdossier` één keer daadwerkelijk afdrukken — zie "Direct volgende stap"
+>
+> Bij `Authentication Error`: `firebase login --reauth`, níét `firebase login:ci`.
 
-Lint gaf tweemaal een handvol fouten in de nieuwe code, beide keren hersteld zonder
-`!`-assertions: `e79c83b` (E1/E2) en `a6a0f9a` (E3).
+**E4 is nog steeds niet lokaal geverifieerd** — dat stond al open aan het eind van sessie 06
+en is deze sessie niet ingehaald.
 
-**E4 — nog te draaien.** In de sandbox groen: `tsc --build --force` en de drie
-verify-scripts. De verificatiepass vond vier bugs, alle vier hersteld met regressietests.
+Vorige lokale meting (E1 t/m E3, 1 augustus 13:49): 318 tests, 141 rules-tests, build 164
+modules met `App` 290 kB (76 kB gzip).
 
-> **NOG TE DRAAIEN DOOR SETH:** `npm run verify` (337 tests). De rules zijn bij E4 níét
-> gewijzigd, dus `rules:test` is deze keer optioneel.
+> **Bij het opstarten van een nieuwe sessie:** controleer eerst of bovenstaande drie stappen
+> gedraaid zijn en zet de **werkelijke** uitkomst hier neer. Wijzig je iets aan de rules,
+> draai dan `npm run rules:test` vóórdat je verder bouwt — bij `onderhoudstaken`, `meters` en
+> `meterstanden` weigert een vergeten veld in de `hasOnly`-lijst élke write.
 
-Werktree is schoon.
+## ⚠️ De rules van E7 staan NOG NIET in productie
 
-Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
-`71a21d1` (typecheck-gate), `e79c83b` (lintfixes E1/E2), `2a6301c` (verify-uitkomst),
-`97ac304` (CLAUDE.md), `c84c731` (E3), `5e6553d` (E3-verificatie), `a6a0f9a` (lintfixes E3),
-`2ee664e` (rules-deploy), `8ba2e1d` (improvements genoteerd), `82d9002` (E4).
+Op 1 augustus 14:02 is er gedeployed (zie hieronder), maar **daarna zijn de rules bij E7
+opnieuw gewijzigd**: twee nieuwe match-blokken (`meters`, `meterstanden`), twee nieuwe
+hulpfuncties (`metersoorten()`, `metereenheden()`) en een `keys().hasOnly(...)` op beide
+nieuwe collecties.
 
-> **Bij het opstarten van een nieuwe sessie:** de laatste commit heeft een volledig groene
-> verify én groene rules-tests. Wijzig je iets aan de rules, draai dan `npm run rules:test`
-> vóórdat je verder bouwt — zeker bij `onderhoudstaken`, waar een vergeten veld in de
-> `hasOnly`-lijst élke write weigert.
+Zonder deploy weigert élke write op `/meterstanden` in productie met een generieke
+permissiefout — default deny. Lokaal tegen de emulator werkt alles wél, want die leest het
+bestand van schijf. Precies de val waar sessie 06 in liep.
 
-## Rules en indexes staan in productie — 1 augustus 14:02
+## Rules en indexes stonden in productie — 1 augustus 14:02
 
 De rules liepen **vier commits achter**: de console stond nog op de versie van 30 juli 18:04,
 terwijl blok D, E1, E2 en E3 de rules alle vier hadden gewijzigd. Opgemerkt doordat Seth ernaar
@@ -136,39 +146,32 @@ Niet schadelijk — een ongebruikte index kost wat opslag en schrijftijd — maa
 dat suggereert dat er queries zijn die er niet zijn. **Bewust laten staan** tot E8 af is; dan
 is pas duidelijk of er alsnog een nodig is. E4 heeft er in elk geval geen toegevoegd.
 
-De drie collecties uit blok E hebben géén index nodig: ze halen de hele subcollectie op en
+De vijf collecties uit blok E hebben géén index nodig: ze halen de hele subcollectie op en
 sorteren in het geheugen. Bij een woningdossier gaat het om tientallen documenten, niet
-duizenden.
+duizenden. `meterstanden` haalt bewust álle opnames op en filtert op `meterId` in het
+geheugen — een `where` per meter zou een composite index vereisen voor een handvol documenten.
 
 ## Direct volgende stap
 
-### Eerst: `npm run verify` lokaal
+### Eerst: de drie stappen hierboven (verify, rules:test, deploy)
 
-**E4 is nog niet door de volledige gate geweest.** In de sandbox zijn typecheck en de drie
-verify-scripts groen, maar lint, de 337 tests en de build niet. De rules zijn bij E4 niet
-gewijzigd, dus `rules:test` mag deze keer overgeslagen worden.
+Zolang die niet gedraaid zijn, weet niemand of E4 en E7 daadwerkelijk kloppen, en werkt
+`/meterstanden` niet in productie.
 
-### Dan: E7 — meterstanden
+### Dan: het dossier één keer écht afdrukken
 
-Bewust simpel volgens ADR-0010: handmatige opnames met een verbruikstrend, **geen koppeling
-met slimme meters**. Drie dingen om vooraf te beslissen:
+**E8 is de enige feature in dit project waarvan het resultaat niet automatisch te testen is.**
+`vitest` controleert de rekenkern, maar of het er op papier goed uitziet moet met de hand.
+Open `/overdrachtsdossier` met echte data en druk hem één keer af — let op:
 
-1. **Welke meters.** Stroom (piek/dal), gas, water — en bij zonnepanelen ook teruglevering.
-   Vaste lijst of vrij toevoegen?
-2. **Wat wordt opgeslagen.** De standen zijn feiten en gaan erin; het verbruik ertussen is
-   afgeleid en hoort er dus **niet** in (ADR-0008). Dat is dezelfde regel als bij de
-   afspraakdatums en bij `laatstUitgevoerdOp`.
-3. **Waar het hangt.** Er staat al een taak "Meterstanden noteren" met `voorkeursmaand: 1` in
-   de onderhoudsbibliotheek. Wordt dat de trigger, of komt er een apart scherm met een
-   eigen subcollectie?
+- Loopt de adrestitel netjes op één regel?
+- Begint elke sectie op een nieuwe pagina, en staat de disclaimer níét op een lege laatste?
+- Herhaalt de tabelkop van het logboek zich bovenaan pagina 2?
+- Is het leesbaar **zonder** "Achtergrondafbeeldingen" aan te zetten? Dat is de hele opzet van
+  ADR-0016 §3, en het is niet in code te bewijzen.
 
-Het model zal een subcollectie `meterstanden` nodig hebben, dus: rules bijwerken,
-`verify:rules` uitbreiden, en **daarna deployen in dezelfde sessie** (zie de vorige paragraaf).
+### Daarna: blok F en de wachtrij
 
-### Daarna
-
-- **E8 overdrachtsdossier** — client-side PDF. `blijftBijWoning` bepaalt wat erin komt
-  (ADR-0013 §2), en het onderhoudslogboek is het waardevolste deel.
 - **De `improvements/`-wachtrij** (zie hieronder) — vóór het live gaan.
 - **C5 documentparser** en **B4/F1 live gaan** met de e-mailherinneringen uit ADR-0014 §3.
 
@@ -180,6 +183,9 @@ Het model zal een subcollectie `meterstanden` nodig hebben, dus: rules bijwerken
 
 Op 1 augustus heeft Seth via Antigravity de `improve`-skill gedraaid (`.agent/skills/improve/`).
 Resultaat: vier rapportmappen in `improvements/` met samen ~29 plannen.
+
+**Blok E is nu af, dus de helft van deze afspraak is ingelost.** De wachtrij komt aan de beurt
+zodra blok F loopt — en een deel ervan (DX-01, code splitting) hóórt vóór de eerste deploy.
 
 **Afspraak: hier wordt niet aan gewerkt totdat blok E en F uit het bouwplan af zijn.** Daarna
 wél, en vóór het live gaan — een deel raakt productie rechtstreeks.
@@ -196,10 +202,12 @@ wél, en vóór het live gaan — een deel raakt productie rechtstreeks.
 De audits kennen de ADR's niet, dus een paar bevindingen zijn achterhaald of onjuist. Niet
 blind uitvoeren:
 
-- **SEC-01 (`keys().hasOnly` ontbreekt)** — deels al gedaan: `onderhoudstaken` heeft het sinds
-  `5e6553d`. Voor de andere collecties geldt het nog wél, en het is een reële bevinding: op
-  onbekende veldnamen staat geen lengtelimiet. De claim "onbeperkt grote blobs" is wel
-  overdreven — `withinSizeLimit()` begrenst het aantal velden.
+- **SEC-01 (`keys().hasOnly` ontbreekt)** — deels al gedaan: `onderhoudstaken` sinds `5e6553d`,
+  `meters` en `meterstanden` sinds E7. Voor de overige tien collecties geldt het nog wél, en
+  het is een reële bevinding: op onbekende veldnamen staat geen lengtelimiet. De claim
+  "onbeperkt grote blobs" is wel overdreven — `withinSizeLimit()` begrenst het aantal velden.
+  **`verify:rules` controleert de whitelists nu automatisch**, dus uitbreiden naar de rest is
+  goedkoper geworden: één regel in de rules plus één regel in `WHITELISTS`.
 - **DEP-01 (dependency-overrides)** — dat is **ADR-0007**, een bewuste keuze. `npm audit fix
   --force` downgradet `@netlify/vite-plugin` elf versies. Niet zomaar weghalen.
 - **DIR-01 (documentparser) en DIR-02 (e-mail)** — geen bevindingen maar bekende, geplande
@@ -268,12 +276,40 @@ van de beurt zelf zijn — de taak was dan meteen achterstallig en bleef dat. `n
 heeft daarom een `nietVoor`-ondergrens, met twee regressietests. Gevonden bij de
 verificatiepass, niet bij het bouwen.
 
-**Onderhoudstaken zijn de enige collectie met `keys().hasOnly(...)` in de rules.** Overal
-elders begrenzen de rules alleen het aantal velden, waardoor een onbekende veldnaam
-erdoorheen glipt. Bij onderhoud woog dat zwaarder: zonder de whitelist kan iemand een
-`volgendeOp` meesturen en is de afgeleide datum ineens opgeslagen — precies wat ADR-0008
-uitsluit. **Komt er een veld bij in `model.ts`, dan moet het ook in die lijst**, anders
-weigert elke write.
+**Drie collecties hebben `keys().hasOnly(...)` in de rules:** `onderhoudstaken`, `meters` en
+`meterstanden`. Overal elders begrenzen de rules alleen het aantal velden, waardoor een
+onbekende veldnaam erdoorheen glipt. Bij deze drie woog dat zwaarder: zonder de whitelist kan
+iemand een `volgendeOp` of een `verbruik` meesturen en is de afgeleide waarde ineens
+opgeslagen — precies wat ADR-0008 uitsluit.
+
+**Komt er een veld bij in `model.ts`, dan moet het ook in die lijst**, anders weigert elke
+write met een generieke permissiefout. Sinds E7 controleert `npm run verify:rules` dat
+automatisch, zónder emulator: hij leest de interfaces uit `model.ts` en vergelijkt ze met de
+`hasOnly`-lijsten. Negatief getest op beide richtingen (veld te weinig, veld te veel).
+
+**Een dalende meterstand of een datum in de toekomst wordt gemeld, niet rechtgerekend.** De
+datum is de gevaarlijkere van de twee: een fout jaartal deelt het verbruik door een veel te
+groot aantal dagen en levert een getal op dat er plausibel uitziet, zónder melding — 0,76 per
+dag in plaats van 9,68. Daarom is een toekomstdatum geweigerd op drie lagen (formulier, rules
+met twee dagen marge, en afkapping in de rekenkern). Gevonden bij de verificatiepass.
+
+**Twee opnames op dezelfde dag maken óók de vólgende periode onbetrouwbaar.** De vervolgperiode
+begint bij één van die twee, en welke dat is hangt af van het Firestore-document-id — dat is
+willekeurig. Zonder die markering kiest de app stil een waarde. Hetzelfde geldt op het
+overdrachtsdossier, waar dat getal de eindafrekening met de leverancier voedt.
+
+**Een filter dat op één scherm klopt, kan via een ander scherm alsnog lekken.** Het
+overdrachtsdossier liet onderdelen met `blijftBijWoning: false` terecht weg uit het
+onderdelenblok — maar het lógboek toonde ze alsnog met naam én kosten. De belofte aan de koper
+was daarmee via de zijdeur gebroken. **Bij een filter: loop na of álle secties die door
+dezelfde regel gedekt worden hem ook toepassen**, niet alleen de sectie waar hij is bedacht.
+
+**Een structuur die gegevens doorgeeft die de weergave toevallig niet toont, is een lek dat
+wacht.** `Overdrachtsdossier` gaf eerst het hele `woningpaspoort` door, inclusief `notaris` en
+`hypotheekverstrekker`. Er werd niets van gerenderd, dus er lekte niets — tot de volgende
+weergavelaag. Nu een expliciete projectie (`Dossierpaspoort`) met een test die de veldenlijst
+vastpint. Zelfde patroon als bij `Dossierbetrokkene`: **wat er niet in de structuur zit, kan
+niet per ongeluk op papier komen.**
 
 **Een `undefined === undefined`-vergelijking koppelt alles aan alles.** Bij E4 vervangen we
 een lookup die `""` teruggaf door één die `undefined` teruggeeft. In
@@ -333,11 +369,15 @@ een test op die het bewijst (`weigert een specs-map met te veel velden`).
 - **`firebase-*.js` is 567 kB (167 kB gzip)** en overschrijdt de waarschuwingsgrens van 500 kB.
   Op te lossen met een dynamische import van Firestore; nu geen probleem.
 - **`App-*.js` groeit gestaag mee:** 209 kB in sessie 05 → 260 kB na E1/E2 → **290 kB
-  (76 kB gzip)** na E3. Elk nieuw scherm zit in dezelfde chunk, en twee bibliotheken (17
-  onderdelen met merken en specvelden, 30 onderhoudstaken) zitten nu in de bundle van
-  iedereen die inlogt — ook wie nog midden in de bouw zit en `/onderhoud` pas over een jaar
-  opent. **Route-based code splitting is inmiddels meer waard dan het opsplitsen van de
-  firebase-chunk.** Doen zodra blok E af is, vóór het live gaan.
+  (76 kB gzip)** na E3, en E4 en E7 kwamen daar nog bij. Elk nieuw scherm zit in dezelfde
+  chunk, en drie bibliotheken (17 onderdelen met merken en specvelden, 30 onderhoudstaken,
+  10 metersoorten) zitten nu in de bundle van iedereen die inlogt — ook wie nog midden in de
+  bouw zit en `/onderhoud` pas over een jaar opent. **Route-based code splitting is inmiddels
+  meer waard dan het opsplitsen van de firebase-chunk.** Doen zodra blok E af is, vóór het
+  live gaan. Een grafiek op `/meterstanden` is om dezelfde reden uitgesteld (ADR-0015).
+- **`Meterkaart` krijgt twaalf inline callbacks en een nieuw gefilterde array per render.**
+  Bij een handvol meters irrelevant, maar het is de plek om naar te kijken zodra die grafiek
+  er alsnog komt.
 - **Sourcemaps worden meegebouwd** (~4,7 MB). Prima om te debuggen, maar vóór een publieke
   deploy een bewuste keuze maken.
 - **`SOURCEMAP_BROKEN`-waarschuwing** van `@tailwindcss/vite`. Cosmetisch.

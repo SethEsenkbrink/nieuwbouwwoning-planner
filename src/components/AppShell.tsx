@@ -33,7 +33,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="border-b border-bone bg-lifted">
+      {/* `niet-printen` haalt de app-chrome van het papier af. Alleen zichtbaar
+          bij het afdrukken van het overdrachtsdossier (ADR-0016), maar het geldt
+          voor elk scherm dat iemand print — en dat is daar ook beter. */}
+      <header className="niet-printen border-b border-bone bg-lifted">
         <div className="mx-auto max-w-content px-s2 py-s2">
           <div className="flex flex-wrap items-center gap-s2">
             <Link to="/" aria-label="Naar het dashboard" className="mr-s2 shrink-0">
@@ -72,7 +75,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="mx-auto max-w-content px-s2 py-s4">{children}</main>
 
-      <footer className="mx-auto max-w-content px-s2 pb-s4">
+      <footer className="niet-printen mx-auto max-w-content px-s2 pb-s4">
         <p className="text-sm text-granite">
           Nieuwbouwplanner structureert en herinnert; het is geen juridisch of financieel advies.
           Termijnen zijn indicatief — controleer ze altijd tegen je eigen contract.

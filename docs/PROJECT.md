@@ -177,9 +177,22 @@ users/{uid}
         │     - laatstUitgevoerdOp     // een feit; de volgende keer is afgeleid
         │     - waardenBron (voorstel | eigen)
         │     - waarschuwing
-        └── onderhoudslogboek/{logId}  // wat er is gedaan
-              - taakId, onderdeelId?
-              - uitgevoerdOp, doorWie, kosten, notitie
+        ├── onderhoudslogboek/{logId}  // wat er is gedaan
+        │     - taakId, onderdeelId?
+        │     - uitgevoerdOp, doorWie, kosten, notitie
+        ├── meters/{meterId}           // WÁT je meet — ADR-0015
+        │     - soort (stroom_enkel | stroom_normaal | stroom_dal
+        │             | teruglevering_enkel | teruglevering_normaal
+        │             | teruglevering_dal | gas | water | warmte | overig)
+        │     - naam?                  // eigen naam; VERPLICHT bij `overig`
+        │     - eenheid (kWh | m3 | GJ)
+        │     - meternummer?, notitie?
+        │     - waardenBron (voorstel | eigen)
+        └── meterstanden/{opnameId}    // wat de meter AANWEES — ADR-0015
+              - meterId, opgenomenOp, stand, notitie?
+              // GEEN verbruik, geen verbruikPerDag, geen periodeDagen.
+              // Die volgen uit twee opeenvolgende standen en worden elke
+              // keer opnieuw berekend. Afgedwongen met keys().hasOnly().
 ```
 
 De canonieke TypeScript-definities staan in `src/types/model.ts` — **dat bestand is leidend**
@@ -273,9 +286,16 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
       volgende beurt, dan telt díé datum. Een aflopende garantie zonder taak levert op het
       dashboard één klik op om er alsnog een in te plannen
 - [x] **Logboek** van onderhoud — afvinken schrijft atomair een logregel (ADR-0014 §2)
+- [x] **Meterstanden** (E7): de meter en de opname als twee subcollecties, verbruik per
+      periode en per dag altijd afgeleid, en een dalende stand of een datum in de toekomst
+      wordt gemeld in plaats van rechtgerekend — `/meterstanden` (ADR-0015)
+- [x] **Overdrachtsdossier** (E8): woningpaspoort, wat er bij de woning blijft, het
+      onderhoudslogboek en de meterstanden in één document. Als printweergave en niet als
+      gegenereerde PDF, zodat de huisstijl op één plek blijft — `/overdrachtsdossier`
+      (ADR-0016)
 - [ ] Herinneringen via een scheduled Netlify Function — **uitgesteld tot ronde 8**
       (ADR-0014 §3 herziet ADR-0010 §4). Tot die tijd: de onderhoudslijst op het dashboard
-- [ ] Meterstanden, overdrachtsdossier, meerdere woningen, PDF-export
+- [ ] Meerdere woningen
 
 ## 7. Security-uitgangspunten
 

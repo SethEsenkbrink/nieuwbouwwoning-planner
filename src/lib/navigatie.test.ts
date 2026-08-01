@@ -36,6 +36,8 @@ describe("actieveGroep", () => {
     expect(actieveGroep("/woning")).toBe("oplevering");
     expect(actieveGroep("/onderdelen")).toBe("oplevering");
     expect(actieveGroep("/onderhoud")).toBe("oplevering");
+    expect(actieveGroep("/meterstanden")).toBe("oplevering");
+    expect(actieveGroep("/overdrachtsdossier")).toBe("oplevering");
   });
 
   it("laat de wizard onder Project vallen en niet onder Dashboard", () => {
@@ -65,6 +67,8 @@ describe("actiefItem", () => {
     expect(actiefItem("/woning")).toBe("/woning");
     expect(actiefItem("/onderdelen")).toBe("/onderdelen");
     expect(actiefItem("/onderhoud")).toBe("/onderhoud");
+    expect(actiefItem("/meterstanden")).toBe("/meterstanden");
+    expect(actiefItem("/overdrachtsdossier")).toBe("/overdrachtsdossier");
   });
 });
 
