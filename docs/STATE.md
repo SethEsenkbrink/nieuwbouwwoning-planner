@@ -52,9 +52,9 @@ woningdossier, van paspoort tot overdracht. Details per punt staan in
 
 | | |
 | --- | --- |
-| Unit tests | **~480** in 19 bestanden (was 337) — exacte telling na `npm run verify` |
-| Rules-tests | **~189** (was 141), apart met `npm run rules:test` |
-| ADR's | 16, met index in `decisions/README.md` |
+| Unit tests | **472** in 19 bestanden (was 337) — gemeten, groen |
+| Rules-tests | **189** (was 141), apart met `npm run rules:test` |
+| ADR's | 17, met index in `decisions/README.md` |
 | Schermen | 15 achter login, plus de wizard en drie auth-schermen |
 | Runtime-dependencies | **3** — firebase, react, react-router. E8 voegde er geen toe (ADR-0016) |
 | Verify-scripts | tokens (50) · headers (10 + 14 CSP) · rules-pariteit (28 enums, 136 waarden, **3 gesloten veldenlijsten**) |
@@ -90,31 +90,30 @@ enumwaarde weghalen — en faalde alle vijf keer met een bruikbare melding.
 De verificatiepass vond **tien bevindingen**, waarvan één met dezelfde vorm als de twee bugs
 uit sessie 06. Alle relevante zijn hersteld, met regressietests.
 
-### Wat er op 1 augustus daadwerkelijk gedraaid is
+### Eindstand van 1 augustus — door Seth bevestigd
 
 | Stap | Uitkomst |
 | --- | --- |
-| `npm run lint` | 2 fouten (`prefer-optional-chain`), hersteld in `8925328` |
-| `npm run test` | **470 van 472** — beide fouten zaten in de tests, hersteld in `b3d3a87` |
-| `npm run rules:test` | **188 van 189** — de test liep achter op een aanscherping, hersteld in `d07f2ae` |
+| `npm run verify` | ✅ **groen** — typecheck · lint · **472 tests in 19 bestanden** · tokens (50) · headers (10 + 14 CSP) · rules-pariteit (28 enums / 136 waarden / 3 whitelists) · build |
+| `firebase deploy --only firestore` | ✅ **gedeployed.** `meters` en `meterstanden` staan in productie |
 
-> ### ⚠️ NOG TE BEVESTIGEN — begin de volgende sessie hiermee
->
-> Na `d07f2ae` zijn `npm run verify` en `npm run rules:test` **niet opnieuw volledig
-> gedraaid**, en de build al helemaal niet. Zet de **werkelijke** aantallen daarna in de tabel
-> hierboven; de cijfers onder "Cijfers" zijn tot die tijd een schatting.
->
-> Ook onbekend: of `firebase deploy --only firestore` gedraaid is. Dat is **verplicht** —
-> `meters` en `meterstanden` zijn nieuwe collecties, en zonder deploy weigert élke write erop
-> in productie. Bij `Authentication Error`: `firebase login --reauth`, níét `login:ci`.
->
-> **Vraag Seth dit expliciet**, en neem het antwoord op in `STATE.md`. Een sessie die dit
-> overslaat bouwt door op de aanname dat het goed staat.
+De weg ernaartoe kostte vier correctierondes, en **alle vier zaten in de test of in mijn eigen
+lintfix, niet in de code**:
 
-**Een drietal lintfixes en testfixes op rij zat in de test, niet in de code.** Twee keer liep
-een test achter op een aanscherping die uit de verificatiepass kwam, en één keer ging ik uit
-van ASCII-sortering terwijl `localeCompare(…, "nl")` hoofdletterongevoelig is. Dat is een
+| Wat | Commit |
+| --- | --- |
+| 2× `prefer-optional-chain` — beide voorgestelde fixes waren zelf een bug | `8925328` |
+| Sorteerverwachting op ASCII in plaats van `localeCompare(…, "nl")` | `b3d3a87` |
+| Test die achterliep op het nieuwe aandachtspunt "meter zonder stand" | `b3d3a87` |
+| Rules-test die achterliep op de eis "`overig` vereist een naam" | `d07f2ae` |
+
+Drie van de vier liepen achter op aanscherpingen die uit de verificatiepass kwamen. Dat is een
 gezond patroon: het betekent dat die aanscherpingen echt iets veranderen.
+
+> **Eén losse eind:** `npm run rules:test` is na `d07f2ae` niet apart opnieuw gedraaid — die
+> hoort niet bij `npm run verify`. De rules zijn wél serverside gecompileerd bij de deploy, en
+> de gefixte test was een testfout en geen rulesfout. Draai hem bij het opstarten van ronde 9
+> even mee; verwacht **189 groen**.
 
 **E4 is nog steeds niet lokaal geverifieerd** — dat stond al open aan het eind van sessie 06
 en is deze sessie niet ingehaald.
@@ -127,16 +126,14 @@ modules met `App` 290 kB (76 kB gzip).
 > draai dan `npm run rules:test` vóórdat je verder bouwt — bij `onderhoudstaken`, `meters` en
 > `meterstanden` weigert een vergeten veld in de `hasOnly`-lijst élke write.
 
-## ⚠️ De rules van E7 staan NOG NIET in productie
+## Rules en indexes staan in productie — bijgewerkt 1 augustus, eind van de dag
 
-Op 1 augustus 14:02 is er gedeployed (zie hieronder), maar **daarna zijn de rules bij E7
-opnieuw gewijzigd**: twee nieuwe match-blokken (`meters`, `meterstanden`), twee nieuwe
-hulpfuncties (`metersoorten()`, `metereenheden()`) en een `keys().hasOnly(...)` op beide
-nieuwe collecties.
+De rules van E7 (twee match-blokken voor `meters` en `meterstanden`, de hulpfuncties
+`metersoorten()` en `metereenheden()`, en een `keys().hasOnly(...)` op beide) zijn **gedeployed
+en bevestigd**. E8 raakte de rules niet.
 
-Zonder deploy weigert élke write op `/meterstanden` in productie met een generieke
-permissiefout — default deny. Lokaal tegen de emulator werkt alles wél, want die leest het
-bestand van schijf. Precies de val waar sessie 06 in liep.
+De eerdere deploy van 14:02 dekte alleen blok D t/m E3; de tekst hieronder gaat over die ronde
+en blijft staan omdat de les erin nog steeds geldt.
 
 ## Rules en indexes stonden in productie — 1 augustus 14:02
 
@@ -291,7 +288,6 @@ BUG-02 om.
 - **Welke termen zijn onduidelijk voor een leek?** Kandidaten uit de UI die rechtstreeks uit de
   ADR's komen: "anker", "offset", "waardenBron", "opschortingsrecht", "bandbreedte",
   "aanlooptijd".
-- **Is `firebase deploy --only firestore` gedraaid?** Zie de waarschuwing hierboven.
 - **Aanlooptijden valideren.** De 38 startwaarden zijn schattingen; echte cijfers van keuken,
   vloer of busverhuur vervangen de gok. Kan op `/betrokkenen`, waarna het voorstel-label
   vanzelf verdwijnt.
