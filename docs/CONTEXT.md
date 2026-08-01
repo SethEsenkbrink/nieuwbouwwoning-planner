@@ -27,6 +27,10 @@ volgorde, voordat je iets voorstelt of bouwt:**
 7. `docs/sessions/` — het laatste sessielog
 8. `../AGENTS.md` — de onwrikbare huisstijlregels van de werkruimte
 
+**Werk je aan ronde 9?** Lees dan óók `docs/2026-08-01-bevindingen-live-test.md` en
+**ADR-0017**. De volgorde uit het bouwplan is herzien: eerst bruikbaarheid en bugs, daarna pas
+blok F en de documentparser.
+
 Bevestig daarna kort in eigen woorden:
 
 - wat de direct volgende stap is volgens `STATE.md`
@@ -80,3 +84,7 @@ bouwen nadat jij die hebt goedgekeurd. Anders verdwijnt de reden achter de wijzi
   Geschiedenis hoort in `sessions/`. Houd `STATE.md` onder ± één scherm.
 - **ADR's worden overgeslagen omdat "het maar een kleine keuze was"** → drie sessies later
   weet niemand meer waarom iets zo is. Bij twijfel: schrijf hem.
+- **Alle controle zit op "klopt het" en geen enkele op "werkt het".** Acht sessies lang zijn de
+  verificatiepasses langs typecheck, tests en rules gegaan zonder ooit vast te stellen of de
+  app prettig te gebruiken is. Dat bleek in tien minuten live testen (ADR-0017). Tegenmaatregel:
+  laat Seth elke twee rondes de app écht gebruiken, niet alleen de gate draaien.

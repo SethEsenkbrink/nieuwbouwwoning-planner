@@ -10,10 +10,12 @@
 
 De app dekt het hele traject: van de koopovereenkomst tot en met het overdragen van de woning
 aan de volgende eigenaar. **Blok A t/m E is af** — E8 (het overdrachtsdossier) was het laatste
-punt. Wat nog openstaat is **C5 (documentparser)**, **blok F** (live gaan, export,
-toegankelijkheid, mobiel) en de e-mailherinneringen uit ADR-0014 §3, plus de
-`improvements/`-wachtrij. De rules van E7 zijn nog **niet gedeployed**; de app draait alleen
-lokaal.
+punt.
+
+**Maar de eerste live test heeft de volgorde omgegooid (ADR-0017).** Blok F en C5 schuiven op;
+**ronde 9 gaat over bruikbaarheid en bugs**. De app doet het juiste, maar hij werkt niet
+prettig: te veel tekst, te veel invulvelden, geen totaaloverzicht, en het bouwdepot slaat
+bedragen met centen niet op. Zie `2026-08-01-bevindingen-live-test.md`.
 
 ## De kernlus, in één zin
 
@@ -88,15 +90,31 @@ enumwaarde weghalen — en faalde alle vijf keer met een bruikbare melding.
 De verificatiepass vond **tien bevindingen**, waarvan één met dezelfde vorm als de twee bugs
 uit sessie 06. Alle relevante zijn hersteld, met regressietests.
 
-> ### ⚠️ NOG TE DOEN DOOR SETH — in deze volgorde
+### Wat er op 1 augustus daadwerkelijk gedraaid is
+
+| Stap | Uitkomst |
+| --- | --- |
+| `npm run lint` | 2 fouten (`prefer-optional-chain`), hersteld in `8925328` |
+| `npm run test` | **470 van 472** — beide fouten zaten in de tests, hersteld in `b3d3a87` |
+| `npm run rules:test` | **188 van 189** — de test liep achter op een aanscherping, hersteld in `d07f2ae` |
+
+> ### ⚠️ NOG TE BEVESTIGEN — begin de volgende sessie hiermee
 >
-> 1. `npm run verify` — E4, E7 én E8 zijn nog niet door lint, de tests en de build geweest
-> 2. `npm run rules:test` — **verplicht**, de rules zijn bij E7 gewijzigd. E8 raakte ze niet
-> 3. `firebase deploy --only firestore` — **verplicht**, `meters` en `meterstanden` zijn
->    nieuw. Zonder deploy weigert élke write op die twee collecties in productie
-> 4. `/overdrachtsdossier` één keer daadwerkelijk afdrukken — zie "Direct volgende stap"
+> Na `d07f2ae` zijn `npm run verify` en `npm run rules:test` **niet opnieuw volledig
+> gedraaid**, en de build al helemaal niet. Zet de **werkelijke** aantallen daarna in de tabel
+> hierboven; de cijfers onder "Cijfers" zijn tot die tijd een schatting.
 >
-> Bij `Authentication Error`: `firebase login --reauth`, níét `firebase login:ci`.
+> Ook onbekend: of `firebase deploy --only firestore` gedraaid is. Dat is **verplicht** —
+> `meters` en `meterstanden` zijn nieuwe collecties, en zonder deploy weigert élke write erop
+> in productie. Bij `Authentication Error`: `firebase login --reauth`, níét `login:ci`.
+>
+> **Vraag Seth dit expliciet**, en neem het antwoord op in `STATE.md`. Een sessie die dit
+> overslaat bouwt door op de aanname dat het goed staat.
+
+**Een drietal lintfixes en testfixes op rij zat in de test, niet in de code.** Twee keer liep
+een test achter op een aanscherping die uit de verificatiepass kwam, en één keer ging ik uit
+van ASCII-sortering terwijl `localeCompare(…, "nl")` hoofdletterongevoelig is. Dat is een
+gezond patroon: het betekent dat die aanscherpingen echt iets veranderen.
 
 **E4 is nog steeds niet lokaal geverifieerd** — dat stond al open aan het eind van sessie 06
 en is deze sessie niet ingehaald.
@@ -158,11 +176,40 @@ geheugen — een `where` per meter zou een composite index vereisen voor een han
 Zolang die niet gedraaid zijn, weet niemand of E4 en E7 daadwerkelijk kloppen, en werkt
 `/meterstanden` niet in productie.
 
-### Dan: het dossier één keer écht afdrukken
+### Dan: ronde 9 — bruikbaarheid en bugs (ADR-0017)
 
-**E8 is de enige feature in dit project waarvan het resultaat niet automatisch te testen is.**
-`vitest` controleert de rekenkern, maar of het er op papier goed uitziet moet met de hand.
-Open `/overdrachtsdossier` met echte data en druk hem één keer af — let op:
+**De volgorde uit het bouwplan is herzien.** Seth heeft de app op 1 augustus voor het eerst met
+echte gegevens gebruikt, en dat leverde meer op dan acht verificatiepasses. De volledige lijst
+staat in **`docs/2026-08-01-bevindingen-live-test.md`** — lees die als eerste bij het opstarten
+van ronde 9.
+
+De kern: *"heel veel tekst, heel veel moeten invullen, soms onduidelijk, super veel blokken,
+geen totaaloverzicht, en het bouwdepot werkt niet."*
+
+**Volgorde binnen ronde 9:**
+
+1. **BUG-01 en BUG-02** — allebei in de code teruggevonden, samen een halve sessie inclusief
+   tests:
+   - **BUG-01:** een bedrag met een komma (`1250,50`) wordt op zes plekken geweigerd, omdat de
+     opschoning wél de punt maar níét de komma afvangt. Verklaart waarschijnlijk "de kosten
+     worden niet netjes opgeslagen". Dezelfde klasse als `leesStandInvoer()` uit E7 — vraagt om
+     één gedeelde `leesBedragInvoer()`.
+   - **BUG-02:** `Bouwdepot.tsx:133` en `Dashboard.tsx:180` gebruiken `new Date()` in plaats
+     van `opDag(new Date())`, waardoor een aangevinkte datum in de zomertijd een dag kan
+     terugspringen.
+2. **Kijken vóór bouwen.** Deze ronde begint niet met een ADR maar met Seth die het scherm
+   deelt en vertelt wat hij ziet — anders bouwen we wat wíj denken dat onduidelijk is.
+3. **Dan pas ontwerpen**, met per scherm eerst de vraag wat er wég kan.
+
+> **De scherpste bevinding:** `PROJECT.md` §6 heeft sinds sessie 05 een vinkje bij "grafieken
+> en totaalbeeld". Het dashboard heeft acht secties, waaronder een geldblok. Het staat er dus —
+> en de gebruiker die de app zelf heeft laten bouwen ziet het niet, want het staat als zevende
+> onderaan. **Een vinkje meet of iets gebouwd is, niet of het werkt.**
+
+### Nog te doen bij E8 zelf
+
+Het dossier is nooit daadwerkelijk afgedrukt. `vitest` controleert de rekenkern; of het er op
+papier goed uitziet moet met de hand:
 
 - Loopt de adrestitel netjes op één regel?
 - Begint elke sectie op een nieuwe pagina, en staat de disclaimer níét op een lege laatste?
@@ -170,7 +217,7 @@ Open `/overdrachtsdossier` met echte data en druk hem één keer af — let op:
 - Is het leesbaar **zonder** "Achtergrondafbeeldingen" aan te zetten? Dat is de hele opzet van
   ADR-0016 §3, en het is niet in code te bewijzen.
 
-### Daarna: blok F en de wachtrij
+### Daarna (ronde 10): blok F en de wachtrij
 
 - **De `improvements/`-wachtrij** (zie hieronder) — vóór het live gaan.
 - **C5 documentparser** en **B4/F1 live gaan** met de e-mailherinneringen uit ADR-0014 §3.
@@ -224,8 +271,27 @@ blind uitvoeren:
 - **PERF-02: geen offline persistence, en de twaalf subcollecties worden bij het verwijderen
   sequentieel opgehaald.**
 
+## Bekende bugs — open, gevonden bij de live test van 1 augustus
+
+Volledige beschrijving in `2026-08-01-bevindingen-live-test.md`. Kort:
+
+| # | Wat | Waar |
+| --- | --- | --- |
+| BUG-01 | Een bedrag met een komma (`1250,50`) wordt geweigerd: de opschoning strippt de punt maar niet de komma, dus `Number()` geeft `NaN` | `Bouwdepot.tsx:170`, `Meerwerk.tsx:207`/`:233`, `Nabudget.tsx:65`, `Oplevering.tsx:170`, `Projectinstellingen.tsx:141` |
+| BUG-02 | Een aangevinkte datum kan in de zomertijd een dag terugspringen: `new Date()` in plaats van `opDag(new Date())` | `Bouwdepot.tsx:133`, `Dashboard.tsx:180` |
+
+Nog te reproduceren: of het bouwdepot verder nog iets mist, en of er datumbugs zijn buiten
+BUG-02 om.
+
 ## Open vragen / wacht op Seth
 
+- **Reproductie van de bouwdepot-melding.** Welk veld, welk scherm, wat ingetypt, wat er daarna
+  stond. Eén concreet geval is genoeg. BUG-01 verklaart het waarschijnlijk, maar dat is een
+  aanname tot het nagespeeld is.
+- **Welke termen zijn onduidelijk voor een leek?** Kandidaten uit de UI die rechtstreeks uit de
+  ADR's komen: "anker", "offset", "waardenBron", "opschortingsrecht", "bandbreedte",
+  "aanlooptijd".
+- **Is `firebase deploy --only firestore` gedraaid?** Zie de waarschuwing hierboven.
 - **Aanlooptijden valideren.** De 38 startwaarden zijn schattingen; echte cijfers van keuken,
   vloer of busverhuur vervangen de gok. Kan op `/betrokkenen`, waarna het voorstel-label
   vanzelf verdwijnt.

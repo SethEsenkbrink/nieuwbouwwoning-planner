@@ -30,8 +30,9 @@
 | [0014](ADR-0014-onderhoudsschema-en-uitgestelde-herinneringen.md) | Onderhoudsschema en uitgestelde herinneringen | Geaccepteerd | `voorkeursmaand` naast `intervalDagen`, logboek meteen mee, **herziet ADR-0010 §4**: geen e-mail maar een lijst op het dashboard |
 | [0015](ADR-0015-meterstanden-als-losse-collectie.md) | Meterstanden: meter en opname zijn twee dingen | Geaccepteerd | Twee subcollecties i.p.v. een meternaam per opname; verbruik altijd afgeleid; een dalende stand wordt gemarkeerd, niet rechtgerekend |
 | [0016](ADR-0016-overdrachtsdossier-als-printweergave.md) | Overdrachtsdossier als printweergave | Geaccepteerd | Geen PDF-bibliotheek: de huisstijl blijft op één plek en de bundel groeit niet. Ontwerp mag niet van achtergrondkleuren afhangen |
+| [0017](ADR-0017-bruikbaarheid-voor-nieuwe-features.md) | Bruikbaarheid vóór nieuwe features | Geaccepteerd | **Herziet de volgorde uit het bouwplan.** Ronde 9 gaat over UX en bugs; C5, blok F en de improvements-wachtrij schuiven op |
 
-## De drie die je als eerste moet lezen
+## De vier die je als eerste moet lezen
 
 Begin je nieuw op dit project, lees dan in deze volgorde:
 
@@ -39,6 +40,7 @@ Begin je nieuw op dit project, lees dan in deze volgorde:
    snap je de helft van de code niet.
 2. **ADR-0009** — waarom overal `zekerheid` en `waardenBron` doorheen lopen.
 3. **ADR-0005** — de twee constraints die het makkelijkst per ongeluk sneuvelen.
+4. **ADR-0017** — waar we nú aan werken, en waarom dat niet is wat het bouwplan zegt.
 
 De rest lees je zodra je aan dat onderwerp komt.
 

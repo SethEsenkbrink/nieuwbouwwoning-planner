@@ -231,6 +231,11 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 > **Uitgebreid op 2026-07-31 (ADR-0010).** Er is een fase 4 bijgekomen: het woningdossier.
 > De volledige, genummerde backlog met de afgesproken volgorde staat in
 > `docs/2026-07-31-bouwplan-en-backlog.md`; onderstaande lijst is de samenvatting.
+>
+> **Volgorde opnieuw herzien op 2026-08-01 (ADR-0017).** Na de eerste live test gaat ronde 9
+> over **bruikbaarheid en bugs**; C5, blok F en de `improvements/`-wachtrij schuiven op naar
+> ronde 10. De app doet het juiste maar werkt niet prettig — zie
+> `docs/2026-08-01-bevindingen-live-test.md`.
 
 ### Klaar
 
@@ -260,7 +265,11 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 - [x] Handmatig taken met deadlines toevoegen en afvinken
 - [x] **Meerwerk-tracker**, met de sluitingsdatum in drie vormen (ADR-0011)
 - [x] **Bouwdepot-overzicht**: gefactureerd / gedeclareerd / betaald
-- [x] **Grafieken en totaalbeeld** over budget, meerwerk en depot
+- [x] **Grafieken en totaalbeeld** over budget, meerwerk en depot — ⚠️ **gebouwd maar niet
+      gevonden.** Bij de live test van 1 augustus meldde gebruiker #1 dat er "geen
+      totaaloverzicht" is, terwijl het geldblok er wel degelijk staat: als zevende van acht
+      secties op het dashboard. Dit vinkje meet dat het gebouwd is, niet dat het werkt. Zie
+      ADR-0017
 - [ ] **Documentparser** (sectie 4): overeenkomst inlezen → ankerpunten en afspraken
 
 ### Fase 3 — oplevering en garantie (31 juli 2026)
