@@ -1433,11 +1433,16 @@ describe("onderdelen", () => {
  * ═══════════════════════════════════════════════════════════════════════════
  * Onderhoud — taken en logboek (ADR-0014)
  *
- * De belangrijkste test in dit blok is de laatste: er mag geen volgende-datum
- * in een onderhoudstaak staan. Dat is dezelfde bewaking als
- * "slaat geen afspraakdatum op" bij de converters, maar dan op rules-niveau —
- * en het is de regel die het makkelijkst per ongeluk sneuvelt zodra iemand
- * denkt "handig, dan hoef ik niet te rekenen".
+ * De belangrijkste test in dit blok is "weigert een opgeslagen volgende datum":
+ * er mag geen afgeleide datum in een onderhoudstaak staan. Dat is dezelfde
+ * bewaking als "slaat geen afspraakdatum op" bij de converters, maar dan op
+ * rules-niveau — en het is de regel die het makkelijkst per ongeluk sneuvelt
+ * zodra iemand denkt "handig, dan hoef ik niet te rekenen".
+ *
+ * Onderhoudstaken zijn de enige collectie met `keys().hasOnly(...)`. Overal
+ * elders begrenzen de rules alleen het aantal velden, waardoor een onbekende
+ * veldnaam erdoorheen glipt. Dat is een bestaand openstaand punt; hier woog het
+ * zwaarder omdat het precies de constraint uit ADR-0008 raakt.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 const geldigeTaak = {
@@ -1607,6 +1612,51 @@ describe("onderhoudstaken", () => {
     const db = alsGebruiker(BOB);
     await assertFails(
       setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t17`), geldigeTaak),
+    );
+  });
+
+  /**
+   * DE KERNTEST VAN DIT BLOK (ADR-0008, ADR-0014).
+   *
+   * De volgende beurt wordt afgeleid uit `laatstUitgevoerdOp` + `intervalDagen`
+   * en mag nooit worden opgeslagen. Zonder `keys().hasOnly(...)` in de rule
+   * slaagt dit, want de veldlimiet telt alleen het aantal — precies zoals bij
+   * alle andere collecties.
+   */
+  it("weigert een opgeslagen volgende datum", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t18`), {
+        ...geldigeTaak,
+        volgendeOp: Timestamp.fromDate(new Date("2027-03-15")),
+      }),
+    );
+  });
+
+  it("weigert elk ander onbekend veld", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t19`), {
+        ...geldigeTaak,
+        verzonnenVeld: "dit hoort hier niet",
+      }),
+    );
+  });
+
+  /** Alle velden uit het model samen moeten wél door de whitelist komen. */
+  it("accepteert elk veld dat het model kent", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderhoudstaken/t20`), {
+        titel: "Dakgoten schoonmaken",
+        omschrijving: "Bladeren en mos verwijderen",
+        onderdeelId: "o1",
+        intervalDagen: 365,
+        voorkeursmaand: 11,
+        laatstUitgevoerdOp: Timestamp.fromDate(new Date("2026-11-01")),
+        waardenBron: "eigen",
+        waarschuwing: "Een verstopte goot laat water langs de gevel lopen",
+      }),
     );
   });
 });

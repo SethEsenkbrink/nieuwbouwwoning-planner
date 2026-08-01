@@ -1,6 +1,6 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-08-01 · sessie 06
+> **Bijgewerkt:** 2026-08-01 · sessie 06 (E1 t/m E3)
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
 > Geen geschiedenis hier — die staat in `sessions/`. Houd dit kort.
 
@@ -8,10 +8,12 @@
 
 ## In één alinea
 
-De app dekt het hele bouwtraject én het begin van het woningdossier. Blokken **A t/m D zijn
-af**, en van blok E staan **E1 (woningpaspoort + `woningStatus`) en E2 (onderdelenregister)**
-er nu ook. Wat nog komt is **E3 t/m E8** — het onderhoudsschema en verder — plus live gaan
-(bewust uitgesteld) en de documentparser. Er staat nog niets in productie.
+De app dekt het hele bouwtraject én het woningdossier tot en met het onderhoud. Blokken
+**A t/m D zijn af**, en van blok E staan **E1 (woningpaspoort), E2 (onderdelenregister),
+E3 (onderhoudsschema), E5 (terugkerende controles) en E6 (logboek)** er nu ook. Wat nog komt
+is **E4 (garantieklokken per onderdeel — de basis staat er), E7 (meterstanden) en E8
+(overdrachtsdossier)**, plus live gaan met de e-mailherinneringen en de documentparser. Er
+staat nog niets in productie.
 
 ## De kernlus, in één zin
 
@@ -34,20 +36,22 @@ doet — met een kant-en-klaar bericht en een knop die vastlegt dat je het hebt 
 | `/na-oplevering` | Vloer, gordijnen, tuin: geraamd naast werkelijk |
 | `/woning` | Fase (in aanbouw / opgeleverd), woningpaspoort en de energielabelklok |
 | `/onderdelen` | Wat er in huis zit: merk, type, serienummer, specs, garantie, meldplicht |
+| `/onderhoud` | Terugkerend werk met interval en voorkeursmaand, afvinken met logboek |
 | `/project` | Opleverdatum, projectgegevens en het project verwijderen |
 
 **Blok A** kernlus afmaken · **B** technische schuld (B4 live gaan uitgesteld) ·
-**C** bouwtraject compleet · **D** oplevering en garantie · **E1 + E2** woningpaspoort en
-onderdelenregister. Details per punt staan in `2026-07-31-bouwplan-en-backlog.md`.
+**C** bouwtraject compleet · **D** oplevering en garantie · **E1, E2, E3, E5, E6**
+woningpaspoort, onderdelenregister, onderhoudsschema en logboek. Details per punt staan in
+`2026-07-31-bouwplan-en-backlog.md`.
 
 ## Cijfers
 
 | | |
 | --- | --- |
-| Unit tests | **283** in 16 bestanden (was 220), geen emulator nodig |
-| Rules-tests | **116** (was 79), apart met `npm run rules:test` |
-| ADR's | 13, met index in `decisions/README.md` |
-| Verify-scripts | tokens (50) · headers (10 + 14 CSP) · rules-pariteit (24 enums, 119 waarden) |
+| Unit tests | **318** in 17 bestanden (was 220), geen emulator nodig |
+| Rules-tests | **141** (was 79), apart met `npm run rules:test` |
+| ADR's | 14, met index in `decisions/README.md` |
+| Verify-scripts | tokens (50) · headers (10 + 14 CSP) · rules-pariteit (25 enums, 121 waarden) |
 
 ## ⚠️ `npm run typecheck` heeft nooit iets gecontroleerd — opgelost op 1 augustus
 
@@ -70,48 +74,42 @@ Wat er daardoor onopgemerkt in stond, alle drie nu weg:
 De TS2379 is opgelost met een gedeeld `Invoer<T>`-type in `converters.ts`; `baseUrl` is
 verwijderd (`paths` werkt zonder).
 
-## Laatste verificatie — 1 augustus, 12:36 · alles groen
+## Verificatie
 
-**Lokaal gedraaid door Seth**, met de gerepareerde typecheck-gate erin. Dit is de eerste
-verify in het project waarbij de typecheck daadwerkelijk iets heeft gecontroleerd.
+**E1 + E2 — 1 augustus 12:36, lokaal gedraaid en volledig groen.** Eerste verify in het
+project waarbij de typecheck daadwerkelijk iets controleerde. 283 tests, 116 rules-tests,
+build 161 modules. Lint gaf vier fouten in de nieuwe code, hersteld in `e79c83b`.
 
-| Check | Uitkomst |
-| --- | --- |
-| `npm run verify` | typecheck (`tsc --build --force`) · lint · **283 tests in 16 bestanden** · tokens (50) · headers (10 + 14 CSP) · rules-pariteit (24 enums / 119 waarden) · build ✅ |
-| `npm run rules:test` | **116 tests** ✅ in 7,8 s — inclusief de 15 nieuwe op het woningdossier en 22 op onderdelen |
-| Build | 161 modules, `App` 260 kB (69 kB gzip), `index` 183 kB (58 kB gzip), `firebase` 567 kB (167 kB gzip) |
+**E3 — nog te draaien.** In de sandbox groen: `tsc --build --force` en de drie
+verify-scripts (25 enums / 121 waarden).
 
-Lint gaf vier fouten in de nieuwe code, alle vier hersteld in `e79c83b` (optional chain,
-twee type-assertions in `ordenSpecs`, en een `||` op de dashboardkop). Dat er ná zes sessies
-met een dode typecheck-gate maar vier lintfouten uitkwamen, is een aanwijzing dat de lintstap
-zelf wél altijd heeft gewerkt.
-
-Werktree is schoon.
+> **NOG TE DRAAIEN DOOR SETH:** `npm run verify` (318 tests) en `npm run rules:test`
+> (141 tests, waarvan 25 nieuw). **`rules:test` is hier niet optioneel**: er zijn twee
+> collecties bijgekomen én `onderhoudstaken` heeft als enige een `keys().hasOnly(...)`.
+> Vergeet je daar een veld in, dan weigert elke write met een generieke permissiefout.
 
 Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
-`71a21d1` (typecheck-gate + convertertests + twee UI-fixes), `e79c83b` (lintfixes),
-plus deze STATE-update.
-
-> **Bij het opstarten van een nieuwe sessie:** de laatste commit heeft een volledig groene
-> verify én groene rules-tests. Wijzig je iets aan de rules, draai dan `npm run rules:test`
-> vóórdat je verder bouwt.
+`71a21d1` (typecheck-gate), `e79c83b` (lintfixes), `2a6301c` (verify-uitkomst),
+`97ac304` (CLAUDE.md), `c84c731` (E3), plus de correcties uit de verificatiepass.
 
 ## Direct volgende stap
 
-**Blok E3 — het onderhoudsschema.** Dit is de enige echte modeluitbreiding uit ADR-0010 §2,
-want onderhoud herhaalt zich en bouwafspraken niet:
+**E4 — garantieklokken per onderdeel op het dashboard.** De basis staat er al
+(`garantiesDieAflopen()` in `lib/onderdelen.ts`, met de lijst op het dashboard); wat ontbreekt
+is de koppeling met het onderhoud: "de fabrieksgarantie op de warmtepomp loopt over drie
+maanden af, laat hem nú nakijken" is een onderhoudsactie met een deadline, geen los feit.
 
-1. `onderhoudstaken` met `intervalDagen` + `laatstUitgevoerdOp` + `waardenBron`
-2. `berekenVolgendeOnderhoud(taak, vandaag)` in de rekenkern, naast `berekenDatum()`.
-   Nooit uitgevoerd? Dan telt de installatiedatum van het onderdeel als startpunt, anders
-   de opleverdatum
-3. Een standaardbibliotheek met intervallen per onderdeeltype. Het meeste voorwerk staat al
-   in `data/onderdelen-standaard.ts`: de filterintervallen van de WTW, het RO-membraan en
-   de anode van de boiler zijn daar als spec-hint genoteerd
-4. `onderhoudslogboek` (E6), terugkerende controles (E5)
+Daarna, in volgorde van het bouwplan:
 
-Daarna: garantieklokken per onderdeel op het dashboard uitbreiden (E4 — de basis staat er),
-de documentparser (C5), live gaan (B4/F1) en de rest van blok F.
+1. **E7 meterstanden** — handmatige opnames met een verbruikstrend. Bewust simpel; geen
+   koppeling met slimme meters.
+2. **E8 overdrachtsdossier** — client-side PDF. `blijftBijWoning` bepaalt wat erin komt
+   (ADR-0013 §2), en het onderhoudslogboek is het waardevolste deel.
+3. **C5 documentparser**, **B4/F1 live gaan** met de e-mailherinneringen uit ADR-0014 §3.
+
+> **Toets bij het live gaan (ADR-0014 §3):** kijk dan hoeveel onderhoudstaken er
+> achterstallig zijn op het moment dat iemand inlogt. Is dat structureel hoog, dan had
+> ADR-0010 §4 gelijk en moet de mailfunctie voorrang krijgen boven de rest van blok F.
 
 ## Open vragen / wacht op Seth
 
@@ -125,8 +123,9 @@ de documentparser (C5), live gaan (B4/F1) en de rest van blok F.
 - **Batterij: AC- of DC-gekoppeld?** Bepaalt of de omvormer en de batterij één onderdeel met
   één garantie zijn of twee losse met elk hun eigen termijn. Seth neigt naar plug-and-play,
   wat AC-gekoppeld betekent en dus twee losse onderdelen.
-- **Mailprovider** voor de herinneringen uit blok E. Krijgt een eigen ADR. Wordt urgent bij
-  E3: een onderhoudsbeurt over acht maanden werkt alleen als de app zich meldt.
+- **Mailprovider** voor de herinneringen. Krijgt een eigen ADR. Bewust uitgesteld tot ronde 8
+  (ADR-0014 §3): tot die tijd is de onderhoudslijst op het dashboard de enige herinnering, en
+  dat is een geaccepteerd risico — geen opgelost probleem.
 
 ## Bekende valkuilen
 
@@ -157,6 +156,19 @@ van twaalf uur oud, achtergebleven na de laatste commit van sessie 05. Symptoom:
 add`/`commit` faalt met "Another git process seems to be running". `rm` gaf eerst *Operation
 not permitted* — de mount blokkeert delete tot dat expliciet is toegestaan. Controleer altijd
 eerst de tijdstempel en de grootte (0 bytes + uren oud = stale) voordat je hem weghaalt.
+
+**`voorkeursmaand` mag nooit tot vóór de laatste beurt schuiven.** Bij een interval korter
+dan een jaar koos de correctie de dichtstbijzijnde voorkomen van de maand, en dat kon de dag
+van de beurt zelf zijn — de taak was dan meteen achterstallig en bleef dat. `naarMaand()`
+heeft daarom een `nietVoor`-ondergrens, met twee regressietests. Gevonden bij de
+verificatiepass, niet bij het bouwen.
+
+**Onderhoudstaken zijn de enige collectie met `keys().hasOnly(...)` in de rules.** Overal
+elders begrenzen de rules alleen het aantal velden, waardoor een onbekende veldnaam
+erdoorheen glipt. Bij onderhoud woog dat zwaarder: zonder de whitelist kan iemand een
+`volgendeOp` meesturen en is de afgeleide datum ineens opgeslagen — precies wat ADR-0008
+uitsluit. **Komt er een veld bij in `model.ts`, dan moet het ook in die lijst**, anders
+weigert elke write.
 
 **Een geneste map telt in de rules als ÉÉN veld.** `withinSize(25)` beschermt de inhoud van
 `woningpaspoort`, `specs` en `registratieplicht` dus niet. Elke map heeft daarom een eigen

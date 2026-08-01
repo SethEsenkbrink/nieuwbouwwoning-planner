@@ -49,21 +49,42 @@ export interface Onderhoudsstand {
  * stand houden. Bij onderhoud is te vroeg nooit fout en te laat wel, dus de
  * correctie mag naar voren.
  *
+ * `nietVoor` IS DE ONDERGRENS DIE DAT BEGRENST, en die is niet optioneel-voor-
+ * de-sier. Zonder hem kan de correctie tot vóór de laatste beurt schuiven zodra
+ * het interval korter is dan een jaar:
+ *
+ *   interval 182 + voorkeursmaand oktober, laatst gedaan 15 oktober
+ *     → berekend 15 april, kandidaten oktober vorig jaar (182 dagen terug) en
+ *       oktober dit jaar (183 vooruit) → de vroegste wint → 15 oktober,
+ *       precies de dag van de beurt zelf.
+ *
+ * De taak is dan meteen achterstallig en blijft dat: elke keer afvinken levert
+ * dezelfde datum op. Bij interval 30 schuift hij zelfs elke beurt een dag terug.
+ * Vandaar: kandidaten op of vóór `nietVoor` vallen af.
+ *
  * De dag van de maand blijft behouden, geklemd op de laatste dag — dezelfde
  * valkuil die `overMaanden()` in `oplevering.ts` afvangt.
  */
-export function naarMaand(datum: Date, maand: number): Date {
+export function naarMaand(datum: Date, maand: number, nietVoor?: Date): Date {
   const jaar = datum.getUTCFullYear();
   const dag = datum.getUTCDate();
   const doelMaand = maand - 1; // JS telt maanden vanaf 0.
 
-  const kandidaten = [jaar - 1, jaar, jaar + 1].map((j) => {
+  // Vier jaren, zodat er ook bij een meerjarig interval altijd een kandidaat
+  // ná de ondergrens overblijft.
+  const alle = [jaar - 1, jaar, jaar + 1, jaar + 2].map((j) => {
     const laatsteDag = new Date(Date.UTC(j, doelMaand + 1, 0)).getUTCDate();
     return new Date(Date.UTC(j, doelMaand, Math.min(dag, laatsteDag)));
   });
 
-  let beste = kandidaten[0] as Date;
-  for (const kandidaat of kandidaten) {
+  const bruikbaar =
+    nietVoor === undefined ? alle : alle.filter((k) => k.getTime() > nietVoor.getTime());
+  // Blijft er niets over — alleen mogelijk bij een absurde combinatie — dan is
+  // de onveranderde datum beter dan een datum in het verleden.
+  if (bruikbaar.length === 0) return datum;
+
+  let beste = bruikbaar[0] as Date;
+  for (const kandidaat of bruikbaar) {
     const afstand = Math.abs(kandidaat.getTime() - datum.getTime());
     if (afstand < Math.abs(beste.getTime() - datum.getTime())) beste = kandidaat;
   }
@@ -97,10 +118,12 @@ export function berekenVolgendeOnderhoud(
   if (basis === undefined || bron === undefined) return null;
 
   const zonderCorrectie = voegDagenToe(basis, taak.intervalDagen);
+  // `basis` als ondergrens: de correctie mag nooit tot op of vóór de laatste
+  // beurt schuiven. Zie de uitleg bij `naarMaand()`.
   const volgendeOp =
     taak.voorkeursmaand === undefined
       ? zonderCorrectie
-      : naarMaand(zonderCorrectie, taak.voorkeursmaand);
+      : naarMaand(zonderCorrectie, taak.voorkeursmaand, basis);
 
   const dagenResterend = verschilInDagen(volgendeOp, vandaag);
 
@@ -268,6 +291,31 @@ export function toonInterval(dagen: number): string {
   if (dagen % 30 === 0) return `elke ${dagen / 30} maanden`;
   if (dagen % 7 === 0) return dagen === 7 ? "wekelijks" : `elke ${dagen / 7} weken`;
   return `elke ${dagen} dagen`;
+}
+
+/** "1 dag" en niet "1 dagen". Wordt op twee schermen gebruikt. */
+export function dagenOverTijd(dagenResterend: number): string {
+  const dagen = Math.abs(dagenResterend);
+  return dagen === 1 ? "1 dag over tijd" : `${dagen} dagen over tijd`;
+}
+
+export function dagenTeGaan(dagenResterend: number): string {
+  return dagenResterend === 1 ? "over 1 dag" : `over ${dagenResterend} dagen`;
+}
+
+/**
+ * Een voorkeursmaand bij een kort interval maakt de taak in de praktijk
+ * jaarlijks: de correctie kan immers niet vóór de laatste beurt landen, dus de
+ * eerstvolgende bruikbare voorkomen van die maand ligt een jaar verderop.
+ *
+ * Dat is geen fout maar wel bijna nooit de bedoeling — zout bijvullen "in
+ * oktober" betekent tien maanden geen zout. De UI waarschuwt daarom.
+ */
+export function voorkeursmaandVerstoortInterval(
+  intervalDagen: number,
+  voorkeursmaand: number | undefined,
+): boolean {
+  return voorkeursmaand !== undefined && intervalDagen < 300;
 }
 
 const MAANDEN = [

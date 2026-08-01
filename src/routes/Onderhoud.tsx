@@ -15,11 +15,14 @@ import { toonBedrag } from "@/lib/bedrag";
 import { opDag } from "@/lib/planning";
 import { isOpgeleverd } from "@/lib/woning";
 import {
+  dagenOverTijd,
+  dagenTeGaan,
   maakOnderhoudslijst,
   takenZonderStartpunt,
   telOnderhoud,
   toonInterval,
   toonMaand,
+  voorkeursmaandVerstoortInterval,
   type Onderhoudsregel,
 } from "@/lib/onderhoud";
 import { STANDAARD_ONDERHOUD } from "@/data/onderhoud-standaard";
@@ -529,6 +532,18 @@ export default function Onderhoud() {
               />
             </div>
 
+            {voorkeursmaandVerstoortInterval(
+              Number(formulier.intervalDagen),
+              formulier.voorkeursmaand === "" ? undefined : Number(formulier.voorkeursmaand),
+            ) && (
+              <Melding soort="fout">
+                Een voorkeursmaand bij een interval korter dan een jaar maakt de taak in de
+                praktijk jaarlijks: de volgende beurt kan niet vóór de vorige liggen, dus hij
+                schuift naar diezelfde maand het jaar erop. Laat de voorkeursmaand leeg als het
+                interval leidend moet zijn.
+              </Melding>
+            )}
+
             <Keuzeveld<string>
               label="Hoort bij onderdeel"
               hint="Koppelen betekent dat de installatiedatum als startpunt telt zolang je nog niet hebt afgevinkt."
@@ -751,10 +766,10 @@ function Onderhoudskaart({
           }`}
         >
           {overTijd
-            ? `${Math.abs(stand.dagenResterend)} dagen over tijd`
+            ? dagenOverTijd(stand.dagenResterend)
             : stand.dagenResterend === 0
               ? "vandaag"
-              : `over ${stand.dagenResterend} dagen`}
+              : dagenTeGaan(stand.dagenResterend)}
         </span>
       </div>
 

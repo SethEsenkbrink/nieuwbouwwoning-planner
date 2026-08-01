@@ -66,6 +66,21 @@ eerder-dan-nodig nooit fout en later-dan-nodig wel, dus de correctie mag naar vo
 worden, en dan doet die vertaling stilzwijgend het echte werk. Een maandnummer is
 ondubbelzinnig, sorteerbaar en direct te tonen.
 
+**De correctie kent één ondergrens, en die is er niet vanaf het begin geweest.** Bij de
+verificatie van deze implementatie bleek dat "dichtstbijzijnde" bij een interval korter dan
+een jaar naar het verleden kan schuiven:
+
+> Interval 182 dagen, voorkeursmaand oktober, laatst gedaan op 15 oktober. Berekend: 15 april.
+> De twee kandidaten zijn oktober vorig jaar (182 dagen terug) en oktober dit jaar (183 dagen
+> vooruit). De vroegste wint — en dat is 15 oktober, exact de dag van de beurt zelf.
+
+De taak is dan meteen achterstallig en blijft dat: elke keer afvinken levert dezelfde datum
+op. Bij een interval van 30 dagen loopt de reeks zelfs een dag per beurt achteruit. Daarom
+geldt: **een kandidaat op of vóór `laatstUitgevoerdOp` valt af.** Er staan twee regressietests
+op, en het formulier waarschuwt zodra iemand een voorkeursmaand combineert met een interval
+onder de 300 dagen — dan wordt de taak in de praktijk jaarlijks, en dat is bijna nooit de
+bedoeling.
+
 ### 2. Het logboek komt meteen mee, niet in E6
 
 Er komt een tweede subcollectie `onderhoudslogboek`, en **afvinken schrijft er in dezelfde

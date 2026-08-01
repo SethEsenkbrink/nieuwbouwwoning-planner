@@ -72,6 +72,20 @@ describe("naarMaand", () => {
     // Januari 2027 → december 2026 (1 mnd terug) wint van december 2027.
     expect(naarMaand(d(2027, 1, 10), 12)).toEqual(d(2026, 12, 10));
   });
+
+  /**
+   * De ondergrens. Zonder `nietVoor` kiest de functie hier oktober 2026 — de
+   * vroegste van twee bijna even ver liggende kandidaten — en dat is precies de
+   * dag van de laatste beurt. Met de ondergrens valt die kandidaat af.
+   */
+  it("kiest geen kandidaat op of vóór de ondergrens", () => {
+    expect(naarMaand(d(2027, 4, 15), 10)).toEqual(d(2026, 10, 15));
+    expect(naarMaand(d(2027, 4, 15), 10, d(2026, 10, 15))).toEqual(d(2027, 10, 15));
+  });
+
+  it("negeert de ondergrens als de dichtstbijzijnde er al na ligt", () => {
+    expect(naarMaand(d(2026, 8, 15), 10, d(2026, 1, 1))).toEqual(d(2026, 10, 15));
+  });
 });
 
 describe("berekenVolgendeOnderhoud — startpunt", () => {
@@ -231,6 +245,38 @@ describe("berekenVolgendeOnderhoud — voorkeursmaand", () => {
     );
     expect(tweede?.volgendeOp.getUTCMonth()).toBe(9); // oktober
     expect(tweede?.volgendeOp.getUTCFullYear()).toBe(2027);
+  });
+
+  /**
+   * REGRESSIETEST — gevonden bij de verificatiepass van sessie 06.
+   *
+   * Een interval korter dan een jaar kan de correctie naar het verleden laten
+   * schuiven. Zonder ondergrens landt deze taak op 15 oktober 2026: de dag van
+   * de beurt zelf. De taak zou dan meteen achterstallig zijn en dat blijven,
+   * want elke keer afvinken levert dezelfde datum op.
+   */
+  it("schuift nooit tot op of vóór de laatste beurt", () => {
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 10, 15), intervalDagen: 182, voorkeursmaand: 10 }),
+      {},
+      VANDAAG,
+    );
+    expect(stand?.volgendeOp).toEqual(d(2027, 10, 15));
+    expect(stand?.volgendeOp.getTime()).toBeGreaterThan(d(2026, 10, 15).getTime());
+  });
+
+  /** Bij een maandelijks interval liep de reeks zelfs achteruit. */
+  it("laat een kort interval met voorkeursmaand niet achteruit lopen", () => {
+    let laatst = d(2026, 10, 15);
+    for (let i = 0; i < 4; i += 1) {
+      const stand = berekenVolgendeOnderhoud(
+        taak({ laatstUitgevoerdOp: laatst, intervalDagen: 30, voorkeursmaand: 10 }),
+        {},
+        VANDAAG,
+      );
+      expect(stand?.volgendeOp.getTime()).toBeGreaterThan(laatst.getTime());
+      laatst = stand?.volgendeOp as Date;
+    }
   });
 
   it("werkt ook op een meerjarig interval", () => {

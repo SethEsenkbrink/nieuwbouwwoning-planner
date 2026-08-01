@@ -27,7 +27,12 @@ import { telMeerwerk } from "@/lib/meerwerk";
 import { telDepot } from "@/lib/depot";
 import { adresregel, bepaalEnergielabelstand, isOpgeleverd } from "@/lib/woning";
 import { garantiesDieAflopen, telOpenstaandeRegistraties } from "@/lib/onderdelen";
-import { maakOnderhoudslijst, toonInterval } from "@/lib/onderhoud";
+import {
+  dagenOverTijd,
+  dagenTeGaan,
+  maakOnderhoudslijst,
+  toonInterval,
+} from "@/lib/onderhoud";
 import type {
   AfspraakMetId,
   AnkerMetId,
@@ -308,10 +313,10 @@ export default function Dashboard() {
                   }`}
                 >
                   {stand.urgentie === "achterstallig"
-                    ? `${Math.abs(stand.dagenResterend)} dagen over tijd`
+                    ? dagenOverTijd(stand.dagenResterend)
                     : stand.dagenResterend === 0
                       ? "vandaag"
-                      : `over ${stand.dagenResterend} dagen`}
+                      : dagenTeGaan(stand.dagenResterend)}
                 </span>
               </div>
             ))}

@@ -381,16 +381,3 @@ export const STANDAARD_ONDERHOUD: readonly StandaardOnderhoud[] = [
     zelfTeDoen: true,
   },
 ];
-
-/** Zoekt een standaardtaak op sleutel. */
-export function standaardOnderhoud(sleutel: string): StandaardOnderhoud | undefined {
-  return STANDAARD_ONDERHOUD.find((o) => o.sleutel === sleutel);
-}
-
-/**
- * De taken die bij een onderdeeltype horen. Gebruikt bij het toevoegen van een
- * onderdeel: dan kan de app meteen het bijbehorende onderhoud voorstellen.
- */
-export function onderhoudVoorOnderdeel(onderdeelSleutel: string): StandaardOnderhoud[] {
-  return STANDAARD_ONDERHOUD.filter((o) => o.onderdeelSleutel === onderdeelSleutel);
-}

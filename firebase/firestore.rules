@@ -504,6 +504,23 @@ service cloud.firestore {
           allow get, list, delete: if isOwner(uid);
           allow create, update: if isOwner(uid)
             && withinSizeLimit()
+            // DE ENIGE COLLECTIE MET EEN GESLOTEN VELDENLIJST, en dat is hier
+            // bewust. Overal elders begrenzen de rules alleen het AANTAL
+            // velden, zodat een onbekende veldnaam erdoorheen glipt. Bij een
+            // onderhoudstaak is dat het verschil tussen wel en niet naleven van
+            // ADR-0008: zonder `hasOnly` kan iemand doodleuk een `volgendeOp`
+            // meesturen, en dan is de afgeleide datum ineens opgeslagen — de
+            // fout die dit hele model probeert te voorkomen.
+            //
+            // Komt er een veld bij in `model.ts`, dan MOET het hier ook bij.
+            // Vergeet je dat, dan weigert de write met een generieke
+            // permissiefout. Dat is vervelend maar zichtbaar; het alternatief
+            // is een schending die niemand opmerkt.
+            && request.resource.data.keys().hasOnly([
+                 'titel', 'omschrijving', 'onderdeelId', 'intervalDagen',
+                 'voorkeursmaand', 'laatstUitgevoerdOp', 'waardenBron',
+                 'waarschuwing'
+               ])
             && isString(request.resource.data.titel, 300)
             && request.resource.data.titel.size() > 0
             // Ondergrens 1 dag: een interval van 0 zou de taak elke dag op de
