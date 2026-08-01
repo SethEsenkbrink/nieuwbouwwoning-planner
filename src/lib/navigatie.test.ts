@@ -31,9 +31,10 @@ describe("actieveGroep", () => {
     expect(actieveGroep("/na-oplevering")).toBe("geld");
   });
 
-  it("zet de woning bij Oplevering en niet bij Project", () => {
-    // Het woningdossier begint waar het bouwtraject eindigt (ADR-0010).
+  it("zet het woningdossier bij Oplevering en niet bij Project", () => {
+    // Het dossier begint waar het bouwtraject eindigt (ADR-0010).
     expect(actieveGroep("/woning")).toBe("oplevering");
+    expect(actieveGroep("/onderdelen")).toBe("oplevering");
   });
 
   it("laat de wizard onder Project vallen en niet onder Dashboard", () => {
@@ -61,6 +62,7 @@ describe("actiefItem", () => {
   it("geeft het subitem binnen de opleveringsgroep terug", () => {
     expect(actiefItem("/oplevering")).toBe("/oplevering");
     expect(actiefItem("/woning")).toBe("/woning");
+    expect(actiefItem("/onderdelen")).toBe("/onderdelen");
   });
 });
 

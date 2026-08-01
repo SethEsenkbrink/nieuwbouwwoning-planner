@@ -80,7 +80,7 @@ function leesLijstFunctie(naam) {
  * dan hoort hij hier ook — anders blijft `isOneOf(veld, nieuweLijst())`
  * onopgemerkt en controleert dit script hem stilzwijgend niet.
  */
-const LIJSTFUNCTIES = ["ankerTypes", "woningtypes", "energielabels"];
+const LIJSTFUNCTIES = ["ankerTypes", "woningtypes", "energielabels", "onderdeelCategorieen"];
 
 const LIJSTEN_UIT_RULES = new Map(
   LIJSTFUNCTIES.map((naam) => [naam, leesLijstFunctie(naam)]).filter(([, lijst]) => lijst !== null),
@@ -209,6 +209,11 @@ const BLOKKEN = [
     "geldigPaspoort",
     "function geldigPaspoort(",
     { woningtype: "Woningtype", energielabel: "Energielabel" },
+  ],
+  [
+    "onderdelen",
+    "match /onderdelen/{",
+    { categorie: "OnderdeelCategorie", montage: "Montage" },
   ],
 ];
 

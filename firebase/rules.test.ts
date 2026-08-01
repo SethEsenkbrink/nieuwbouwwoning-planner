@@ -1154,3 +1154,277 @@ describe("woningdossier op project", () => {
     );
   });
 });
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Onderdelen — het register van wat er in de woning zit (ADR-0013)
+ *
+ * Twee geneste maps met elk een eigen groottecheck: `specs` (vrij, max 30) en
+ * `registratieplicht` (vast vormgegeven, max 4). Zonder die checks telt de
+ * documentlimiet ze als één veld en is `specs` een onbegrensde opslagbak —
+ * hetzelfde gat als bij het woningpaspoort, en van dezelfde soort als het
+ * `.data`-gat uit sessie 03.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const geldigOnderdeel = {
+  naam: "Warmtepomp",
+  categorie: "verwarming",
+  montage: "vast_geinstalleerd",
+  blijftBijWoning: true,
+};
+
+describe("onderdelen", () => {
+  it("accepteert een volledig onderdeel", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o1`), {
+        ...geldigOnderdeel,
+        merk: "NIBE",
+        type: "S2125-8",
+        serienummer: "06231234567",
+        specs: { vermogen: "8 kW", koudemiddel: "R290", scop: "4,8" },
+        installatieDatum: Timestamp.fromDate(new Date("2026-09-15")),
+        installateurBetrokkeneId: "b1",
+        garantieMaanden: 60,
+        documentUrl: "https://drive.example.com/handleiding-warmtepomp",
+        notitie: "Buitenunit aan de noordgevel",
+      }),
+    );
+  });
+
+  it("accepteert een minimaal onderdeel", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o2`), geldigOnderdeel),
+    );
+  });
+
+  it("weigert een onderdeel zonder naam", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/onderdelen/o3`),
+        zonderVeld(geldigOnderdeel, "naam"),
+      ),
+    );
+  });
+
+  it("weigert een lege naam", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o4`), {
+        ...geldigOnderdeel,
+        naam: "",
+      }),
+    );
+  });
+
+  it("weigert een onbekende categorie", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o5`), {
+        ...geldigOnderdeel,
+        categorie: "tuinkabouter",
+      }),
+    );
+  });
+
+  /**
+   * `montage` en `blijftBijWoning` zijn allebei verplicht en staan bewust los
+   * van elkaar (ADR-0013 §2). Ze zijn achteraf niet af te leiden, dus een
+   * onderdeel zonder die velden mag er niet in.
+   */
+  it("weigert een onderdeel zonder montagevorm", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/onderdelen/o6`),
+        zonderVeld(geldigOnderdeel, "montage"),
+      ),
+    );
+  });
+
+  it("weigert een onbekende montagevorm", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o7`), {
+        ...geldigOnderdeel,
+        montage: "een_beetje_vast",
+      }),
+    );
+  });
+
+  it("weigert een onderdeel zonder blijftBijWoning", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(
+        doc(db, `users/${ALICE}/projects/p1/onderdelen/o8`),
+        zonderVeld(geldigOnderdeel, "blijftBijWoning"),
+      ),
+    );
+  });
+
+  it("weigert blijftBijWoning als tekst", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o9`), {
+        ...geldigOnderdeel,
+        blijftBijWoning: "ja",
+      }),
+    );
+  });
+
+  it("staat een plug-and-play onderdeel toe dat meeverhuist", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o10`), {
+        naam: "Thuisbatterij",
+        categorie: "opslag",
+        montage: "plug_and_play",
+        blijftBijWoning: false,
+      }),
+    );
+  });
+
+  /**
+   * DE C2-TEST. Zonder `data.specs.size() <= 30` slaagt dit, want de
+   * documentlimiet telt de map als één veld.
+   */
+  it("weigert een specs-map met te veel velden", async () => {
+    const db = alsGebruiker(ALICE);
+    const opgeblazen: Record<string, string> = {};
+    for (let i = 0; i < 60; i += 1) opgeblazen[`spec${i}`] = "x";
+
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o11`), {
+        ...geldigOnderdeel,
+        specs: opgeblazen,
+      }),
+    );
+  });
+
+  it("accepteert specs tot aan de grens", async () => {
+    const db = alsGebruiker(ALICE);
+    const specs: Record<string, string> = {};
+    for (let i = 0; i < 30; i += 1) specs[`spec${i}`] = "waarde";
+
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o12`), {
+        ...geldigOnderdeel,
+        specs,
+      }),
+    );
+  });
+
+  it("weigert specs die geen map zijn", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o13`), {
+        ...geldigOnderdeel,
+        specs: "vermogen 8 kW",
+      }),
+    );
+  });
+
+  it("accepteert een registratieplicht met aanmelding", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o14`), {
+        naam: "Thuisbatterij",
+        categorie: "opslag",
+        montage: "plug_and_play",
+        blijftBijWoning: false,
+        registratieplicht: {
+          instantie: "Netbeheerder via Energieleveren.nl",
+          aangemeldOp: Timestamp.fromDate(new Date("2026-10-01")),
+          referentie: "EL-2026-88213",
+        },
+      }),
+    );
+  });
+
+  it("accepteert een registratieplicht die nog openstaat", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o15`), {
+        ...geldigOnderdeel,
+        registratieplicht: { instantie: "Netbeheerder via Energieleveren.nl" },
+      }),
+    );
+  });
+
+  /** Zonder instantie weet je wel dát er iets moet, maar niet bij wie. */
+  it("weigert een registratieplicht zonder instantie", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o16`), {
+        ...geldigOnderdeel,
+        registratieplicht: { referentie: "EL-2026-88213" },
+      }),
+    );
+  });
+
+  it("weigert een registratieplicht met te veel velden", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o17`), {
+        ...geldigOnderdeel,
+        registratieplicht: {
+          instantie: "Netbeheerder",
+          aangemeldOp: Timestamp.fromDate(new Date("2026-10-01")),
+          referentie: "x",
+          toelichting: "y",
+          extra: "dit hoort hier niet",
+        },
+      }),
+    );
+  });
+
+  it("weigert een onmogelijke garantietermijn", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o18`), {
+        ...geldigOnderdeel,
+        garantieMaanden: 1200,
+      }),
+    );
+  });
+
+  it("weigert een negatieve garantietermijn", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o19`), {
+        ...geldigOnderdeel,
+        garantieMaanden: -12,
+      }),
+    );
+  });
+
+  it("weigert een installatiedatum die geen timestamp is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o20`), {
+        ...geldigOnderdeel,
+        installatieDatum: "2026-09-15",
+      }),
+    );
+  });
+
+  it("weigert dat Bob een onderdeel bij Alice zet", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1/onderdelen/o21`), geldigOnderdeel),
+    );
+  });
+
+  it("weigert dat Bob de onderdelen van Alice leest", async () => {
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(
+        doc(ctx.firestore(), `users/${ALICE}/projects/p1/onderdelen/o22`),
+        geldigOnderdeel,
+      );
+    });
+    const db = alsGebruiker(BOB);
+    await assertFails(getDocs(collection(db, `users/${ALICE}/projects/p1/onderdelen`)));
+  });
+});

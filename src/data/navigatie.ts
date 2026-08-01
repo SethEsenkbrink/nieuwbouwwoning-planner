@@ -65,9 +65,10 @@ export const NAVIGATIE: readonly Navgroep[] = [
     items: [
       { pad: "/oplevering", label: "Opleverpunten" },
       // De sleuteloverdracht is de omslag naar het woningdossier (ADR-0010).
-      // Hij staat hier en niet onder Project, omdat het dossier bij het einde
-      // van het bouwtraject begint en niet bij de projectgegevens.
+      // Deze twee staan hier en niet onder Project, omdat het dossier bij het
+      // einde van het bouwtraject begint en niet bij de projectgegevens.
       { pad: "/woning", label: "De woning" },
+      { pad: "/onderdelen", label: "Onderdelen" },
     ],
   },
   { sleutel: "project", label: "Project", pad: "/project", items: [] },

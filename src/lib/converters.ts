@@ -28,6 +28,10 @@ import type {
   Termijn,
   WaardenBron,
   Energielabel,
+  Montage,
+  Onderdeel,
+  OnderdeelCategorie,
+  Registratieplicht,
   Woningpaspoort,
   WoningStatus,
   Woningtype,
@@ -90,6 +94,12 @@ export type TermijnData = MetDatums<Termijn>;
 export type GebrekData = MetDatums<Gebrek>;
 export type NabudgetData = MetDatums<Nabudgetpost>;
 
+export type RegistratieplichtData = MetDatums<Registratieplicht>;
+/** Zelfde reden als bij `ProjectData`: `registratieplicht` is een geneste map. */
+export type OnderdeelData = Omit<MetDatums<Onderdeel>, "registratieplicht"> & {
+  registratieplicht?: RegistratieplichtData;
+};
+
 /** Zoals hierboven, plus het Firestore-id dat pas bij het lezen bekend is. */
 export type ProjectMetId = ProjectData & { id: string };
 export type AnkerMetId = AnkerData & { id: string };
@@ -101,6 +111,7 @@ export type MeerwerkMetId = MeerwerkData & { id: string };
 export type TermijnMetId = TermijnData & { id: string };
 export type GebrekMetId = GebrekData & { id: string };
 export type NabudgetMetId = NabudgetData & { id: string };
+export type OnderdeelMetId = OnderdeelData & { id: string };
 
 // ── Hulpjes ────────────────────────────────────────────────────────────────
 
@@ -250,6 +261,26 @@ const WONINGTYPES = [
   "bovenwoning",
   "overig",
 ] as const satisfies readonly Woningtype[];
+const ONDERDEELCATEGORIEEN_LIJST = [
+  "verwarming",
+  "ventilatie",
+  "warm_water",
+  "elektra",
+  "opwekking",
+  "opslag",
+  "water",
+  "zonwering",
+  "dak",
+  "gevel",
+  "sanitair",
+  "beveiliging",
+  "overig",
+] as const satisfies readonly OnderdeelCategorie[];
+const MONTAGES = [
+  "vast_geinstalleerd",
+  "plug_and_play",
+  "nvt",
+] as const satisfies readonly Montage[];
 const ENERGIELABELS = [
   "A+++++",
   "A++++",
@@ -649,6 +680,123 @@ export function nabudgetUitFirestore(id: string, data: DocumentData): NabudgetMe
     status: leesEnum(data.status, NABUDGETSTATUSSEN) ?? "geraamd",
     ...optioneel("geraamd", leesGetal(data.geraamd)),
     ...optioneel("werkelijk", leesGetal(data.werkelijk)),
+    ...optioneel("notitie", leesString(data.notitie)),
+  };
+}
+
+// ── Onderdelen (ADR-0013) ──────────────────────────────────────────────────
+
+/**
+ * Het aantal specs en de lengte per waarde worden begrensd — hier én in de
+ * rules. Zonder die grens is `specs` een vrij beschrijfbare map, en dat is
+ * precies de opslagplek die constraint C2 uitsluit.
+ */
+const MAX_SPECS = 30;
+const MAX_SPEC_SLEUTEL = 60;
+const MAX_SPEC_WAARDE = 300;
+
+/**
+ * Leest een vrije sleutel-waardemap. Alles wat geen string is valt eruit in
+ * plaats van doorgegeven te worden: de UI rendert deze waarden rechtstreeks, en
+ * een getal of een genest object zou daar als `[object Object]` belanden.
+ */
+function leesSpecs(waarde: unknown): Record<string, string> | undefined {
+  if (typeof waarde !== "object" || waarde === null || Array.isArray(waarde)) return undefined;
+
+  const specs: Record<string, string> = {};
+  for (const [sleutel, inhoud] of Object.entries(waarde as Record<string, unknown>)) {
+    if (typeof inhoud !== "string" || inhoud === "") continue;
+    if (sleutel.length > MAX_SPEC_SLEUTEL) continue;
+    specs[sleutel] = inhoud.slice(0, MAX_SPEC_WAARDE);
+    if (Object.keys(specs).length >= MAX_SPECS) break;
+  }
+
+  return Object.keys(specs).length === 0 ? undefined : specs;
+}
+
+function schoonSpecs(specs: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!specs) return undefined;
+
+  const schoon: Record<string, string> = {};
+  for (const [sleutel, waarde] of Object.entries(specs)) {
+    const nette = waarde.trim();
+    if (nette === "" || sleutel.trim() === "") continue;
+    schoon[sleutel.trim().slice(0, MAX_SPEC_SLEUTEL)] = nette.slice(0, MAX_SPEC_WAARDE);
+    if (Object.keys(schoon).length >= MAX_SPECS) break;
+  }
+
+  return Object.keys(schoon).length === 0 ? undefined : schoon;
+}
+
+function registratieNaarFirestore(
+  plicht: RegistratieplichtData | undefined,
+): DocumentData | undefined {
+  if (!plicht?.instantie) return undefined;
+  return zonderLegeVelden({
+    instantie: plicht.instantie,
+    aangemeldOp: naarTimestamp(plicht.aangemeldOp),
+    referentie: plicht.referentie,
+    toelichting: plicht.toelichting,
+  });
+}
+
+function registratieUitFirestore(waarde: unknown): RegistratieplichtData | undefined {
+  if (typeof waarde !== "object" || waarde === null || Array.isArray(waarde)) return undefined;
+  const data = waarde as DocumentData;
+
+  // Zonder instantie is een registratieplicht betekenisloos: je weet dan wel
+  // dát er iets moet, maar niet bij wie.
+  const instantie = leesString(data.instantie);
+  if (!instantie) return undefined;
+
+  return {
+    instantie,
+    ...optioneel("aangemeldOp", leesDatum(data.aangemeldOp)),
+    ...optioneel("referentie", leesString(data.referentie)),
+    ...optioneel("toelichting", leesString(data.toelichting)),
+  };
+}
+
+export function onderdeelNaarFirestore(onderdeel: Partial<OnderdeelData>): DocumentData {
+  return zonderLegeVelden({
+    naam: onderdeel.naam,
+    categorie: onderdeel.categorie,
+    merk: onderdeel.merk,
+    type: onderdeel.type,
+    serienummer: onderdeel.serienummer,
+    specs: schoonSpecs(onderdeel.specs),
+    montage: onderdeel.montage,
+    blijftBijWoning: onderdeel.blijftBijWoning,
+    installatieDatum: naarTimestamp(onderdeel.installatieDatum),
+    installateurBetrokkeneId: onderdeel.installateurBetrokkeneId,
+    garantieMaanden: onderdeel.garantieMaanden,
+    registratieplicht: registratieNaarFirestore(onderdeel.registratieplicht),
+    documentUrl: onderdeel.documentUrl,
+    notitie: onderdeel.notitie,
+  });
+}
+
+export function onderdeelUitFirestore(id: string, data: DocumentData): OnderdeelMetId {
+  return {
+    id,
+    naam: leesString(data.naam) ?? "Naamloos onderdeel",
+    categorie: leesEnum(data.categorie, ONDERDEELCATEGORIEEN_LIJST) ?? "overig",
+    // Terugval op "nvt" en niet op een van de twee echte montagevormen: een
+    // onbekende waarde mag geen installatiegarantie of inboedelclaim suggereren
+    // die er niet is (ADR-0013 §2).
+    montage: leesEnum(data.montage, MONTAGES) ?? "nvt",
+    // Terugval op true: onterecht "blijft achter" tonen is minder schadelijk
+    // dan een onderdeel stilzwijgend uit het overdrachtsdossier laten vallen.
+    blijftBijWoning: typeof data.blijftBijWoning === "boolean" ? data.blijftBijWoning : true,
+    ...optioneel("merk", leesString(data.merk)),
+    ...optioneel("type", leesString(data.type)),
+    ...optioneel("serienummer", leesString(data.serienummer)),
+    ...optioneel("specs", leesSpecs(data.specs)),
+    ...optioneel("installatieDatum", leesDatum(data.installatieDatum)),
+    ...optioneel("installateurBetrokkeneId", leesString(data.installateurBetrokkeneId)),
+    ...optioneel("garantieMaanden", leesGetal(data.garantieMaanden)),
+    ...optioneel("registratieplicht", registratieUitFirestore(data.registratieplicht)),
+    ...optioneel("documentUrl", leesString(data.documentUrl)),
     ...optioneel("notitie", leesString(data.notitie)),
   };
 }

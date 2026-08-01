@@ -173,6 +173,46 @@ service cloud.firestore {
               'B', 'C', 'D', 'E', 'F', 'G'];
     }
 
+    // Staat óók in src/types/model.ts (OnderdeelCategorie); pariteit wordt
+    // bewaakt door `npm run verify:rules`.
+    function onderdeelCategorieen() {
+      return ['verwarming', 'ventilatie', 'warm_water', 'elektra', 'opwekking',
+              'opslag', 'water', 'zonwering', 'dak', 'gevel', 'sanitair',
+              'beveiliging', 'overig'];
+    }
+
+    // De vrije specs-map van een onderdeel (ADR-0013 §1).
+    //
+    // Alleen begrensd op AANTAL, niet op sleutelnamen: de bibliotheek stelt
+    // velden voor, maar eigen sleutels moeten kunnen. De inhoud wordt in de
+    // converter op stringtype en lengte geschoond; hier gaat het puur om de
+    // C2-bescherming — een map die als opslagbak gebruikt kan worden.
+    //
+    // Firestore-rules kunnen niet over de waarden van een map itereren, dus de
+    // waardelengte is hier niet af te dwingen. Het aantal wél, en dat is de
+    // grens die telt: 30 specs à 300 tekens is nog steeds een gegevensveld en
+    // geen bestand.
+    function geldigeSpecs(data) {
+      return !('specs' in data)
+        || data.specs == null
+        || (data.specs is map && data.specs.size() <= 30);
+    }
+
+    // Een wettelijke meld- of registratieplicht bij een onderdeel
+    // (ADR-0013 §3). `instantie` is verplicht zodra de map bestaat: zonder wie
+    // weet je wel dát er iets moet, maar niet waar.
+    function geldigeRegistratieplicht(data) {
+      return !('registratieplicht' in data)
+        || data.registratieplicht == null
+        || (data.registratieplicht is map
+            && data.registratieplicht.size() <= 4
+            && isString(data.registratieplicht.instantie, 200)
+            && data.registratieplicht.instantie.size() > 0
+            && optionalTimestamp(data.registratieplicht, 'aangemeldOp')
+            && optionalString(data.registratieplicht, 'referentie', 120)
+            && optionalString(data.registratieplicht, 'toelichting', 2000));
+    }
+
 
     // ── users/{uid} ──────────────────────────────────────────────────────
     // Profielgegevens van de gebruiker zelf. Bewust minimaal: we slaan hier
@@ -411,6 +451,42 @@ service cloud.firestore {
             && isOneOf(request.resource.data.status, ['geraamd', 'besteld', 'betaald'])
             && optionalNumber(request.resource.data, 'geraamd')
             && optionalNumber(request.resource.data, 'werkelijk')
+            && optionalString(request.resource.data, 'notitie', 2000);
+        }
+
+
+        // ── onderdelen/{onderdeelId} — het woningdossier (ADR-0013) ──────
+        // Wat er in de woning zit: merk, type, serienummer en de technische
+        // gegevens die je bij een storing nodig hebt.
+        //
+        // TWEE GENESTE MAPS, EN DIE TELLEN ALLEBEI ALS ÉÉN VELD.
+        // `specs` is een vrije sleutel-waardelijst en `registratieplicht` een
+        // vast vormgegeven map. Zonder de eigen groottechecks hieronder is
+        // `specs` een onbegrensde bak — precies de opslagplek die constraint
+        // C2 uitsluit. Zelfde patroon als bij het woningpaspoort.
+        //
+        // `documentUrl` is een LINK naar waar het bestand bij de gebruiker
+        // staat, nooit het bestand zelf (ADR-0005, ADR-0013 §3).
+
+        match /onderdelen/{onderdeelId} {
+          allow get, list, delete: if isOwner(uid);
+          allow create, update: if isOwner(uid)
+            && withinSize(16)
+            && isString(request.resource.data.naam, 200)
+            && request.resource.data.naam.size() > 0
+            && isOneOf(request.resource.data.categorie, onderdeelCategorieen())
+            && isOneOf(request.resource.data.montage,
+                       ['vast_geinstalleerd', 'plug_and_play', 'nvt'])
+            && request.resource.data.blijftBijWoning is bool
+            && optionalString(request.resource.data, 'merk', 120)
+            && optionalString(request.resource.data, 'type', 200)
+            && optionalString(request.resource.data, 'serienummer', 120)
+            && geldigeSpecs(request.resource.data)
+            && optionalTimestamp(request.resource.data, 'installatieDatum')
+            && optionalString(request.resource.data, 'installateurBetrokkeneId', 200)
+            && optionalInt(request.resource.data, 'garantieMaanden', 0, 600)
+            && geldigeRegistratieplicht(request.resource.data)
+            && optionalString(request.resource.data, 'documentUrl', 2000)
             && optionalString(request.resource.data, 'notitie', 2000);
         }
 

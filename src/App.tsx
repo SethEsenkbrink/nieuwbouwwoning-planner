@@ -18,6 +18,7 @@ import Bouwdepot from "@/routes/Bouwdepot";
 import Oplevering from "@/routes/Oplevering";
 import Nabudget from "@/routes/Nabudget";
 import Woning from "@/routes/Woning";
+import Onderdelen from "@/routes/Onderdelen";
 import NietGevonden from "@/routes/NietGevonden";
 
 /**
@@ -140,6 +141,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Woning />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/onderdelen"
+            element={
+              <ProtectedRoute>
+                <Onderdelen />
               </ProtectedRoute>
             }
           />

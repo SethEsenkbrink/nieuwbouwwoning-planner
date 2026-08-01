@@ -149,9 +149,26 @@ users/{uid}
         ├── gebreken/{defectId}   // opleverpunten; apart van tasks (ADR-0012)
         │     - omschrijving, locatie, gemeldOp, hersteltermijn
         │     - status (open | hersteld)
-        └── nabudget/{postId}     // wat er ná de oplevering nog komt
-              - omschrijving, geraamd, werkelijk, notitie
-              - status (geraamd | besteld | betaald)
+        ├── nabudget/{postId}     // wat er ná de oplevering nog komt
+        │     - omschrijving, geraamd, werkelijk, notitie
+        │     - status (geraamd | besteld | betaald)
+        └── onderdelen/{onderdeelId}   // het woningdossier — ADR-0013
+              - naam, categorie (verwarming | ventilatie | warm_water
+                                | elektra | opwekking | opslag | water
+                                | zonwering | dak | gevel | sanitair
+                                | beveiliging | overig)
+              - merk, type, serienummer
+              - specs                  // VRIJE MAP sleutel→string, max 30.
+                                       // De bibliotheek stelt velden voor per
+                                       // categorie; eigen sleutels mogen.
+              - montage (vast_geinstalleerd | plug_and_play | nvt)
+              - blijftBijWoning        // LOS van montage — ADR-0013 §2
+              - installatieDatum, installateurBetrokkeneId
+              - garantieMaanden        // einddatum is afgeleid
+              - registratieplicht      // map: instantie, aangemeldOp,
+                                       // referentie, toelichting
+              - documentUrl            // een LINK, nooit een bestand (C2)
+              - notitie
 ```
 
 De canonieke TypeScript-definities staan in `src/types/model.ts` — **dat bestand is leidend**
@@ -234,7 +251,9 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 
 - [x] **Woningpaspoort** en `woningStatus` (in_aanbouw / opgeleverd), met het energielabel
       als tienjaarsklok — `/woning` (ADR-0013)
-- [ ] **Onderdelenregister**: merk, type, serienummer, installatiedatum, garantie
+- [x] **Onderdelenregister**: merk, type, serienummer, specs, montagevorm, installatiedatum,
+      garantieklok en registratieplicht — `/onderdelen`, met een bibliotheek van 17 onderdelen
+      inclusief merken en typereeksen (ADR-0013)
 - [ ] **Onderhoudsschema** uit een standaardbibliotheek, met interval en historie
 - [ ] **Terugkerende controles** (rookmelder, aardlekschakelaar, waterdruk)
 - [ ] **Logboek** van onderhoud en verbouwingen

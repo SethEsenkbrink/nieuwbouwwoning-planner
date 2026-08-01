@@ -14,6 +14,7 @@ import {
   haalAnkers,
   haalBetrokkenen,
   haalMeerwerk,
+  haalOnderdelen,
   haalTermijnen,
   werkAfspraakBij,
 } from "@/lib/projecten";
@@ -24,11 +25,13 @@ import { toonBedrag } from "@/lib/bedrag";
 import { telMeerwerk } from "@/lib/meerwerk";
 import { telDepot } from "@/lib/depot";
 import { adresregel, bepaalEnergielabelstand, isOpgeleverd } from "@/lib/woning";
+import { garantiesDieAflopen, telOpenstaandeRegistraties } from "@/lib/onderdelen";
 import type {
   AfspraakMetId,
   AnkerMetId,
   BetrokkeneMetId,
   MeerwerkMetId,
+  OnderdeelMetId,
   ProjectMetId,
   TermijnMetId,
 } from "@/lib/converters";
@@ -67,6 +70,7 @@ export default function Dashboard() {
   const [afspraken, setAfspraken] = useState<AfspraakMetId[]>([]);
   const [meerwerk, setMeerwerk] = useState<MeerwerkMetId[]>([]);
   const [termijnen, setTermijnen] = useState<TermijnMetId[]>([]);
+  const [onderdelen, setOnderdelen] = useState<OnderdeelMetId[]>([]);
   const [bezigMetLaden, setBezigMetLaden] = useState(true);
   const [bezigMetId, setBezigMetId] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
@@ -96,12 +100,14 @@ export default function Dashboard() {
           geladenAfspraken,
           geladenMeerwerk,
           geladenTermijnen,
+          geladenOnderdelen,
         ] = await Promise.all([
           haalAnkers(uid, gevonden.id),
           haalBetrokkenen(uid, gevonden.id),
           haalAfspraken(uid, gevonden.id),
           haalMeerwerk(uid, gevonden.id),
           haalTermijnen(uid, gevonden.id),
+          haalOnderdelen(uid, gevonden.id),
         ]);
         if (!actueel) return;
 
@@ -111,6 +117,7 @@ export default function Dashboard() {
         setAfspraken(geladenAfspraken);
         setMeerwerk(geladenMeerwerk);
         setTermijnen(geladenTermijnen);
+        setOnderdelen(geladenOnderdelen);
       } catch (f) {
         if (actueel) setFout(opslagFoutmelding(f, "Laden"));
       } finally {
@@ -185,6 +192,8 @@ export default function Dashboard() {
   const opgeleverd = isOpgeleverd(project);
   const adres = adresregel(project.woningpaspoort);
   const labelstand = bepaalEnergielabelstand(project.woningpaspoort, opDag(new Date()));
+  const aflopend = garantiesDieAflopen(onderdelen, opDag(new Date()));
+  const registratiesOpen = telOpenstaandeRegistraties(onderdelen);
 
   return (
     <AppShell>
@@ -219,6 +228,49 @@ export default function Dashboard() {
             </Link>
           </Melding>
         </div>
+      )}
+
+      {/* Een niet-aangemelde installatie heeft een consequentie bij de
+          netbeheerder; dat hoort niet onderaan een lijst te verdwijnen. */}
+      {registratiesOpen > 0 && (
+        <div className="mt-s3 max-w-3xl">
+          <Melding soort="fout">
+            {registratiesOpen === 1
+              ? "Eén onderdeel is nog niet aangemeld"
+              : `${registratiesOpen} onderdelen zijn nog niet aangemeld`}{" "}
+            bij de instantie die dat vereist.{" "}
+            <Link to="/onderdelen" className="underline">
+              Naar de onderdelen
+            </Link>
+          </Melding>
+        </div>
+      )}
+
+      {/* Het moment waarop informatie geld waard is: nog even laten nakijken
+          vóórdat de garantie afloopt en het je eigen rekening wordt. */}
+      {aflopend.length > 0 && (
+        <section className="mt-s4 max-w-3xl">
+          <h2 className="text-h3 text-ink">
+            {aflopend.length === 1
+              ? "Eén garantie loopt binnenkort af"
+              : `${aflopend.length} garanties lopen binnenkort af`}
+          </h2>
+          <p className="mt-s2 text-body text-slate">
+            Dit is het moment om het te laten nakijken — daarna is het je eigen rekening.
+          </p>
+          <ul className="mt-s2 flex flex-col gap-1">
+            {aflopend.map(({ onderdeel, klok }) => (
+              <li key={onderdeel.id} className="text-body text-ink">
+                <Link to="/onderdelen" className="underline">
+                  {onderdeel.naam}
+                </Link>{" "}
+                <span className="text-sm text-slate">
+                  — nog {klok.dagenResterend} dagen, tot {toonDatum(klok.verstrijktOp)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {/* ── De actielijst staat bovenaan, want dit is het werk ───────────── */}

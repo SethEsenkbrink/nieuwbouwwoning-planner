@@ -521,6 +521,114 @@ export interface Gebrek {
   status: GebrekStatus;
 }
 
+// ── Onderdelen — het register van wat er in de woning zit (ADR-0013) ───────
+
+/**
+ * Waar een onderdeel bij hoort. Gesloten lijst, want hij stuurt de
+ * standaardbibliotheek aan: per categorie hangen er voorgestelde specvelden en
+ * onderhoudsintervallen aan.
+ */
+export type OnderdeelCategorie =
+  | "verwarming"
+  | "ventilatie"
+  | "warm_water"
+  | "elektra"
+  | "opwekking"
+  | "opslag"
+  | "water"
+  | "zonwering"
+  | "dak"
+  | "gevel"
+  | "sanitair"
+  | "beveiliging"
+  | "overig";
+
+/**
+ * Hoe het onderdeel in de woning zit (ADR-0013 §2).
+ *
+ *   vast_geinstalleerd  nagelvast, door een installateur aangesloten. Onderdeel
+ *                       van de onroerende zaak, valt onder de opstalverzekering
+ *                       en er hoort installatiegarantie bij.
+ *   plug_and_play       je steekt hem in het stopcontact. Roerende zaak, valt
+ *                       onder de inboedel, alleen fabrieksgarantie.
+ *   nvt                 bouwkundig, niet geïnstalleerd — kozijnen, dakbedekking.
+ *
+ * Dit is de scherpste scheidslijn in het register en de reden dat het veld
+ * verplicht is: hij is achteraf niet af te leiden.
+ */
+export type Montage = "vast_geinstalleerd" | "plug_and_play" | "nvt";
+
+/**
+ * Een wettelijke registratie- of meldplicht die bij een onderdeel hoort
+ * (ADR-0013 §3).
+ *
+ * Zolang `aangemeldOp` leeg is, staat het onderdeel op de actielijst. Precies
+ * hetzelfde mechanisme als `gecommuniceerdeDatum` bij afspraken: het verschil
+ * tussen wat de app weet en wat de buitenwereld weet ís het werk.
+ *
+ * Het bekendste geval is de thuisbatterij: sinds 7 mei 2024 moet elke
+ * batterij vanaf 0,8 kW die terug kan leveren worden aangemeld bij de
+ * netbeheerder via Energieleveren.nl — óók een plug-and-play model. Meld je
+ * het niet, dan mag de netbeheerder je teruglevering weigeren.
+ */
+export interface Registratieplicht {
+  /** Bij wie, bijv. "Netbeheerder via Energieleveren.nl". */
+  instantie: string;
+  /** Wanneer het gemeld is. Een feit over het verleden, dus wél opgeslagen. */
+  aangemeldOp?: Timestamp;
+  /** Het meld- of dossiernummer dat je terugkrijgt. */
+  referentie?: string;
+  toelichting?: string;
+}
+
+export interface Onderdeel {
+  /** Wat het is, bijv. "Warmtepomp" of "Thuisbatterij". Verplicht. */
+  naam: string;
+  categorie: OnderdeelCategorie;
+
+  merk?: string;
+  /** De typeaanduiding, bijv. "S2125-8" of "Flair 325". */
+  type?: string;
+  serienummer?: string;
+
+  /**
+   * Vrije technische gegevens (ADR-0013 §1).
+   *
+   * De bibliotheek levert per categorie een lijst voorgestelde sleutels, zodat
+   * je niet zelf hoeft te bedenken wát er relevant is. Eigen sleutels mogen.
+   *
+   * ALLE WAARDEN ZIJN STRINGS, ook de getallen: "7,5 kW", "R290", "4,8". Er
+   * wordt niet mee gerekend — ze zijn er om te vinden en over te typen bij een
+   * storing of een offerte. Moet dat ooit wél, dan is dat een nieuwe ADR.
+   */
+  specs?: Record<string, string>;
+
+  montage: Montage;
+  /**
+   * Blijft dit achter bij verkoop? Bewust NIET afgeleid uit `montage`: een
+   * plug-in batterij kan bij de woning verkocht worden, en een vaste zonwering
+   * kan in de onderhandeling meegaan. Voedt het overdrachtsdossier (E8) en de
+   * scheiding inboedel/opstal.
+   */
+  blijftBijWoning: boolean;
+
+  installatieDatum?: Timestamp;
+  /** Verwijzing naar een betrokkenen/{betrokkeneId} — de partij die het plaatste. */
+  installateurBetrokkeneId?: string;
+  /** Fabrieksgarantie in maanden. De einddatum volgt eruit en wordt niet opgeslagen. */
+  garantieMaanden?: number;
+
+  registratieplicht?: Registratieplicht;
+
+  /**
+   * Een LINK naar waar de handleiding of factuur staat — Drive, OneDrive, de
+   * site van de fabrikant. De app bewaart de vindplaats, nooit het bestand
+   * (constraint C2, ADR-0005, ADR-0013 §3).
+   */
+  documentUrl?: string;
+  notitie?: string;
+}
+
 // ── Handige aliassen voor gelezen documenten ───────────────────────────────
 
 export type ProjectDoc = Project & MetId;
@@ -533,3 +641,4 @@ export type MeerwerkDoc = MeerwerkItem & MetId;
 export type TermijnDoc = Termijn & MetId;
 export type GebrekDoc = Gebrek & MetId;
 export type NabudgetpostDoc = Nabudgetpost & MetId;
+export type OnderdeelDoc = Onderdeel & MetId;

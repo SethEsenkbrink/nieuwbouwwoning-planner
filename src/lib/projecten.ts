@@ -30,6 +30,8 @@ import {
   meerwerkUitFirestore,
   nabudgetNaarFirestore,
   nabudgetUitFirestore,
+  onderdeelNaarFirestore,
+  onderdeelUitFirestore,
   projectNaarFirestore,
   projectUitFirestore,
   taakNaarFirestore,
@@ -50,6 +52,8 @@ import {
   type MeerwerkMetId,
   type NabudgetData,
   type NabudgetMetId,
+  type OnderdeelData,
+  type OnderdeelMetId,
   type ProjectData,
   type ProjectMetId,
   type TaakData,
@@ -215,6 +219,7 @@ const SUBCOLLECTIES = [
   "termijnen",
   "gebreken",
   "nabudget",
+  "onderdelen",
 ] as const;
 
 /**
@@ -788,4 +793,73 @@ export async function voegStandaardNabudgetToe(
   }
   await batch.commit();
   return omschrijvingen.length;
+}
+
+// ── Onderdelen — het register van wat er in de woning zit (ADR-0013) ───────
+
+export async function haalOnderdelen(uid: string, projectId: string): Promise<OnderdeelMetId[]> {
+  const resultaat = await getDocs(subPad(uid, projectId, "onderdelen"));
+  return resultaat.docs.map((d) => onderdeelUitFirestore(d.id, d.data()));
+}
+
+/**
+ * Aanmaken als `onderdeelId` null is, anders volledig overschrijven.
+ *
+ * Overschrijven en niet bijwerken, om dezelfde reden als bij gebreken en
+ * termijnen: `zonderLegeVelden()` strip `undefined`, dus een `updateDoc` kan
+ * een veld niet leegmaken. Bij een onderdeel is dat extra vervelend — een
+ * serienummer of een specwaarde die blijft hangen na correctie is precies het
+ * getal dat je bij een storing verkeerd doorgeeft.
+ *
+ * LET OP: `specs` en `registratieplicht` zijn geneste maps en worden dus
+ * integraal vervangen. Stuur ze altijd compleet mee.
+ */
+export async function zetOnderdeel(
+  uid: string,
+  projectId: string,
+  onderdeelId: string | null,
+  onderdeel: OnderdeelData,
+): Promise<string> {
+  const ref =
+    onderdeelId === null
+      ? doc(subPad(uid, projectId, "onderdelen"))
+      : doc(db, "users", uid, "projects", projectId, "onderdelen", onderdeelId);
+  await setDoc(ref, onderdeelNaarFirestore(onderdeel));
+  return ref.id;
+}
+
+export async function verwijderOnderdeel(
+  uid: string,
+  projectId: string,
+  onderdeelId: string,
+): Promise<void> {
+  await deleteDoc(doc(db, "users", uid, "projects", projectId, "onderdelen", onderdeelId));
+}
+
+/**
+ * Legt vast dat een registratieplicht is afgehandeld.
+ *
+ * Eigen functie omdat dit het equivalent is van de doorgegeven-knop op de
+ * actielijst: het schrijft het feit dat de buitenwereld op de hoogte is, en
+ * daarmee verdwijnt de regel. Het hele onderdeel gaat mee, want de map wordt
+ * integraal vervangen.
+ */
+export async function meldRegistratieAan(
+  uid: string,
+  projectId: string,
+  onderdeel: OnderdeelMetId,
+  aangemeldOp: Date,
+  referentie?: string,
+): Promise<void> {
+  if (!onderdeel.registratieplicht) return;
+
+  const { id, ...rest } = onderdeel;
+  await zetOnderdeel(uid, projectId, id, {
+    ...rest,
+    registratieplicht: {
+      ...onderdeel.registratieplicht,
+      aangemeldOp,
+      ...(referentie ? { referentie } : {}),
+    },
+  });
 }
