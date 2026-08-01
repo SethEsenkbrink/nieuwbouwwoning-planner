@@ -430,3 +430,4 @@ export type TaskDoc = Task & MetId;
 export type MeerwerkDoc = MeerwerkItem & MetId;
 export type TermijnDoc = Termijn & MetId;
 export type GebrekDoc = Gebrek & MetId;
+export type NabudgetpostDoc = Nabudgetpost & MetId;

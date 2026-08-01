@@ -48,18 +48,34 @@ staan in `2026-07-31-bouwplan-en-backlog.md`.
 | ADR's | 12, met index in `decisions/README.md` |
 | Verify-scripts | tokens · headers · rules-pariteit (19 enums, 81 waarden) |
 
+## Laatste verificatie — 31 juli, 23:22
+
+Alles groen, lokaal gedraaid, en **gecommit + gepusht als `7b80825`**
+("Blok A t/m D: kernlus, meerwerk, bouwdepot, oplevering en navigatie").
+
+| Check | Uitkomst |
+| --- | --- |
+| `npm run verify` | typecheck · lint · **220 tests in 14 bestanden** · tokens (50) · headers (10 + 14 CSP) · rules-pariteit (19 enums / 81 waarden) · build ✅ |
+| `npm run rules:test` | **79 tests** ✅ (gedraaid vóór de laatste twee wijzigingen; er is daarna niets aan de rules veranderd) |
+| Build | 155 modules, `App` 209 kB (55 kB gzip), `firebase` 566 kB (167 kB gzip) |
+
+Werktree is schoon en gelijk met `origin/main`.
+
+> **Bij het opstarten van een nieuwe sessie:** je kunt er dus van uitgaan dat de laatste commit
+> een groene verify heeft. Ga je iets wijzigen aan de rules, draai dan `npm run rules:test`
+> vóórdat je verder bouwt.
+
 ## Direct volgende stap
 
-1. **`npm run verify` en `npm run rules:test` draaien.** De navigatie is nieuw en er zijn
-   11 unit tests bijgekomen; verder is er sinds de laatste groene run niets aan de rules
-   veranderd.
-2. **Blok E — het woningdossier** (ADR-0010). In deze volgorde:
-   - `woningStatus` op het project (`in_aanbouw` / `opgeleverd`) + woningpaspoort
-   - onderdelenregister: merk, type, serienummer, installatiedatum, garantie, `documentUrl`
-   - onderhoudsschema met `intervalDagen` + `laatstUitgevoerdOp` — de enige echte
-     modeluitbreiding, want onderhoud herhaalt zich en bouwafspraken niet
-   - terugkerende controles, logboek, meterstanden
-3. Daarna: de documentparser (C5), live gaan (B4/F1) en de rest van blok F.
+**Blok E — het woningdossier** (ADR-0010). In deze volgorde:
+
+1. `woningStatus` op het project (`in_aanbouw` / `opgeleverd`) + woningpaspoort
+2. Onderdelenregister: merk, type, serienummer, installatiedatum, garantie, `documentUrl`
+3. Onderhoudsschema met `intervalDagen` + `laatstUitgevoerdOp` — de enige echte
+   modeluitbreiding, want onderhoud herhaalt zich en bouwafspraken niet
+4. Terugkerende controles, logboek, meterstanden
+
+Daarna: de documentparser (C5), live gaan (B4/F1) en de rest van blok F.
 
 ## Open vragen / wacht op Seth
 

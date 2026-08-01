@@ -136,9 +136,7 @@ users/{uid}
         │     - status (open | hersteld)
         └── nabudget/{postId}     // wat er ná de oplevering nog komt
               - omschrijving, geraamd, werkelijk, notitie
-              - status (geraamd | besteld | betaald)         // oplevering
-              - omschrijving, locatie, gemeldOp, hersteltermijn
-              - status (open | hersteld)
+              - status (geraamd | besteld | betaald)
 ```
 
 De canonieke TypeScript-definities staan in `src/types/model.ts` — **dat bestand is leidend**
@@ -244,7 +242,7 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 | Runtime       | Node LTS "Krypton"                                        | 24        |
 | Build         | Vite                                                      | 8.x       |
 | UI            | React + react-dom                                         | 19.2.x    |
-| Taal          | TypeScript (native compiler)                              | 7.x       |
+| Taal          | TypeScript — **6.x, bewust niet 7** (ADR-0003)            | 6.x       |
 | Routing       | `react-router` (declarative mode)                         | 8.x       |
 | Styling       | Tailwind CSS v4 CSS-first + `@tailwindcss/vite`           | 4.3.x     |
 | Huisstijl     | `@brink/ui` (lokale kopie) + `src/styles/brink-theme.css` | —         |
@@ -255,7 +253,9 @@ zodra het bestaat. Wijk je hier vanaf, werk dan bovenstaand schema én de Firest
 | PDF-extractie | `pdf.js` (client-side) — nog toe te voegen                | —         |
 
 **Bewust níet:** Firebase Storage, Firebase Cloud Functions, React Compiler (nog),
-`react-router-dom` (EOL op 7.18.2), PostCSS/autoprefixer (overbodig met Tailwind v4).
+`react-router-dom` (EOL op 7.18.2), PostCSS/autoprefixer (overbodig met Tailwind v4),
+**TypeScript 7** — `typescript-eslint` ondersteunt de native compiler niet, waardoor alle
+type-aware lintregels zouden vervallen, inclusief `no-floating-promises`. Zie ADR-0003.
 
 ## 9. Bewust niet doen
 
