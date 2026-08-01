@@ -90,7 +90,7 @@ twee scenario's).
 > heeft, liegt.
 
 Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
-`<volgt>` (typecheck-gate + convertertests).
+`71a21d1` (typecheck-gate + convertertests + twee UI-fixes).
 
 ## Direct volgende stap
 
