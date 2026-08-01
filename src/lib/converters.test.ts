@@ -7,10 +7,13 @@ import {
   ankerUitFirestore,
   betrokkeneNaarFirestore,
   betrokkeneUitFirestore,
+  onderdeelNaarFirestore,
+  onderdeelUitFirestore,
   projectNaarFirestore,
   projectUitFirestore,
   zonderLegeVelden,
   type BetrokkeneData,
+  type OnderdeelData,
   type ProjectData,
 } from "@/lib/converters";
 
@@ -196,5 +199,243 @@ describe("afspraak", () => {
       .filter(([, waarde]) => waarde instanceof Timestamp)
       .map(([sleutel]) => sleutel);
     expect(datumVelden).toEqual([]);
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Woningpaspoort — de eerste geneste map in het model (ADR-0013 §5)
+ *
+ * Twee dingen die hier stil fout kunnen gaan:
+ *   1. `MetDatums` is niet recursief, dus `energielabelOpnameDatum` zou als
+ *      `Timestamp` blijven staan als de omzetting hier niet expliciet is.
+ *   2. Een lege map moet `undefined` worden. Een leeg object zou in Firestore
+ *      een veld bezetten en in de UI als "ingevuld" tellen.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("woningpaspoort", () => {
+  const paspoort: ProjectData["woningpaspoort"] = {
+    adres: "Dorpsstraat 1",
+    postcode: "1234 AB",
+    plaats: "Almere",
+    woningtype: "tussenwoning",
+    bouwjaar: 2026,
+    woonoppervlakte: 124,
+    energielabel: "A++++",
+    energielabelRegistratie: "0123456789",
+    energielabelOpnameDatum: d("2026-09-01"),
+  };
+
+  it("schrijft de opnamedatum als Timestamp weg", () => {
+    const data = projectNaarFirestore({ naam: "Ons huis", woningpaspoort: paspoort });
+    const geschreven = data.woningpaspoort as Record<string, unknown>;
+    expect(geschreven.energielabelOpnameDatum).toBeInstanceOf(Timestamp);
+    expect(geschreven.adres).toBe("Dorpsstraat 1");
+  });
+
+  it("leest de opnamedatum terug als Date", () => {
+    const gelezen = projectUitFirestore("p1", {
+      naam: "Ons huis",
+      aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
+      woningpaspoort: {
+        adres: "Dorpsstraat 1",
+        energielabelOpnameDatum: Timestamp.fromDate(d("2026-09-01")),
+      },
+    });
+    expect(gelezen.woningpaspoort?.energielabelOpnameDatum).toBeInstanceOf(Date);
+    expect(gelezen.woningpaspoort?.energielabelOpnameDatum).toEqual(d("2026-09-01"));
+  });
+
+  /**
+   * Zo bouwt `Woning.tsx` de map: lege velden worden weggelaten in plaats van
+   * op `undefined` gezet. Blijft er niets over, dan mag er geen lege map naar
+   * Firestore — die zou als "ingevuld" tellen.
+   */
+  it("laat een paspoort zonder enig gevuld veld weg", () => {
+    const data = projectNaarFirestore({ naam: "Ons huis", woningpaspoort: {} });
+    expect("woningpaspoort" in data).toBe(false);
+    expect(Object.keys(data).sort()).toEqual(["naam"]);
+  });
+
+  it("geeft undefined terug als het paspoort geen map is", () => {
+    const gelezen = projectUitFirestore("p1", {
+      naam: "Ons huis",
+      aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
+      woningpaspoort: "Dorpsstraat 1, Almere",
+    });
+    expect(gelezen.woningpaspoort).toBeUndefined();
+  });
+
+  it("negeert een onbekend woningtype in plaats van het door te geven", () => {
+    const gelezen = projectUitFirestore("p1", {
+      naam: "Ons huis",
+      aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
+      woningpaspoort: { adres: "Dorpsstraat 1", woningtype: "woonboot" },
+    });
+    expect(gelezen.woningpaspoort?.woningtype).toBeUndefined();
+    expect(gelezen.woningpaspoort?.adres).toBe("Dorpsstraat 1");
+  });
+
+  it("valt terug op afwezig bij een onbekende woningStatus", () => {
+    const gelezen = projectUitFirestore("p1", {
+      naam: "Ons huis",
+      aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
+      woningStatus: "bijna_klaar",
+    });
+    expect(gelezen.woningStatus).toBeUndefined();
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Onderdelen — de vrije specs-map en de terugvallen (ADR-0013)
+ *
+ * De terugvallen zijn hier belangrijker dan bij de andere collecties, omdat ze
+ * juridische betekenis dragen: `montage` bepaalt of er installatiegarantie bij
+ * hoort en `blijftBijWoning` wat er in het overdrachtsdossier komt.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("onderdelen", () => {
+  const onderdeel: OnderdeelData = {
+    naam: "Warmtepomp",
+    categorie: "verwarming",
+    montage: "vast_geinstalleerd",
+    blijftBijWoning: true,
+    merk: "NIBE",
+    specs: { vermogen: "8 kW", koudemiddel: "R290" },
+    installatieDatum: d("2026-09-15"),
+    garantieMaanden: 60,
+  };
+
+  it("schrijft en leest een onderdeel heen en weer", () => {
+    const data = onderdeelNaarFirestore(onderdeel);
+    expect(data.installatieDatum).toBeInstanceOf(Timestamp);
+
+    const gelezen = onderdeelUitFirestore("o1", {
+      ...data,
+      installatieDatum: Timestamp.fromDate(d("2026-09-15")),
+    });
+    expect(gelezen.installatieDatum).toEqual(d("2026-09-15"));
+    expect(gelezen.specs).toEqual({ vermogen: "8 kW", koudemiddel: "R290" });
+    expect(gelezen.montage).toBe("vast_geinstalleerd");
+  });
+
+  it("laat lege specwaarden weg bij het schrijven", () => {
+    const data = onderdeelNaarFirestore({
+      ...onderdeel,
+      specs: { vermogen: "8 kW", scop: "", koudemiddel: "  " },
+    });
+    expect(data.specs).toEqual({ vermogen: "8 kW" });
+  });
+
+  it("laat een volledig lege specs-map weg", () => {
+    const data = onderdeelNaarFirestore({ ...onderdeel, specs: { leeg: "" } });
+    expect("specs" in data).toBe(false);
+  });
+
+  it("negeert specwaarden die geen string zijn", () => {
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Warmtepomp",
+      categorie: "verwarming",
+      montage: "vast_geinstalleerd",
+      blijftBijWoning: true,
+      specs: { vermogen: "8 kW", aantal: 3, genest: { iets: "x" } },
+    });
+    expect(gelezen.specs).toEqual({ vermogen: "8 kW" });
+  });
+
+  /** C2-vangnet: de map mag geen opslagbak worden, ook niet bij het lezen. */
+  it("kapt een te grote specs-map af bij het lezen", () => {
+    const veel: Record<string, string> = {};
+    for (let i = 0; i < 50; i += 1) veel[`spec${i}`] = "waarde";
+
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Warmtepomp",
+      categorie: "verwarming",
+      montage: "vast_geinstalleerd",
+      blijftBijWoning: true,
+      specs: veel,
+    });
+    expect(Object.keys(gelezen.specs ?? {})).toHaveLength(30);
+  });
+
+  /**
+   * Terugval op "nvt" en niet op een van de twee echte montagevormen: een
+   * onbekende waarde mag geen installatiegarantie suggereren die er niet is.
+   */
+  it("valt bij een onbekende montagevorm terug op nvt", () => {
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Warmtepomp",
+      categorie: "verwarming",
+      montage: "een_beetje_vast",
+      blijftBijWoning: true,
+    });
+    expect(gelezen.montage).toBe("nvt");
+  });
+
+  /**
+   * Terugval op true: onterecht "blijft achter" tonen is minder schadelijk dan
+   * een onderdeel stilzwijgend uit het overdrachtsdossier laten vallen.
+   */
+  it("valt bij een ontbrekende blijftBijWoning terug op true", () => {
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Warmtepomp",
+      categorie: "verwarming",
+      montage: "vast_geinstalleerd",
+    });
+    expect(gelezen.blijftBijWoning).toBe(true);
+  });
+
+  it("respecteert blijftBijWoning false", () => {
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Thuisbatterij",
+      categorie: "opslag",
+      montage: "plug_and_play",
+      blijftBijWoning: false,
+    });
+    expect(gelezen.blijftBijWoning).toBe(false);
+  });
+
+  it("valt bij een onbekende categorie terug op overig", () => {
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Iets",
+      categorie: "tuinkabouter",
+      montage: "nvt",
+      blijftBijWoning: true,
+    });
+    expect(gelezen.categorie).toBe("overig");
+  });
+
+  it("negeert een registratieplicht zonder instantie", () => {
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Thuisbatterij",
+      categorie: "opslag",
+      montage: "plug_and_play",
+      blijftBijWoning: false,
+      registratieplicht: { referentie: "EL-2026-88213" },
+    });
+    expect(gelezen.registratieplicht).toBeUndefined();
+  });
+
+  it("leest de aanmelddatum van een registratieplicht als Date", () => {
+    const gelezen = onderdeelUitFirestore("o1", {
+      naam: "Thuisbatterij",
+      categorie: "opslag",
+      montage: "plug_and_play",
+      blijftBijWoning: false,
+      registratieplicht: {
+        instantie: "Netbeheerder via Energieleveren.nl",
+        aangemeldOp: Timestamp.fromDate(d("2026-10-01")),
+      },
+    });
+    expect(gelezen.registratieplicht?.aangemeldOp).toEqual(d("2026-10-01"));
+  });
+
+  it("schrijft geen registratieplicht weg zonder instantie", () => {
+    const data = onderdeelNaarFirestore({
+      ...onderdeel,
+      registratieplicht: { instantie: "", referentie: "x" },
+    });
+    expect("registratieplicht" in data).toBe(false);
   });
 });

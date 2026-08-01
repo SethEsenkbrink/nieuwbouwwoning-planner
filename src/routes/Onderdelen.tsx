@@ -243,13 +243,16 @@ export default function Onderdelen() {
       return;
     }
 
+    // Geheel getal, want de rules eisen `is int` (optionalInt). Zonder deze
+    // check komt "60.5" door de UI en wordt hij pas door Firestore geweigerd —
+    // met een permissiefout die niets zegt over de oorzaak.
     const maanden = formulier.garantieMaanden.trim();
-    const garantieMaanden = maanden === "" ? undefined : Number(maanden);
+    const garantieMaanden = maanden === "" ? undefined : Number(maanden.replace(",", "."));
     if (
       garantieMaanden !== undefined &&
-      (!Number.isFinite(garantieMaanden) || garantieMaanden < 0 || garantieMaanden > 600)
+      (!Number.isInteger(garantieMaanden) || garantieMaanden < 0 || garantieMaanden > 600)
     ) {
-      setFout("Vul de garantie in als een aantal maanden, bijvoorbeeld 60.");
+      setFout("Vul de garantie in als een heel aantal maanden, bijvoorbeeld 60.");
       return;
     }
 

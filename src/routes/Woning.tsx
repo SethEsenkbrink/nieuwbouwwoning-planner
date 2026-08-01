@@ -52,7 +52,13 @@ interface Paspoortwaarden {
   adres: string;
   postcode: string;
   plaats: string;
-  woningtype: Woningtype;
+  /**
+   * `""` betekent "nog niet gekozen", net als bij het energielabel. Zonder die
+   * lege waarde zou de eerste optie uit de lijst bij elke opslag als feit
+   * worden vastgelegd — ook als de gebruiker de keuzelijst nooit heeft
+   * aangeraakt — en zou `paspoortstand()` het als ingevuld tellen.
+   */
+  woningtype: Woningtype | "";
   bouwjaar: string;
   woonoppervlakte: string;
   perceeloppervlakte: string;
@@ -68,7 +74,7 @@ const LEEG: Paspoortwaarden = {
   adres: "",
   postcode: "",
   plaats: "",
-  woningtype: "tussenwoning",
+  woningtype: "",
   bouwjaar: "",
   woonoppervlakte: "",
   perceeloppervlakte: "",
@@ -86,7 +92,7 @@ function uitPaspoort(paspoort: WoningpaspoortData | undefined): Paspoortwaarden 
     adres: paspoort.adres ?? "",
     postcode: paspoort.postcode ?? "",
     plaats: paspoort.plaats ?? "",
-    woningtype: paspoort.woningtype ?? "tussenwoning",
+    woningtype: paspoort.woningtype ?? "",
     bouwjaar: paspoort.bouwjaar === undefined ? "" : String(paspoort.bouwjaar),
     woonoppervlakte:
       paspoort.woonoppervlakte === undefined ? "" : String(paspoort.woonoppervlakte),
@@ -202,7 +208,7 @@ export default function Woning() {
         ...(waarden.adres.trim() ? { adres: waarden.adres.trim() } : {}),
         ...(waarden.postcode.trim() ? { postcode: waarden.postcode.trim() } : {}),
         ...(waarden.plaats.trim() ? { plaats: waarden.plaats.trim() } : {}),
-        woningtype: waarden.woningtype,
+        ...(waarden.woningtype ? { woningtype: waarden.woningtype } : {}),
         ...(bouwjaar === undefined ? {} : { bouwjaar }),
         ...(woonoppervlakte === undefined ? {} : { woonoppervlakte }),
         ...(perceeloppervlakte === undefined ? {} : { perceeloppervlakte }),
@@ -366,10 +372,10 @@ export default function Woning() {
             />
           </div>
 
-          <Keuzeveld<Woningtype>
+          <Keuzeveld<Woningtype | "">
             label="Woningtype"
             waarde={waarden.woningtype}
-            opties={WONINGTYPEOPTIES}
+            opties={[{ waarde: "", label: "Nog niet gekozen" }, ...WONINGTYPEOPTIES]}
             onKies={(woningtype) => {
               wijzig({ woningtype });
             }}

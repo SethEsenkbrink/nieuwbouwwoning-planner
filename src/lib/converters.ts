@@ -100,6 +100,18 @@ export type OnderdeelData = Omit<MetDatums<Onderdeel>, "registratieplicht"> & {
   registratieplicht?: RegistratieplichtData;
 };
 
+/**
+ * Wat een formulier oplevert: elk veld mag ontbreken én expliciet `undefined`
+ * zijn.
+ *
+ * `Partial<T>` is dat NIET onder `exactOptionalPropertyTypes` (ADR-0003): daar
+ * betekent `veld?: string` dat het veld weg mag, maar niet dat je er
+ * `undefined` in mag zetten. Een leeggemaakt invoerveld levert precies dat op,
+ * dus de `*NaarFirestore`-functies nemen dit type in plaats van `Partial`.
+ * `zonderLegeVelden()` haalt de `undefined`s er alsnog uit vóór Firestore.
+ */
+export type Invoer<T> = { [K in keyof T]?: T[K] | undefined };
+
 /** Zoals hierboven, plus het Firestore-id dat pas bij het lezen bekend is. */
 export type ProjectMetId = ProjectData & { id: string };
 export type AnkerMetId = AnkerData & { id: string };
@@ -315,7 +327,7 @@ export const ALLE_ENERGIELABELS = ENERGIELABELS;
  * bezetten en in de UI als "ingevuld" tellen.
  */
 function paspoortNaarFirestore(
-  paspoort: WoningpaspoortData | undefined,
+  paspoort: Invoer<WoningpaspoortData> | undefined,
 ): DocumentData | undefined {
   if (!paspoort) return undefined;
 
@@ -363,7 +375,7 @@ function paspoortUitFirestore(waarde: unknown): WoningpaspoortData | undefined {
 
 // ── Project ────────────────────────────────────────────────────────────────
 
-export function projectNaarFirestore(project: Partial<ProjectData>): DocumentData {
+export function projectNaarFirestore(project: Invoer<ProjectData>): DocumentData {
   return zonderLegeVelden({
     naam: project.naam,
     bouwnummer: project.bouwnummer,
