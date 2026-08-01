@@ -74,23 +74,33 @@ Wat er daardoor onopgemerkt in stond, alle drie nu weg:
 De TS2379 is opgelost met een gedeeld `Invoer<T>`-type in `converters.ts`; `baseUrl` is
 verwijderd (`paths` werkt zonder).
 
-## Verificatie
+## Laatste verificatie — 1 augustus, 13:49 · alles groen
 
-**E1 + E2 — 1 augustus 12:36, lokaal gedraaid en volledig groen.** Eerste verify in het
-project waarbij de typecheck daadwerkelijk iets controleerde. 283 tests, 116 rules-tests,
-build 161 modules. Lint gaf vier fouten in de nieuwe code, hersteld in `e79c83b`.
+**Lokaal gedraaid door Seth**, met de gerepareerde typecheck-gate erin.
 
-**E3 — nog te draaien.** In de sandbox groen: `tsc --build --force` en de drie
-verify-scripts (25 enums / 121 waarden).
+| Check | Uitkomst |
+| --- | --- |
+| `npm run verify` | typecheck (`tsc --build --force`) · lint · **318 tests in 17 bestanden** · tokens (50) · headers (10 + 14 CSP) · rules-pariteit (25 enums / 121 waarden) · build ✅ |
+| `npm run rules:test` | **141 tests** ✅ in 8,3 s |
+| Build | 164 modules, `App` 290 kB (76 kB gzip), `index` 183 kB (58 kB gzip), `firebase` 567 kB (167 kB gzip) |
 
-> **NOG TE DRAAIEN DOOR SETH:** `npm run verify` (318 tests) en `npm run rules:test`
-> (141 tests, waarvan 25 nieuw). **`rules:test` is hier niet optioneel**: er zijn twee
-> collecties bijgekomen én `onderhoudstaken` heeft als enige een `keys().hasOnly(...)`.
-> Vergeet je daar een veld in, dan weigert elke write met een generieke permissiefout.
+De drie tests op de `keys().hasOnly(...)` van `onderhoudstaken` zijn groen, inclusief
+**"accepteert elk veld dat het model kent"** — die bewijst dat de whitelist compleet is en
+niet per ongeluk een veld mist.
+
+Lint gaf tweemaal een handvol fouten in de nieuwe code, beide keren hersteld zonder
+`!`-assertions: `e79c83b` (E1/E2) en `a6a0f9a` (E3).
+
+Werktree is schoon.
 
 Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
-`71a21d1` (typecheck-gate), `e79c83b` (lintfixes), `2a6301c` (verify-uitkomst),
-`97ac304` (CLAUDE.md), `c84c731` (E3), plus de correcties uit de verificatiepass.
+`71a21d1` (typecheck-gate), `e79c83b` (lintfixes E1/E2), `2a6301c` (verify-uitkomst),
+`97ac304` (CLAUDE.md), `c84c731` (E3), `5e6553d` (E3-verificatie), `a6a0f9a` (lintfixes E3).
+
+> **Bij het opstarten van een nieuwe sessie:** de laatste commit heeft een volledig groene
+> verify én groene rules-tests. Wijzig je iets aan de rules, draai dan `npm run rules:test`
+> vóórdat je verder bouwt — zeker bij `onderhoudstaken`, waar een vergeten veld in de
+> `hasOnly`-lijst élke write weigert.
 
 ## Direct volgende stap
 
@@ -221,11 +231,12 @@ een test op die het bewijst (`weigert een specs-map met te veel velden`).
 
 - **`firebase-*.js` is 567 kB (167 kB gzip)** en overschrijdt de waarschuwingsgrens van 500 kB.
   Op te lossen met een dynamische import van Firestore; nu geen probleem.
-- **`App-*.js` groeit gestaag mee:** 209 kB in sessie 05, **260 kB (69 kB gzip)** na blok E.
-  Elk nieuw scherm zit in dezelfde chunk. Zodra blok E af is, is route-based code splitting
-  waarschijnlijk meer waard dan het opsplitsen van de firebase-chunk — `/onderdelen` en
-  `/woning` heb je pas ná de oplevering nodig, en de bibliotheek van 17 onderdelen met alle
-  merken en specvelden zit nu in de bundle van iedereen die inlogt.
+- **`App-*.js` groeit gestaag mee:** 209 kB in sessie 05 → 260 kB na E1/E2 → **290 kB
+  (76 kB gzip)** na E3. Elk nieuw scherm zit in dezelfde chunk, en twee bibliotheken (17
+  onderdelen met merken en specvelden, 30 onderhoudstaken) zitten nu in de bundle van
+  iedereen die inlogt — ook wie nog midden in de bouw zit en `/onderhoud` pas over een jaar
+  opent. **Route-based code splitting is inmiddels meer waard dan het opsplitsen van de
+  firebase-chunk.** Doen zodra blok E af is, vóór het live gaan.
 - **Sourcemaps worden meegebouwd** (~4,7 MB). Prima om te debuggen, maar vóór een publieke
   deploy een bewuste keuze maken.
 - **`SOURCEMAP_BROKEN`-waarschuwing** van `@tailwindcss/vite`. Cosmetisch.
