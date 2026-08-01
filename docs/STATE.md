@@ -102,6 +102,30 @@ Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
 > vóórdat je verder bouwt — zeker bij `onderhoudstaken`, waar een vergeten veld in de
 > `hasOnly`-lijst élke write weigert.
 
+## ⚠️ De rules in Firebase lopen achter op de code
+
+Ontdekt op 1 augustus: de laatste rules-deploy in de Firebase-console dateert van **30 juli
+18:04**. De rules zijn sindsdien in vier commits gewijzigd (`7b80825` blok D, `a6a46de` E1,
+`0093810` E2, `c84c731` + `5e6553d` E3).
+
+**Dit is geen lek.** De rules staan op default deny, dus alles wat er niet in staat wordt
+geweigerd. Maar zou je de app tegen productie draaien, dan faalt élke write op de nieuwe
+collecties met een permissiefout die niets over de oorzaak zegt.
+
+Deployen kost seconden en is risicoloos zolang er geen productiedata is:
+
+```powershell
+firebase login --reauth          # het CLI-token verloopt periodiek
+firebase deploy --only firestore:rules
+```
+
+De deploy compileert de rules server-side vóór het uitrollen — een syntaxfout in
+`keys().hasOnly(...)` valt dus daar om en niet in productie.
+
+> **Regel die hieruit volgt:** `npm run rules:test` groen is niet hetzelfde als *gedeployed*.
+> De emulator draait tegen het lokale bestand. Werk je aan de rules, deploy dan in dezelfde
+> sessie of noteer het hier.
+
 ## Direct volgende stap
 
 **E4 — garantieklokken per onderdeel op het dashboard.** De basis staat er al

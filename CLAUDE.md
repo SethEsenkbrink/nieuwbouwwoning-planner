@@ -82,6 +82,14 @@ kost hij per sessie ~10 minuten voor iets dat lokaal in ~900 ms klaar is.
 | `npm run build` (vite) | Idem |
 | `npm run rules:test` | Firestore-emulator vereist JDK 21+; de emulator-JAR staat niet op de proxy-allowlist |
 | `npm run verify` | Bevat alle bovenstaande |
+| `firebase deploy --only firestore:rules` | Vereist een geldig CLI-token; interactieve login kan niet in de sandbox |
+
+> **Groene rules-tests betekenen NIET dat de rules gedeployed zijn.** De emulator draait
+> tegen `firebase/firestore.rules` op schijf. Op 1 augustus bleek de console nog op de versie
+> van 30 juli te staan, vier commits achter. Wijzig je de rules, deploy dan in dezelfde
+> sessie — en verloopt het token (`Authentication Error`), dan is `firebase login --reauth`
+> de juiste fix, níét `firebase login:ci` (dat is voor headless servers en levert een
+> langlevend geheim op).
 
 ## 3. De regel die hieruit volgt
 
