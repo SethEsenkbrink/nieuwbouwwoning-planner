@@ -1786,6 +1786,10 @@ describe("meters", () => {
         setDoc(doc(db, `users/${ALICE}/projects/p1/meters/soort-${soort}`), {
           ...geldigeMeter,
           soort,
+          // `overig` heeft geen bibliotheeklabel om op terug te vallen en eist
+          // daarom een eigen naam. Die eis heeft een eigen test hieronder;
+          // deze lus gaat over de soorten zelf.
+          ...(soort === "overig" ? { naam: "Tussenmeter warmtepomp" } : {}),
         }),
       );
     }
