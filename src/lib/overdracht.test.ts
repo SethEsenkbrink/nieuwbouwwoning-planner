@@ -221,7 +221,10 @@ describe("betrokkenen", () => {
     });
 
     expect(d.betrokkenen).toHaveLength(1);
-    expect(d.betrokkenen[0]?.werk).toEqual(["WTW-unit", "Warmtepomp"]);
+    // Nederlandse collatie, niet ASCII: "Warmtepomp" komt vóór "WTW-unit"
+    // omdat `localeCompare(…, "nl")` hoofdletterongevoelig vergelijkt en
+    // "wa" < "wt". In ASCII zou "WTW" eerst komen, want 'T' (84) < 'a' (97).
+    expect(d.betrokkenen[0]?.werk).toEqual(["Warmtepomp", "WTW-unit"]);
   });
 });
 
@@ -730,7 +733,11 @@ describe("aandachtspunten", () => {
       }),
       onderdelen: [onderdeel({ serienummer: "NIBE-123" })],
       logboek: [logregel({})],
+      // Een meter zónder stand is óók een aandachtspunt: op dit document
+      // hangt de eindafrekening met de leverancier. "Compleet" betekent dus
+      // ook dat er een opname is.
       meters: [meter()],
+      meterstanden: [meterstand({})],
     });
     expect(d.aandachtspunten).toEqual([]);
   });
