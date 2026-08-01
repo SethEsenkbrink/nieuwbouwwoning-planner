@@ -307,9 +307,18 @@ export default function Onderhoud() {
           // Koppel aan een onderdeel dat de gebruiker al heeft. De
           // bibliotheek noemt de sleutel; `standaardOnderdeelVoor()` vertaalt
           // de opgeslagen naam terug naar diezelfde sleutel.
-          const onderdeel = onderdelen.find(
-            (o) => standaardOnderdeelVoor(o.naam)?.sleutel === s.onderdeelSleutel,
-          );
+          //
+          // De `undefined`-check is essentieel: een taak zonder
+          // `onderdeelSleutel` (dakgoten, meterstanden) zou anders matchen op
+          // elk onderdeel waarvan de naam niet in de bibliotheek staat —
+          // `undefined === undefined`. "Meterstanden noteren" hing dan aan
+          // "Tuinverlichting", en de garantiedeadline ging daarop rekenen.
+          const onderdeel =
+            s.onderdeelSleutel === undefined
+              ? undefined
+              : onderdelen.find(
+                  (o) => standaardOnderdeelVoor(o.naam)?.sleutel === s.onderdeelSleutel,
+                );
           return {
             titel: s.titel,
             omschrijving: s.omschrijving,

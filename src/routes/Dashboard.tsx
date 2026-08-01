@@ -368,7 +368,7 @@ export default function Dashboard() {
           Het moment waarop informatie geld waard is: laat het nakijken zolang
           de fabrikant nog betaalt. Onderdelen mét een taak staan al hierboven,
           want daar heeft de garantie de beurt vervroegd. */}
-      {zonderTaak.length > 0 && (
+      {opgeleverd && zonderTaak.length > 0 && (
         <section className="mt-s4 max-w-3xl">
           <h2 className="text-h3 text-ink">
             {zonderTaak.length === 1

@@ -149,12 +149,22 @@ export function berekenVolgendeOnderhoud(
 
   // ── De garantiedeadline (blok E4) ────────────────────────────────────────
   // Verloopt de fabrieksgarantie vóór de volgende geplande beurt, dan telt die
-  // datum. Alleen als hij in de TOEKOMST ligt: een garantie die al voorbij is
-  // levert geen deadline meer op, alleen spijt.
+  // datum. Drie voorwaarden, alle drie nodig:
+  //
+  //   1. `> vandaag`  — een verlopen garantie levert geen deadline op, alleen
+  //                     spijt.
+  //   2. `> basis`    — de beurt is al gedaan ná het verlopen van de garantie,
+  //                     of precies op de garantiedatum. Zonder deze grens
+  //                     springt de taak na élke beurt terug naar diezelfde
+  //                     garantiedatum: een vast punt waar hij nooit meer
+  //                     vanaf komt.
+  //   3. `< interval` — ligt de garantie ná de geplande beurt, dan is er niets
+  //                     te vervroegen.
   const garantie = garantieEinde(context.onderdeel);
   const vervroegd =
     garantie !== null &&
     garantie.getTime() > vandaag.getTime() &&
+    garantie.getTime() > basis.getTime() &&
     garantie.getTime() < uitInterval.getTime();
 
   const volgendeOp = vervroegd && garantie ? garantie : uitInterval;
@@ -166,9 +176,11 @@ export function berekenVolgendeOnderhoud(
     bron,
     urgentie: bepaalUrgentie(dagenResterend),
     gerekendVanaf: basis,
-    // De voorkeursmaand-correctie geldt over het interval, ook als de garantie
-    // daarna nog vervroegt — anders zou de UI de verschuiving verzwijgen.
-    verschovenNaarMaand: uitInterval.getTime() !== zonderCorrectie.getTime(),
+    // Alleen melden als de getoonde datum ook echt uit de voorkeursmaand komt.
+    // Vervroegt de garantie de beurt, dan is de maandcorrectie niet meer
+    // zichtbaar in `volgendeOp` — "verschoven naar mei" onder een datum in
+    // oktober is een tegenstrijdigheid op het scherm.
+    verschovenNaarMaand: !vervroegd && uitInterval.getTime() !== zonderCorrectie.getTime(),
     ...(vervroegd && garantie ? { garantieVerlooptOp: garantie } : {}),
   };
 }

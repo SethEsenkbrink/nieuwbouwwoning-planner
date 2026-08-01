@@ -10,6 +10,11 @@ import {
   toonMaand,
 } from "@/lib/onderhoud";
 import type { OnderdeelMetId, OnderhoudTaakMetId } from "@/lib/converters";
+import {
+  STANDAARD_ONDERHOUD,
+  garantiecontroleVoor,
+} from "@/data/onderhoud-standaard";
+import { STANDAARD_ONDERDELEN } from "@/data/onderdelen-standaard";
 
 const VANDAAG = new Date(Date.UTC(2026, 7, 1)); // 1 augustus 2026
 const d = (jaar: number, maand: number, dag: number) => new Date(Date.UTC(jaar, maand - 1, dag));
@@ -458,6 +463,38 @@ describe("garantiedeadline", () => {
     expect(stand?.garantieVerlooptOp).toBeUndefined();
   });
 
+  /**
+   * REGRESSIETEST — gevonden bij de verificatiepass.
+   *
+   * Zonder de ondergrens `basis` springt de taak na élke beurt terug naar
+   * dezelfde garantiedatum: een vast punt waar hij nooit meer vanaf komt. De
+   * doc-comment beloofde het tegenovergestelde.
+   */
+  it("vervroegt niet naar een garantie die op of vóór de laatste beurt ligt", () => {
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 10, 1), intervalDagen: 365 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 10, 1), garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    expect(stand?.volgendeOp).toEqual(d(2027, 10, 1));
+    expect(stand?.garantieVerlooptOp).toBeUndefined();
+  });
+
+  /**
+   * Een vervroegde datum komt niet uit de voorkeursmaand, dus die melding mag
+   * er niet bij staan — "verschoven naar mei" onder een datum in oktober is een
+   * tegenstrijdigheid op het scherm.
+   */
+  it("meldt geen maandverschuiving als de garantie de datum bepaalt", () => {
+    const stand = berekenVolgendeOnderhoud(
+      taak({ laatstUitgevoerdOp: d(2026, 5, 1), intervalDagen: 365, voorkeursmaand: 5 }),
+      { onderdeel: onderdeel({ installatieDatum: d(2024, 10, 1), garantieMaanden: 24 }) },
+      VANDAAG,
+    );
+    expect(stand?.garantieVerlooptOp).toEqual(d(2026, 10, 1));
+    expect(stand?.verschovenNaarMaand).toBe(false);
+  });
+
   it("werkt zonder gekoppeld onderdeel", () => {
     const stand = berekenVolgendeOnderhoud(
       taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 365 }),
@@ -490,7 +527,7 @@ describe("garantiedeadline", () => {
     expect(na?.garantieVerlooptOp).toBeUndefined();
   });
 
-  it("maakt de taak achterstallig als de garantie binnen de urgentiegrens valt", () => {
+  it("laat de urgentie meelopen met de garantiedatum", () => {
     // Garantie verloopt over 20 dagen → "binnenkort".
     const stand = berekenVolgendeOnderhoud(
       taak({ laatstUitgevoerdOp: d(2026, 7, 1), intervalDagen: 3650 }),
@@ -559,5 +596,52 @@ describe("garantiesZonderTaak", () => {
   it("respecteert een eigen venster", () => {
     expect(garantiesZonderTaak([omvormer], [], VANDAAG, 30)).toEqual([]);
     expect(garantiesZonderTaak([omvormer], [], VANDAAG, 90)).toHaveLength(1);
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * De koppeling tussen de twee bibliotheken
+ *
+ * `garantiecontroleVoor()` vertaalt een onderdeelnaam naar de servicebeurt die
+ * je wilt voorstellen. Loopt die tabel uit de pas met een van beide
+ * bibliotheken, dan verdwijnt het voorstel stilzwijgend — geen fout, geen knop.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("garantiecontroleVoor", () => {
+  it("vindt de servicebeurt bij een onderdeel uit de bibliotheek", () => {
+    expect(garantiecontroleVoor("Warmtepomp")?.sleutel).toBe("warmtepomp_onderhoud");
+    expect(garantiecontroleVoor("WTW-unit (balansventilatie)")?.sleutel).toBe("wtw_filters");
+  });
+
+  it("negeert hoofdletters en spaties", () => {
+    expect(garantiecontroleVoor("  warmtepomp  ")?.sleutel).toBe("warmtepomp_onderhoud");
+  });
+
+  it("geeft undefined bij een zelfverzonnen onderdeelnaam", () => {
+    expect(garantiecontroleVoor("Tuinverlichting")).toBeUndefined();
+  });
+
+  it("geeft undefined bij een onderdeel zonder garantiecontrole", () => {
+    // Rookmelders staan wél in de onderdelenbibliotheek, maar een aflopende
+    // fabrieksgarantie levert daar geen zinnige servicebeurt op.
+    expect(garantiecontroleVoor("Rookmelders")).toBeUndefined();
+  });
+
+  /**
+   * Bewaakt dat elk voorstel naar een bestaande taak wijst. Zonder deze test
+   * kan een hernoemde sleutel in `STANDAARD_ONDERHOUD` de knop stil laten
+   * verdwijnen — er is geen enum en dus geen `verify:rules` die dit vangt.
+   */
+  it("verwijst voor elk gedekt onderdeel naar een bestaande taak", () => {
+    const gedekt = STANDAARD_ONDERDELEN.map((o) => o.naam).filter(
+      (naam) => garantiecontroleVoor(naam) !== undefined,
+    );
+    expect(gedekt.length).toBeGreaterThanOrEqual(9);
+
+    for (const naam of gedekt) {
+      const voorstel = garantiecontroleVoor(naam);
+      expect(STANDAARD_ONDERHOUD.some((t) => t.sleutel === voorstel?.sleutel)).toBe(true);
+    }
   });
 });

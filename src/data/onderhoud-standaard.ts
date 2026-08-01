@@ -57,7 +57,7 @@ export interface StandaardOnderhoud {
  * Staat een onderdeel er niet bij, dan valt de UI terug op een vrije taak — dat
  * is beter dan een controle voorstellen die niets met garantie te maken heeft.
  */
-export const GARANTIECONTROLE_PER_ONDERDEEL: Readonly<Record<string, string>> = {
+const GARANTIECONTROLE_PER_ONDERDEEL: Readonly<Record<string, string>> = {
   warmtepomp: "warmtepomp_onderhoud",
   cv_ketel: "cv_onderhoud",
   wtw_unit: "wtw_filters",

@@ -1,6 +1,6 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-08-01 · sessie 06 (E1 t/m E3)
+> **Bijgewerkt:** 2026-08-01 · sessie 06 (E1 t/m E4)
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
 > Geen geschiedenis hier — die staat in `sessions/`. Houd dit kort.
 
@@ -10,10 +10,10 @@
 
 De app dekt het hele bouwtraject én het woningdossier tot en met het onderhoud. Blokken
 **A t/m D zijn af**, en van blok E staan **E1 (woningpaspoort), E2 (onderdelenregister),
-E3 (onderhoudsschema), E5 (terugkerende controles) en E6 (logboek)** er nu ook. Wat nog komt
-is **E4 (garantieklokken per onderdeel — de basis staat er), E7 (meterstanden) en E8
-(overdrachtsdossier)**, plus live gaan met de e-mailherinneringen en de documentparser. Er
-staat nog niets in productie.
+E3 (onderhoudsschema), E4 (garantieklokken per onderdeel), E5 (terugkerende controles) en
+E6 (logboek)** er nu ook. Wat nog komt is **E7 (meterstanden)** en **E8 (overdrachtsdossier)**,
+plus live gaan met de e-mailherinneringen en de documentparser. De rules staan in productie;
+de app draait nog alleen lokaal.
 
 ## De kernlus, in één zin
 
@@ -36,19 +36,19 @@ doet — met een kant-en-klaar bericht en een knop die vastlegt dat je het hebt 
 | `/na-oplevering` | Vloer, gordijnen, tuin: geraamd naast werkelijk |
 | `/woning` | Fase (in aanbouw / opgeleverd), woningpaspoort en de energielabelklok |
 | `/onderdelen` | Wat er in huis zit: merk, type, serienummer, specs, garantie, meldplicht |
-| `/onderhoud` | Terugkerend werk met interval en voorkeursmaand, afvinken met logboek |
+| `/onderhoud` | Terugkerend werk met interval en voorkeursmaand, afvinken met logboek. Een aflopende garantie vervroegt de beurt |
 | `/project` | Opleverdatum, projectgegevens en het project verwijderen |
 
 **Blok A** kernlus afmaken · **B** technische schuld (B4 live gaan uitgesteld) ·
-**C** bouwtraject compleet · **D** oplevering en garantie · **E1, E2, E3, E5, E6**
-woningpaspoort, onderdelenregister, onderhoudsschema en logboek. Details per punt staan in
-`2026-07-31-bouwplan-en-backlog.md`.
+**C** bouwtraject compleet · **D** oplevering en garantie · **E1 t/m E6**
+woningpaspoort, onderdelenregister, onderhoudsschema, garantiekoppeling en logboek. Details
+per punt staan in `2026-07-31-bouwplan-en-backlog.md`.
 
 ## Cijfers
 
 | | |
 | --- | --- |
-| Unit tests | **318** in 17 bestanden (was 220), geen emulator nodig |
+| Unit tests | **337** in 17 bestanden (was 220), geen emulator nodig |
 | Rules-tests | **141** (was 79), apart met `npm run rules:test` |
 | ADR's | 14, met index in `decisions/README.md` |
 | Verify-scripts | tokens (50) · headers (10 + 14 CSP) · rules-pariteit (25 enums, 121 waarden) |
@@ -74,9 +74,9 @@ Wat er daardoor onopgemerkt in stond, alle drie nu weg:
 De TS2379 is opgelost met een gedeeld `Invoer<T>`-type in `converters.ts`; `baseUrl` is
 verwijderd (`paths` werkt zonder).
 
-## Laatste verificatie — 1 augustus, 13:49 · alles groen
+## Laatste verificatie
 
-**Lokaal gedraaid door Seth**, met de gerepareerde typecheck-gate erin.
+**E1 t/m E3 — 1 augustus 13:49, lokaal gedraaid en volledig groen.**
 
 | Check | Uitkomst |
 | --- | --- |
@@ -91,11 +91,18 @@ niet per ongeluk een veld mist.
 Lint gaf tweemaal een handvol fouten in de nieuwe code, beide keren hersteld zonder
 `!`-assertions: `e79c83b` (E1/E2) en `a6a0f9a` (E3).
 
+**E4 — nog te draaien.** In de sandbox groen: `tsc --build --force` en de drie
+verify-scripts. De verificatiepass vond vier bugs, alle vier hersteld met regressietests.
+
+> **NOG TE DRAAIEN DOOR SETH:** `npm run verify` (337 tests). De rules zijn bij E4 níét
+> gewijzigd, dus `rules:test` is deze keer optioneel.
+
 Werktree is schoon.
 
 Commits deze sessie: `3eed5c5` (docs opruimen), `a6a46de` (E1), `0093810` (E2),
 `71a21d1` (typecheck-gate), `e79c83b` (lintfixes E1/E2), `2a6301c` (verify-uitkomst),
-`97ac304` (CLAUDE.md), `c84c731` (E3), `5e6553d` (E3-verificatie), `a6a0f9a` (lintfixes E3).
+`97ac304` (CLAUDE.md), `c84c731` (E3), `5e6553d` (E3-verificatie), `a6a0f9a` (lintfixes E3),
+`2ee664e` (rules-deploy), `8ba2e1d` (improvements genoteerd), `82d9002` (E4).
 
 > **Bij het opstarten van een nieuwe sessie:** de laatste commit heeft een volledig groene
 > verify én groene rules-tests. Wijzig je iets aan de rules, draai dan `npm run rules:test`
@@ -125,8 +132,8 @@ op dezelfde collectie; sorteren gebeurt overal client-side. Vermoedelijk in sess
 vooruitlopend aangemaakt op queries die er nooit kwamen.
 
 Niet schadelijk — een ongebruikte index kost wat opslag en schrijftijd — maar wel dood gewicht
-dat suggereert dat er queries zijn die er niet zijn. **Bewust laten staan** tot E4 en E8 af
-zijn; dan is pas duidelijk of er alsnog een nodig is.
+dat suggereert dat er queries zijn die er niet zijn. **Bewust laten staan** tot E8 af is; dan
+is pas duidelijk of er alsnog een nodig is. E4 heeft er in elk geval geen toegevoegd.
 
 De drie collecties uit blok E hebben géén index nodig: ze halen de hele subcollectie op en
 sorteren in het geheugen. Bij een woningdossier gaat het om tientallen documenten, niet
@@ -134,12 +141,7 @@ duizenden.
 
 ## Direct volgende stap
 
-**E4 — garantieklokken per onderdeel op het dashboard.** De basis staat er al
-(`garantiesDieAflopen()` in `lib/onderdelen.ts`, met de lijst op het dashboard); wat ontbreekt
-is de koppeling met het onderhoud: "de fabrieksgarantie op de warmtepomp loopt over drie
-maanden af, laat hem nú nakijken" is een onderhoudsactie met een deadline, geen los feit.
-
-Daarna, in volgorde van het bouwplan:
+**E7 — meterstanden.** In volgorde van het bouwplan:
 
 1. **E7 meterstanden** — handmatige opnames met een verbruikstrend. Bewust simpel; geen
    koppeling met slimme meters.
@@ -249,6 +251,12 @@ erdoorheen glipt. Bij onderhoud woog dat zwaarder: zonder de whitelist kan ieman
 `volgendeOp` meesturen en is de afgeleide datum ineens opgeslagen — precies wat ADR-0008
 uitsluit. **Komt er een veld bij in `model.ts`, dan moet het ook in die lijst**, anders
 weigert elke write.
+
+**Een `undefined === undefined`-vergelijking koppelt alles aan alles.** Bij E4 vervangen we
+een lookup die `""` teruggaf door één die `undefined` teruggeeft. In
+`s.onderdeelSleutel === standaardOnderdeelVoor(o.naam)?.sleutel` matchte daardoor elke taak
+zonder onderdeelsleutel op elk zelfverzonnen onderdeel — "Meterstanden noteren" hing aan
+"Tuinverlichting". Bij een refactor van `""` naar `undefined`: loop de vergelijkingen na.
 
 **Een geneste map telt in de rules als ÉÉN veld.** `withinSize(25)` beschermt de inhoud van
 `woningpaspoort`, `specs` en `registratieplicht` dus niet. Elke map heeft daarom een eigen
