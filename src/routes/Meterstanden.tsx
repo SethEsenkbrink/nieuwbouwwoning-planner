@@ -24,6 +24,7 @@ import {
   toonStand,
   type Meterstandsoverzicht,
   type Verbruiksperiode,
+  type Verbruikstrend,
 } from "@/lib/meterstanden";
 import {
   METERBIBLIOTHEEK,
@@ -599,6 +600,59 @@ export default function Meterstanden() {
   );
 }
 
+// ── Het trendblok ──────────────────────────────────────────────────────────
+
+/**
+ * EEN EIGEN COMPONENT MET EEN VROEGE RETURN, en niet een `&&`-keten in de
+ * kaart. Die keten (`trend !== null && trend.laatste.perDag !== null && …`)
+ * lokt `prefer-optional-chain` uit, en de voorgestelde fix
+ * (`trend?.laatste.perDag !== null`) is stuk: bij `trend === null` levert dat
+ * `undefined !== null` op — dus `true` — waarna het blok rendert en op
+ * `trend.laatste` crasht.
+ *
+ * Zelfde soort val als bij `opDezelfdeDag()` in `lib/overdracht.ts`: de
+ * lintfix zou een bug introduceren die de compiler niet ziet.
+ */
+function Trendblok({
+  trend,
+  decimalen,
+  eenheid,
+  teruglevering,
+}: {
+  trend: Verbruikstrend;
+  decimalen: number;
+  eenheid: string;
+  teruglevering: boolean;
+}) {
+  const perDag = trend.laatste.perDag;
+  if (perDag === null) return null;
+
+  return (
+    <div className="mt-s3 rounded-consent bg-bone px-4 py-3">
+      <p className="text-body text-ink">
+        {toonPerDag(perDag, decimalen)} {eenheid} per dag
+        {teruglevering ? " teruggeleverd" : " verbruikt"}
+      </p>
+      <p className="mt-1 text-sm text-slate">
+        Over {trend.laatste.dagen} dagen, van {toonDatum(trend.laatste.van)} tot{" "}
+        {toonDatum(trend.laatste.tot)}.
+      </p>
+
+      {trend.richting !== "onbekend" && trend.vorige !== undefined && (
+        <p className="mt-2 text-sm text-slate">
+          {trend.richting === "gelijk"
+            ? "Vrijwel gelijk aan de periode ervoor."
+            : trend.verschilProcent === undefined
+              ? "Meer dan de periode ervoor — die stond op nul."
+              : `${Math.abs(Math.round(trend.verschilProcent))}% ${
+                  trend.richting === "meer" ? "meer" : "minder"
+                } dan de periode ervoor.`}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── De kaart per meter ─────────────────────────────────────────────────────
 
 interface MeterkaartProps {
@@ -687,29 +741,13 @@ function Meterkaart({
       )}
 
       {/* ── De trend ──────────────────────────────────────────────────── */}
-      {trend !== null && trend.laatste.perDag !== null && (
-        <div className="mt-s3 rounded-consent bg-bone px-4 py-3">
-          <p className="text-body text-ink">
-            {toonPerDag(trend.laatste.perDag, decimalen)} {eenheid} per dag
-            {teruglevering ? " teruggeleverd" : " verbruikt"}
-          </p>
-          <p className="mt-1 text-sm text-slate">
-            Over {trend.laatste.dagen} dagen, van {toonDatum(trend.laatste.van)} tot{" "}
-            {toonDatum(trend.laatste.tot)}.
-          </p>
-
-          {trend.richting !== "onbekend" && trend.vorige !== undefined && (
-            <p className="mt-2 text-sm text-slate">
-              {trend.richting === "gelijk"
-                ? "Vrijwel gelijk aan de periode ervoor."
-                : trend.verschilProcent === undefined
-                  ? "Meer dan de periode ervoor — die stond op nul."
-                  : `${Math.abs(Math.round(trend.verschilProcent))}% ${
-                      trend.richting === "meer" ? "meer" : "minder"
-                    } dan de periode ervoor.`}
-            </p>
-          )}
-        </div>
+      {trend !== null && (
+        <Trendblok
+          trend={trend}
+          decimalen={decimalen}
+          eenheid={eenheid}
+          teruglevering={teruglevering}
+        />
       )}
 
       {overzicht.aantalOnbetrouwbaar > 0 && (

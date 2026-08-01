@@ -388,15 +388,33 @@ function maakMeterstanden(
         // Twee opnames op dezelfde dag: welke hier getoond wordt hangt af van
         // het document-id, en dat is willekeurig. Dat wordt gemeld en niet
         // stilzwijgend gekozen — hier hangt de eindafrekening aan.
-        meerdereOpDag:
-          laatste !== undefined &&
-          voorlaatste !== undefined &&
-          laatste.opgenomenOp.getTime() === voorlaatste.opgenomenOp.getTime(),
+        meerdereOpDag: opDezelfdeDag(laatste, voorlaatste),
         ...(laatste === undefined
           ? {}
           : { stand: laatste.stand, opgenomenOp: laatste.opgenomenOp }),
       };
     });
+}
+
+/**
+ * Vallen deze twee opnames op dezelfde dag?
+ *
+ * MET EEN VROEGE RETURN EN NIET MET EEN `&&`-KETEN, en dat is geen stijlkwestie.
+ * `prefer-optional-chain` stelt bij zo'n keten voor om er
+ * `a?.opgenomenOp.getTime() === b?.opgenomenOp.getTime()` van te maken — en dan
+ * levert een meter zónder opnames `undefined === undefined` op, dus `true`.
+ * Een meter waar nog nooit iets bij genoteerd is zou dan melden dat er twee
+ * opnames op dezelfde dag staan.
+ *
+ * Dat is dezelfde fout als de koppelingsbug uit sessie 06, en hij zou hier via
+ * een lintfix binnenkomen. Vandaar deze vorm: er valt niets te ketenen.
+ */
+function opDezelfdeDag(
+  a: MeterstandMetId | undefined,
+  b: MeterstandMetId | undefined,
+): boolean {
+  if (a === undefined || b === undefined) return false;
+  return a.opgenomenOp.getTime() === b.opgenomenOp.getTime();
 }
 
 /** De positie van een metersoort in de bibliotheek; onbekend gaat achteraan. */
