@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Knop } from "@/components/Knop";
-import { toonDatum } from "@/lib/datum";
+import { toonDatum, toonDatumMetAfstand } from "@/lib/datum";
 import { maakConceptbericht, mailtoLink, type Berichtopties } from "@/lib/bericht";
 import { ANKER_TITELS } from "@/data/ankers";
 import type { BetrokkeneMetId } from "@/lib/converters";
@@ -31,6 +31,20 @@ import type { ActieRegel, BerekendeBand, Urgentie } from "@/lib/planning";
  *
  * 4. DE DOORGEGEVEN-KNOP. Staat in de regel zelf, direct naast het bericht,
  *    want dat is het moment waarop je hem indrukt.
+ *
+ * ── Herzien op 2 augustus 2026 (ADR-0018) ─────────────────────────────────
+ *
+ * De vier punten hierboven staan nog overeind, maar ze stonden alle vier
+ * tegelijk open. Veertien partijen × ruim tien regels tekst is drie schermen
+ * scrollen voordat je weet of er iets te doen is, en dan lees je ook de twee
+ * regels niet meer die er wél toe doen.
+ *
+ * Nu: dicht is wie, wat, wanneer, hoe dringend, en de knop. De rest komt op
+ * één klik. Punt 3 en de motivering uit punt 1 zijn dus niet weg — ze zijn
+ * niet meer verplicht om langs te scrollen.
+ *
+ * DE ZIN "Doorgegeven legt vast dat…" STOND VEERTIEN KEER ONDER VEERTIEN
+ * KNOPPEN. Die staat nu één keer boven de lijst, in `Dashboard.tsx`.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
@@ -201,33 +215,82 @@ interface ActielijstProps {
   /** Het id van de afspraak waarvoor nu een schrijfactie loopt. */
   bezigMetId: string | null;
   onDoorgegeven: (regel: ActieRegel) => void;
+  /** Vandaag, voor de relatieve datumweergave. */
+  nu: Date;
 }
 
-export function Actielijst({
-  regels,
-  betrokkenen,
+/**
+ * Eén regel — dicht, tot je hem opent.
+ *
+ * Wat er dicht staat is precies genoeg om te beslissen óf je hier iets mee
+ * moet: wie, wat, wanneer, hoe dringend, en de knop die het afhandelt. Al het
+ * andere — herkomst van de datum, wat die partij nu weet, tot wanneer je
+ * kosteloos kunt schuiven, de inhoudelijke waarschuwing en het concept-bericht
+ * — verschijnt zodra je hem opent.
+ *
+ * DE KNOP STAAT BUITEN DE UITKLAP. "Doorgegeven" is de handeling die de hele
+ * module draaiende houdt (ADR-0008, principe 5); die achter een extra klik
+ * zetten is precies de manier om hem niet ingedrukt te krijgen.
+ */
+function Actieregel({
+  regel,
+  betrokkene,
   berichtopties,
-  bezigMetId,
+  bezig,
   onDoorgegeven,
-}: ActielijstProps) {
-  const perId = new Map(betrokkenen.map((b) => [b.id, b]));
+  nu,
+}: {
+  regel: ActieRegel;
+  betrokkene: BetrokkeneMetId | undefined;
+  berichtopties: Berichtopties;
+  bezig: boolean;
+  onDoorgegeven: (regel: ActieRegel) => void;
+  nu: Date;
+}) {
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex flex-col gap-s2">
-      {regels.map((regel) => (
-        <article key={regel.afspraakId} className="brink-card p-s3">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="text-body font-semibold text-ink">
-              {regel.betrokkeneNaam} — {regel.omschrijving}
-            </h3>
-            <span className={`rounded-pill px-3 py-1 text-sm ${URGENTIESTIJL[regel.urgentie]}`}>
-              {URGENTIELABEL[regel.urgentie]}
-            </span>
-          </div>
+    <article className="brink-card p-s3">
+      <div className="flex flex-wrap items-baseline gap-x-s2 gap-y-1">
+        <h3 className="text-body font-semibold text-ink">
+          {regel.betrokkeneNaam} — {regel.omschrijving}
+        </h3>
+        {URGENTIELABEL[regel.urgentie] !== "" && (
+          <span className={`rounded-pill px-3 py-1 text-sm ${URGENTIESTIJL[regel.urgentie]}`}>
+            {URGENTIELABEL[regel.urgentie]}
+          </span>
+        )}
+        <span className="ml-auto text-body text-ink">
+          {regel.berekend.isPunt
+            ? toonDatumMetAfstand(regel.berekend.verwacht, nu)
+            : toonBand(regel.berekend)}
+        </span>
+      </div>
 
-          <p className="mt-s2 text-body text-ink">{toonBand(regel.berekend)}</p>
+      <div className="mt-s2 flex flex-wrap items-center gap-s2">
+        <Knop
+          bezig={bezig}
+          onClick={() => {
+            onDoorgegeven(regel);
+          }}
+        >
+          Doorgegeven
+        </Knop>
+        <button
+          type="button"
+          className="text-sm text-slate underline hover:text-ink"
+          aria-expanded={open}
+          onClick={() => {
+            setOpen((b) => !b);
+          }}
+        >
+          {open ? "Minder" : "Details en bericht"}
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-s3 border-t border-bone pt-s3">
           <Zekerheid band={regel.berekend} />
-
           <p className="mt-s2 text-body text-charcoal">{regel.reden}</p>
 
           <dl className="mt-s2 grid grid-cols-[auto_1fr] gap-x-s2 gap-y-1 text-sm">
@@ -258,28 +321,37 @@ export function Actielijst({
             </p>
           )}
 
-          <div className="mt-s3 flex flex-wrap items-center gap-s2">
-            <Knop
-              bezig={bezigMetId === regel.afspraakId}
-              onClick={() => {
-                onDoorgegeven(regel);
-              }}
-            >
-              Doorgegeven
-            </Knop>
-
-            <Berichtblok
-              regel={regel}
-              betrokkene={perId.get(regel.betrokkeneId)}
-              opties={berichtopties}
-            />
-
-            <span className="text-sm text-granite">
-              “Doorgegeven” legt vast dat deze partij {toonDatum(regel.berekend.verwacht)} van je
-              heeft gehoord.
-            </span>
+          <div className="mt-s3">
+            <Berichtblok regel={regel} betrokkene={betrokkene} opties={berichtopties} />
           </div>
-        </article>
+        </div>
+      )}
+    </article>
+  );
+}
+
+export function Actielijst({
+  regels,
+  betrokkenen,
+  berichtopties,
+  bezigMetId,
+  onDoorgegeven,
+  nu,
+}: ActielijstProps) {
+  const perId = new Map(betrokkenen.map((b) => [b.id, b]));
+
+  return (
+    <div className="flex flex-col gap-s2">
+      {regels.map((regel) => (
+        <Actieregel
+          key={regel.afspraakId}
+          regel={regel}
+          betrokkene={perId.get(regel.betrokkeneId)}
+          berichtopties={berichtopties}
+          bezig={bezigMetId === regel.afspraakId}
+          onDoorgegeven={onDoorgegeven}
+          nu={nu}
+        />
       ))}
     </div>
   );

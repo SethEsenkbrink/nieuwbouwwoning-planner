@@ -7,9 +7,9 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
+import { toonDatum, vandaag } from "@/lib/datum";
 import { toonBedrag } from "@/lib/bedrag";
-import { opDag } from "@/lib/planning";
+
 import { isOpgeleverd } from "@/lib/woning";
 import { toonStand } from "@/lib/meterstanden";
 import { stelDossierSamen, type Overdrachtsdossier } from "@/lib/overdracht";
@@ -159,12 +159,12 @@ export default function OverdrachtsdossierScherm() {
     );
   }
 
-  const vandaag = opDag(new Date());
-  const datum = overdrachtOp ?? vandaag;
+  const nu = vandaag();
+  const datum = overdrachtOp ?? nu;
   const dossier = stelDossierSamen(
     { project, onderdelen, logboek, meters, meterstanden, betrokkenen },
     datum,
-    vandaag,
+    nu,
   );
 
   return (
@@ -283,7 +283,7 @@ export default function OverdrachtsdossierScherm() {
             laatste pagina. */}
         <section className="dossier-blok mt-s6 border-t border-bone pt-s3">
           <p className="text-sm text-granite">
-            Dit dossier is samengesteld met Nieuwbouwplanner op {toonDatum(vandaag)}. Het
+            Dit dossier is samengesteld met Nieuwbouwplanner op {toonDatum(nu)}. Het
             structureert en herinnert; het is geen juridisch of financieel advies. Garantie- en
             geldigheidstermijnen zijn afgeleid uit de ingevulde gegevens — controleer ze tegen de
             oorspronkelijke documenten.

@@ -82,8 +82,6 @@ function leesLijstFunctie(naam) {
  */
 const LIJSTFUNCTIES = [
   "ankerTypes",
-  "woningtypes",
-  "energielabels",
   "onderdeelCategorieen",
   "metersoorten",
   "metereenheden",
@@ -184,7 +182,10 @@ const BLOKKEN = [
     "function geldigeOpschorting(",
     { opschortingStatus: "OpschortingStatus" },
   ],
-  ["projects", "match /projects/{", { garantiewaarborg: "Garantiewaarborg" }],
+  // Sinds 2 augustus staat de projectvalidatie in één functie in plaats van
+  // twee keer uitgeschreven in create en update — zie de expressielimiet in
+  // firestore.rules. De enum verhuisde daarmee mee.
+  ["geldigProject", "function geldigProject(", { garantiewaarborg: "Garantiewaarborg" }],
   ["ankers", "match /ankers/{", { type: "AnkerType", status: "AnkerStatus" }],
   [
     "betrokkenen",
@@ -212,11 +213,19 @@ const BLOKKEN = [
   // Het woningdossier (ADR-0010, ADR-0013). Twee blokken, omdat het paspoort
   // een geneste map is met een eigen validatiefunctie.
   ["geldigWoningdossier", "function geldigWoningdossier(", { woningStatus: "WoningStatus" }],
-  [
-    "geldigPaspoort",
-    "function geldigPaspoort(",
-    { woningtype: "Woningtype", energielabel: "Energielabel" },
-  ],
+  // ⚠️ `Woningtype`, `Energielabel` en `Hypotheekvorm` staan hier BEWUST NIET.
+  //
+  // Die drie leven in geneste maps (`woningpaspoort`, `hypotheek`), en daar is
+  // de enumvalidatie op 2 augustus 2026 uit de rules gehaald: één enkele
+  // `isOneOf` in een geneste map duwde de projectregel over Firestore's limiet
+  // van 1000 expressie-evaluaties, waardoor een volledig gevuld project niet
+  // meer opgeslagen kon worden. Zie ADR-0019 en de ladder in rules.test.ts.
+  //
+  // Voor die drie geldt: TypeScript en het formulier bewaken de waarde, de
+  // rules bewaken alleen nog type en lengte. Dat is een echte verzwakking en
+  // ze staat daarom hier genoemd in plaats van stilzwijgend te ontbreken.
+  //
+  // ⚠️ ZET ZE HIER NIET TERUG zonder de ladder opnieuw te draaien.
   [
     "onderdelen",
     "match /onderdelen/{",

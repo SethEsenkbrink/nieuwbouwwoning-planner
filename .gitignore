@@ -68,3 +68,14 @@ logs/
 # Nooit testdocumenten met echte contractgegevens in de repo.
 /testdocumenten/
 *.aannemingsovereenkomst.pdf
+
+# ── Artefacten van de FUSE-mount ───────────────────────────────────────────
+# Wordt een bestand vervangen terwijl het nog ergens open staat, dan laat de
+# mount de oude inhoud achter als `.fuse_hidden<hex>`. Het zijn volledige
+# kopieën van broncodebestanden — op 2 augustus dertien stuks, samen 312 kB —
+# en zonder deze regel belanden ze in de eerstvolgende `git add .`.
+#
+# Ze verdwijnen vanzelf zodra het proces dat ze openhield stopt. Blijven ze
+# staan, dan is het veilig ze te verwijderen: het zijn geen originelen, de
+# echte bestanden staan er gewoon naast.
+.fuse_hidden*

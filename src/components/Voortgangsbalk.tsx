@@ -25,7 +25,7 @@ export interface Segment {
   /** Een achtergrondklasse uit de huisstijl, bijv. `bg-olive`. */
   kleur: string;
   /** Korte uitleg onder de legenda-regel. */
-  toelichting?: string;
+  toelichting?: string | undefined;
 }
 
 interface VoortgangsbalkProps {

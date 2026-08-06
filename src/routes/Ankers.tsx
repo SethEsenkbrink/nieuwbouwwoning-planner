@@ -9,10 +9,10 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
+import { toonDatum, vandaag } from "@/lib/datum";
 import { Impactmelding } from "@/components/Impactmelding";
 import { naarAfspraakInvoer, naarBetrokkeneInvoer, naarPlanningContext } from "@/lib/actielijst";
-import { opDag } from "@/lib/planning";
+
 import { berekenImpact } from "@/lib/watals";
 import {
   haalActiefProject,
@@ -235,7 +235,7 @@ export default function Ankers() {
           betrokkenen.map(naarBetrokkeneInvoer),
           naarPlanningContext(project, ankers),
           naarPlanningContext(project, ankersNaWijziging()),
-          opDag(new Date()),
+          vandaag(),
         );
 
   const isBand =

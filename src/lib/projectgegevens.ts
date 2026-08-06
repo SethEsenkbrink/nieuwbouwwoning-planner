@@ -20,6 +20,7 @@ export interface Projectgegevenswaarden {
   waarborg: Garantiewaarborg;
   koopsom: string;
   meerwerkbudget: string;
+  bouwdepot: string;
 }
 
 export const LEGE_PROJECTGEGEVENS: Projectgegevenswaarden = {
@@ -30,4 +31,5 @@ export const LEGE_PROJECTGEGEVENS: Projectgegevenswaarden = {
   waarborg: "woningborg",
   koopsom: "",
   meerwerkbudget: "",
+  bouwdepot: "",
 };

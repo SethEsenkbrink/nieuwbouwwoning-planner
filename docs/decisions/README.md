@@ -31,6 +31,8 @@
 | [0015](ADR-0015-meterstanden-als-losse-collectie.md) | Meterstanden: meter en opname zijn twee dingen | Geaccepteerd | Twee subcollecties i.p.v. een meternaam per opname; verbruik altijd afgeleid; een dalende stand wordt gemarkeerd, niet rechtgerekend |
 | [0016](ADR-0016-overdrachtsdossier-als-printweergave.md) | Overdrachtsdossier als printweergave | Geaccepteerd | Geen PDF-bibliotheek: de huisstijl blijft op één plek en de bundel groeit niet. Ontwerp mag niet van achtergrondkleuren afhangen |
 | [0017](ADR-0017-bruikbaarheid-voor-nieuwe-features.md) | Bruikbaarheid vóór nieuwe features | Geaccepteerd | **Herziet de volgorde uit het bouwplan.** Ronde 9 gaat over UX en bugs; C5, blok F en de improvements-wachtrij schuiven op |
+| [0018](ADR-0018-dashboard-als-overzicht.md) | Dashboard als overzicht, niet als werklijst | Geaccepteerd | **Draait ADR-0008 principe 5 om in de verticale volgorde.** Eerst de stand van zaken, dan het werk. Rekenkern naar `lib/dashboard.ts` |
+| [0019](ADR-0019-expressielimiet-en-enums-in-geneste-maps.md) | Geen enumvalidatie in geneste maps | Geaccepteerd | **Verzwakt bewust de model-/rules-pariteit.** Eén `isOneOf` in een geneste map duwt de projectregel over Firestore's limiet van 1000 expressies |
 
 ## De vier die je als eerste moet lezen
 

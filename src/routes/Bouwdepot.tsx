@@ -3,14 +3,16 @@ import { Link } from "react-router";
 import { AppShell } from "@/components/AppShell";
 import { Knop } from "@/components/Knop";
 import { Veld } from "@/components/Veld";
+import { Bedragveld } from "@/components/Bedragveld";
 import { Datumveld } from "@/components/Datumveld";
 import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { Voortgangsbalk } from "@/components/Voortgangsbalk";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
-import { toonBedrag } from "@/lib/bedrag";
+import { toonDatum, vandaag } from "@/lib/datum";
+
+import { leesBedragInvoer, toonBedrag } from "@/lib/bedrag";
 import { depotDekking, sorteerTermijnen, telDepot, termijnstand } from "@/lib/depot";
 import {
   haalActiefProject,
@@ -130,7 +132,11 @@ export default function Bouwdepot() {
         termijn.id,
         alsData(termijn, {
           [vinkje]: aan,
-          [datumveld]: aan ? (termijn[datumveld] ?? new Date()) : undefined,
+          // BUG-02: een aangevinkte dag hoort op middernacht te staan, net als
+          // overal elders. Met een kaal `new Date()` zit de kloktijd erin, en dan
+          // is deze waarde nooit `===` aan een datum uit een `<input type="date">`.
+          // `vandaag()` pakt bovendien de lókale dag — zie BUG-03.
+          [datumveld]: aan ? (termijn[datumveld] ?? vandaag()) : undefined,
         }),
       );
       herlaad();
@@ -167,10 +173,10 @@ export default function Bouwdepot() {
       setFout("Geef de termijn een omschrijving, bijvoorbeeld “3e termijn — ruwe vloer”.");
       return;
     }
-    const bedragTekst = formulier.bedrag.trim().replace(/[.\s]/g, "");
-    const bedrag = bedragTekst === "" ? undefined : Number(bedragTekst);
-    if (bedrag !== undefined && (!Number.isFinite(bedrag) || bedrag < 0)) {
-      setFout("Vul het bedrag in als een getal, zonder euroteken.");
+    const leeg = formulier.bedrag.trim() === "";
+    const bedrag = leeg ? undefined : leesBedragInvoer(formulier.bedrag);
+    if (!leeg && bedrag === undefined) {
+      setFout("Dit bedrag kan ik niet lezen. Bijvoorbeeld: 1250 of 1.250,50.");
       return;
     }
 
@@ -182,7 +188,7 @@ export default function Bouwdepot() {
         gefactureerd: false,
         gedeclareerdBijBank: false,
         betaald: false,
-        ...(bedrag === undefined ? {} : { bedrag: Math.round(bedrag) }),
+        ...(bedrag === undefined ? {} : { bedrag }),
       });
       setGelukt("Termijn toegevoegd.");
       setNieuw(false);
@@ -338,12 +344,12 @@ export default function Bouwdepot() {
                   setFormulier((f) => ({ ...f, omschrijving: e.target.value }));
                 }}
               />
-              <Veld
-                label="Bedrag in euro's (optioneel)"
-                inputMode="numeric"
-                value={formulier.bedrag}
-                onChange={(e) => {
-                  setFormulier((f) => ({ ...f, bedrag: e.target.value }));
+              <Bedragveld
+                label="Bedrag (optioneel)"
+                hint="Wat de aannemer voor deze termijn factureert."
+                waarde={formulier.bedrag}
+                onWijzig={(tekst) => {
+                  setFormulier((f) => ({ ...f, bedrag: tekst }));
                 }}
               />
               <div className="flex flex-wrap gap-s2">

@@ -9,8 +9,8 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
-import { opDag } from "@/lib/planning";
+import { toonDatum, vandaag } from "@/lib/datum";
+
 import { sorteerTaken, taakUrgentie, telTaken, toonTermijn } from "@/lib/taken";
 import {
   haalActiefProject,
@@ -261,8 +261,8 @@ export default function Tijdlijn() {
     );
   }
 
-  const vandaag = opDag(new Date());
-  const stand = telTaken(taken, vandaag);
+  const nu = vandaag();
+  const stand = telTaken(taken, nu);
 
   return (
     <AppShell>
@@ -306,7 +306,7 @@ export default function Tijdlijn() {
           const beschrijving = FASE_VOLGORDE.find((f) => f.type === fase.type);
           const eigenTaken = sorteerTaken(
             taken.filter((t) => t.phaseId === fase.id),
-            vandaag,
+            nu,
           );
 
           return (
@@ -375,8 +375,8 @@ export default function Tijdlijn() {
               {eigenTaken.length > 0 && (
                 <ul className="mt-s3 flex flex-col gap-s2">
                   {eigenTaken.map((taak) => {
-                    const urgentie = taakUrgentie(taak, vandaag);
-                    const termijn = toonTermijn(taak, vandaag);
+                    const urgentie = taakUrgentie(taak, nu);
+                    const termijn = toonTermijn(taak, nu);
 
                     return (
                       <li

@@ -136,42 +136,128 @@ service cloud.firestore {
         && geldigPaspoort(data);
     }
 
+    // Alles wat een projectdocument geldig maakt, op één plek.
+    function geldigProject(data) {
+      return withinSize(25)
+        && isString(data.naam, 120)
+        && data.naam.size() > 0
+        && optionalString(data, 'bouwnummer', 40)
+        && optionalString(data, 'projectnaam', 120)
+        && optionalString(data, 'aannemer', 120)
+        && (!('garantiewaarborg' in data) || data.garantiewaarborg == null
+            || isOneOf(data.garantiewaarborg, ['woningborg', 'swk', 'geen', 'anders']))
+        && optionalNumber(data, 'koopsom')
+        && optionalNumber(data, 'meerwerkbudget')
+        && optionalNumber(data, 'bouwdepotBedrag')
+        && geldigeOpschorting(data)
+        && geldigeOpleverband(data)
+        && geldigWoningdossier(data)
+        && geldigeHypotheek(data);
+    }
+
+    // ⚠️ IN DE GENESTE MAPS STAAT GÉÉN ENUMVALIDATIE MEER. Zie ADR-0019.
+    //
+    // Gemeten op 2 augustus 2026 met de ladder in rules.test.ts: één enkele
+    // `isOneOf(...)` in een geneste map duwt de projectregel over Firestore's
+    // limiet van 1000 expressie-evaluaties. Een paspoort met tien velden en
+    // zónder enums slaagt; datzelfde paspoort mét `woningtype` erbij niet.
+    //
+    // Waarom dat zo duur is, is niet te achterhalen zonder in de emulator te
+    // meten — een lijst van acht strings zóu tien expressies moeten kosten.
+    // Wat vaststaat is het gedrag, en dat een volledig gevuld project anders
+    // niet opgeslagen kan worden.
+    //
+    // WAT DE RULES HIER NOG WÉL DOEN: het is een map, met een maximum aantal
+    // velden, en elke waarde is een string of getal binnen een lengte- of
+    // waardebereik. De bescherming uit constraint C2 — geen misbruik als
+    // opslagplek — blijft daarmee volledig overeind. Wat vervalt is de
+    // controle óf de waarde in de lijst voorkomt; die ligt nu bij TypeScript
+    // en het formulier.
+    //
+    // ⚠️ DE MAP WORDT ÉÉN KEER GEËVALUEERD EN DAARNA DOORGEGEVEN.
+    //
+    // Dit is geen stijlkwestie maar een limiet. Firestore staat maximaal 1000
+    // expressie-evaluaties per regelcontrole toe. In de vorige opzet stond er
+    // dertien keer `optionalString(data.woningpaspoort, ...)`, en dan wordt
+    // `data.woningpaspoort` ook dertien keer opnieuw uitgerekend — een
+    // property-access op een geneste map, elke keer opnieuw.
+    //
+    // Op 2 augustus 2026 bleek dat de projectregel daarmee over de 1000 heen
+    // ging: een project met álle velden ingevuld kon niet meer opgeslagen
+    // worden, met een generieke PERMISSION_DENIED als enige aanwijzing. Die
+    // bug zat er sinds blok E en is nooit opgemerkt, omdat geen enkele test
+    // een volledig gevuld project aanmaakte.
+    //
+    // Zie het blok "expressielimiet op de projectregel" in rules.test.ts: dat
+    // is de ladder die de grens meet. Voeg je hier iets toe, draai die dan.
     function geldigPaspoort(data) {
       return !('woningpaspoort' in data)
         || data.woningpaspoort == null
-        || (data.woningpaspoort is map
-            && data.woningpaspoort.size() <= 13
-            && optionalString(data.woningpaspoort, 'adres', 200)
-            && optionalString(data.woningpaspoort, 'postcode', 10)
-            && optionalString(data.woningpaspoort, 'plaats', 100)
-            && (!('woningtype' in data.woningpaspoort)
-                || data.woningpaspoort.woningtype == null
-                || isOneOf(data.woningpaspoort.woningtype, woningtypes()))
-            && optionalInt(data.woningpaspoort, 'bouwjaar', 1800, 2200)
-            && optionalNumber(data.woningpaspoort, 'woonoppervlakte')
-            && optionalNumber(data.woningpaspoort, 'perceeloppervlakte')
-            && (!('energielabel' in data.woningpaspoort)
-                || data.woningpaspoort.energielabel == null
-                || isOneOf(data.woningpaspoort.energielabel, energielabels()))
-            && optionalString(data.woningpaspoort, 'energielabelRegistratie', 60)
-            && optionalTimestamp(data.woningpaspoort, 'energielabelOpnameDatum')
-            && optionalString(data.woningpaspoort, 'waarborgpolisnummer', 60)
-            && optionalString(data.woningpaspoort, 'notaris', 200)
-            && optionalString(data.woningpaspoort, 'hypotheekverstrekker', 200));
+        || paspoortInhoud(data.woningpaspoort);
     }
 
-    // Dezelfde lijsten staan in src/types/model.ts (Woningtype, Energielabel)
-    // en worden door `npm run verify:rules` op pariteit gecontroleerd.
-    function woningtypes() {
-      return ['tussenwoning', 'hoekwoning', 'twee_onder_een_kap', 'vrijstaand',
-              'appartement', 'benedenwoning', 'bovenwoning', 'overig'];
+    function paspoortInhoud(p) {
+      return p is map
+        && p.size() <= 13
+        && optionalString(p, 'adres', 200)
+        && optionalString(p, 'postcode', 10)
+        && optionalString(p, 'plaats', 100)
+        && optionalString(p, 'woningtype', 30)
+        && optionalInt(p, 'bouwjaar', 1800, 2200)
+        && optionalNumber(p, 'woonoppervlakte')
+        && optionalNumber(p, 'perceeloppervlakte')
+        && optionalString(p, 'energielabel', 10)
+        && optionalString(p, 'energielabelRegistratie', 60)
+        && optionalTimestamp(p, 'energielabelOpnameDatum')
+        && optionalString(p, 'waarborgpolisnummer', 60)
+        && optionalString(p, 'notaris', 200)
+        && optionalString(p, 'hypotheekverstrekker', 200);
     }
 
-    // De labelschaal volgens NTA 8800. Wettelijk vastgelegd, dus gesloten.
-    function energielabels() {
-      return ['A+++++', 'A++++', 'A+++', 'A++', 'A+', 'A',
-              'B', 'C', 'D', 'E', 'F', 'G'];
+    // ── Hypotheekgegevens (ADR-0019) ─────────────────────────────────────
+    // Een GENESTE map, net als het paspoort, en om dezelfde reden: `Project`
+    // stond op 21 van de 25 velden die `withinSize(25)` toestaat. Zeven losse
+    // velden zou élke write weigeren; als map kost het er één.
+    //
+    // DE EIGEN `.size()`-CHECK IS GEEN OVERBODIGE HERHALING. `withinSize(25)`
+    // telt deze map als één veld en begrenst de inhoud dus niet. Zonder deze
+    // regel is `hypotheek` een vrij beschrijfbare opslagbak — precies het gat
+    // dat bij `specs` en `registratieplicht` al eerder gedicht moest worden.
+    //
+    // De rente is begrensd op 0–100: een percentage, geen fractie. Zonder
+    // bovengrens glipt een 3.85 die per ongeluk als 385 wordt ingevoerd er
+    // doorheen, en dat levert een maandlast op die nergens op slaat.
+    function geldigeHypotheek(data) {
+      return !('hypotheek' in data)
+        || data.hypotheek == null
+        || hypotheekInhoud(data.hypotheek);
     }
+
+    // Zelfde constructie als `paspoortInhoud`, en om dezelfde reden: de map
+    // één keer evalueren in plaats van zeven keer.
+    function hypotheekInhoud(h) {
+      return h is map
+        && h.size() <= 7
+        && optionalNumber(h, 'bedrag')
+        && optionalPercentage(h, 'rente')
+        && optionalString(h, 'vorm', 20)
+        && optionalInt(h, 'looptijdMaanden', 1, 600)
+        && optionalPercentage(h, 'depotRente')
+        && optionalNumber(h, 'grondbedrag')
+        && optionalTimestamp(h, 'passeerdatum');
+    }
+
+    function optionalPercentage(data, field) {
+      return !(field in data)
+        || data[field] == null
+        || (data[field] is number && data[field] >= 0 && data[field] <= 100);
+    }
+
+    // De lijsten `woningtypes()`, `energielabels()` en `hypotheekvormen()`
+    // stonden hier tot 2 augustus 2026. Ze zijn verwijderd toen de
+    // enumvalidatie uit de geneste maps moest vanwege de expressielimiet —
+    // zie ADR-0019 en de kop boven `paspoortInhoud`. De waardelijsten leven
+    // verder in `src/types/model.ts`; de rules kennen ze niet meer.
 
     // Staat óók in src/types/model.ts (Metersoort, Metereenheid); pariteit
     // wordt bewaakt door `npm run verify:rules`.
@@ -250,38 +336,24 @@ service cloud.firestore {
         allow get, list: if isOwner(uid);
         allow delete: if isOwner(uid);
 
+        // ⚠️ ÉÉN VALIDATIEFUNCTIE VOOR CREATE ÉN UPDATE.
+        //
+        // Hiervóór stond de hele lijst twee keer uitgeschreven, met
+        // `request.resource.data.` vóór elk veld. Dat is een keten van drie
+        // property-accesses per veld, tien velden lang, twee keer — en dat
+        // telde mee in de 1000 expressie-evaluaties die Firestore per
+        // regelcontrole toestaat. Nu wordt `request.resource.data` één keer
+        // geëvalueerd en als `data` doorgegeven.
+        //
+        // Het verschil tussen create en update blijft staan waar het hoort:
+        // bij `aangemaaktOp`. Bij create moet dat de servertijd zijn, bij
+        // update moet het onveranderd blijven.
         allow create: if isOwner(uid)
-          && withinSize(25)
-          && isString(request.resource.data.naam, 120)
-          && request.resource.data.naam.size() > 0
-          && optionalString(request.resource.data, 'bouwnummer', 40)
-          && optionalString(request.resource.data, 'projectnaam', 120)
-          && optionalString(request.resource.data, 'aannemer', 120)
-          && (!('garantiewaarborg' in request.resource.data)
-              || isOneOf(request.resource.data.garantiewaarborg,
-                         ['woningborg', 'swk', 'geen', 'anders']))
-          && optionalNumber(request.resource.data, 'koopsom')
-          && optionalNumber(request.resource.data, 'meerwerkbudget')
-          && geldigeOpschorting(request.resource.data)
-          && geldigeOpleverband(request.resource.data)
-          && geldigWoningdossier(request.resource.data)
+          && geldigProject(request.resource.data)
           && request.resource.data.aangemaaktOp == request.time;
 
         allow update: if isOwner(uid)
-          && withinSize(25)
-          && isString(request.resource.data.naam, 120)
-          && request.resource.data.naam.size() > 0
-          && optionalString(request.resource.data, 'bouwnummer', 40)
-          && optionalString(request.resource.data, 'projectnaam', 120)
-          && optionalString(request.resource.data, 'aannemer', 120)
-          && (!('garantiewaarborg' in request.resource.data)
-              || isOneOf(request.resource.data.garantiewaarborg,
-                         ['woningborg', 'swk', 'geen', 'anders']))
-          && optionalNumber(request.resource.data, 'koopsom')
-          && optionalNumber(request.resource.data, 'meerwerkbudget')
-          && geldigeOpschorting(request.resource.data)
-          && geldigeOpleverband(request.resource.data)
-          && geldigWoningdossier(request.resource.data)
+          && geldigProject(request.resource.data)
           // aangemaaktOp is onveranderlijk.
           && request.resource.data.aangemaaktOp == resource.data.aangemaaktOp;
 

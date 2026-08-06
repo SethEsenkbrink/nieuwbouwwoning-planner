@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { AppShell } from "@/components/AppShell";
 import { Knop } from "@/components/Knop";
 import { Veld } from "@/components/Veld";
+import { Bedragveld } from "@/components/Bedragveld";
 import { Tekstvlak } from "@/components/Tekstvlak";
 import { Datumveld } from "@/components/Datumveld";
 import { Keuzeveld, type Keuze } from "@/components/Keuzeveld";
@@ -10,9 +11,9 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
-import { toonBedrag } from "@/lib/bedrag";
-import { opDag } from "@/lib/planning";
+import { toonDatum, vandaag } from "@/lib/datum";
+import { leesBedragInvoer, toonBedrag } from "@/lib/bedrag";
+
 import { naarPlanningContext } from "@/lib/actielijst";
 import {
   bepaalOnderhoudstermijn,
@@ -167,10 +168,10 @@ export default function Oplevering() {
   async function bewaarDepot() {
     if (!uid || !project) return;
 
-    const schoon = bedrag.trim().replace(/[.\s]/g, "");
-    const getal = schoon === "" ? undefined : Number(schoon);
-    if (getal !== undefined && (!Number.isFinite(getal) || getal < 0)) {
-      setFout("Vul het bedrag in als een getal, zonder euroteken.");
+    const leeg = bedrag.trim() === "";
+    const getal = leeg ? undefined : leesBedragInvoer(bedrag);
+    if (!leeg && getal === undefined) {
+      setFout("Dit bedrag kan ik niet lezen. Bijvoorbeeld: 1250 of 1.250,50.");
       return;
     }
 
@@ -180,7 +181,7 @@ export default function Oplevering() {
     try {
       await werkProjectBij(uid, project.id, {
         opschortingStatus: status,
-        opschortingBedrag: getal === undefined ? undefined : Math.round(getal),
+        opschortingBedrag: getal,
         opschortingNotitie: notitie.trim() || undefined,
       });
       setGelukt("Opgeslagen.");
@@ -301,12 +302,12 @@ export default function Oplevering() {
     );
   }
 
-  const vandaag = opDag(new Date());
+  const nu = vandaag();
   const context = naarPlanningContext(project, ankers);
-  const termijn = bepaalOnderhoudstermijn(context, vandaag);
-  const stand = telGebreken(gebreken, vandaag);
-  const gesorteerd = sorteerGebreken(gebreken, vandaag);
-  const garanties = berekenGaranties(context, vandaag);
+  const termijn = bepaalOnderhoudstermijn(context, nu);
+  const stand = telGebreken(gebreken, nu);
+  const gesorteerd = sorteerGebreken(gebreken, nu);
+  const garanties = berekenGaranties(context, nu);
 
   const formulierVelden = (bestaand: GebrekMetId | null) => (
     <div className="mt-s2 flex flex-col gap-s2 border-t border-bone pt-s3">
@@ -442,14 +443,11 @@ export default function Oplevering() {
             opties={OPSCHORTINGOPTIES}
             onKies={setStatus}
           />
-          <Veld
+          <Bedragveld
             label="Bedrag in depot (optioneel)"
             hint="Kijk in je aannemingsovereenkomst. De app rekent dit niet zelf uit: de 5% geldt over de aanneemsom, en de koopsom bevat ook de grond."
-            inputMode="numeric"
-            value={bedrag}
-            onChange={(e) => {
-              setBedrag(e.target.value);
-            }}
+            waarde={bedrag}
+            onWijzig={setBedrag}
           />
           <Tekstvlak
             label="Notitie (optioneel)"
@@ -587,7 +585,7 @@ export default function Oplevering() {
 
         <div className="mt-s3 flex flex-col gap-s2">
           {gesorteerd.map((gebrek) => {
-            const huidig = gebrekstand(gebrek, vandaag);
+            const huidig = gebrekstand(gebrek, nu);
             const wordtBewerkt = bewerktId === gebrek.id;
 
             return (

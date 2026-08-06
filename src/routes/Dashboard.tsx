@@ -5,7 +5,10 @@ import { Knop } from "@/components/Knop";
 import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { Actielijst } from "@/components/Actielijst";
-import { toonDatum } from "@/lib/datum";
+import { Kerncijfertegel } from "@/components/Kerncijfertegel";
+import { Bouwvoortgangsbalk } from "@/components/Bouwvoortgangsbalk";
+import { Voortgangsbalk } from "@/components/Voortgangsbalk";
+import { toonAfstand, toonDatum, toonDatumMetAfstand, vandaag } from "@/lib/datum";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
 import {
@@ -23,8 +26,13 @@ import {
   werkAfspraakBij,
 } from "@/lib/projecten";
 import { maakActielijst, telHandmatigeBetrokkenen } from "@/lib/actielijst";
-import { opDag, type ActieRegel } from "@/lib/planning";
-import { INVULBARE_ANKERS } from "@/data/ankers";
+import { type ActieRegel } from "@/lib/planning";
+import {
+  depotCijfer,
+  maakBouwvoortgang,
+  meerwerkCijfer,
+  splitsOpAandacht,
+} from "@/lib/dashboard";
 import { toonBedrag } from "@/lib/bedrag";
 import { telMeerwerk } from "@/lib/meerwerk";
 import { telDepot } from "@/lib/depot";
@@ -35,12 +43,8 @@ import {
   dagenTeGaan,
   garantiesZonderTaak,
   maakOnderhoudslijst,
-  toonInterval,
 } from "@/lib/onderhoud";
-import {
-  garantiecontroleVoor,
-  type StandaardOnderhoud,
-} from "@/data/onderhoud-standaard";
+import { garantiecontroleVoor, type StandaardOnderhoud } from "@/data/onderhoud-standaard";
 import { metersMetAchterstalligeOpname } from "@/lib/meterstanden";
 import type {
   AfspraakMetId,
@@ -57,26 +61,75 @@ import type {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * Het dashboard — je werklijst, niet je planning
+ * Het dashboard — eerst waar je staat, dan wat er te doen is (ADR-0018)
  *
- * Wat hier bovenaan staat is niet de opleverdatum maar de actielijst: de
- * afspraken waarvan de berekende datum afwijkt van wat die partij als laatste
- * van je hoorde. Dat verschil is het enige dat werk voor je oplevert
- * (ADR-0008, principe 5).
+ * TOT 2 AUGUSTUS 2026 STOND DIT ANDERSOM. De actielijst opende het scherm,
+ * want "dat verschil is het enige dat werk voor je oplevert" (ADR-0008,
+ * principe 5). Dat klopt nog steeds, en tóch was het fout: wie het dashboard
+ * opende zag een kop en dan meteen veertien kaarten werk, zonder ooit te zien
+ * hoe het project ervoor stond. De reactie bij de live test was *"geen idee
+ * hoe dit is opgebouwd"* en *"er is geen totaaloverzicht"* — over een scherm
+ * dat een geldblok hééft, als zevende sectie onderaan.
  *
- * DE DOORGEGEVEN-KNOP IS GEEN AFVINKLIJSTJE.
- * Hij schrijft `gecommuniceerdeDatum`, en dat is het feit waar de hele module
- * op draait: welke datum weet die partij nu. Drukt niemand hem in, dan blijven
- * berekend en gecommuniceerd uit elkaar lopen en is de lijst na twee
- * verschuivingen alleen nog ruis.
+ * DE OPBOUW IS NU VIJF LAGEN, van beeld naar detail:
+ *
+ *   1. kop            waar gaat dit over, en wanneer krijg je de sleutel
+ *   2. vier cijfers   hoe sta je ervoor — in één oogopslag
+ *   3. grafieken      bouwvoortgang en geld
+ *   4. wat er moet    urgent bovenaan, de rest achter een uitklap
+ *   5. snel naar      de rest van de app
+ *
+ * DRIE REGELS DIE HIER GELDEN
+ *
+ * 1. **Rekenen gebeurt in `lib/dashboard.ts`**, niet in de render. De oude
+ *    versie was 621 regels waarin acht secties elk hun eigen filter deden, en
+ *    daar viel niets aan te testen.
+ * 2. **"Niets ingevuld" is niet "nul".** Een leeg meerwerkbudget toont een
+ *    streepje met een link, geen `€ 0` — dat las als een kapotte app.
+ * 3. **Elke datum krijgt zijn afstand mee.** "28 okt 2026" zegt niets bij de
+ *    veertiende regel; "over 12 weken — 28 okt 2026" wel.
+ *
+ * DE DOORGEGEVEN-KNOP IS GEEN AFVINKLIJSTJE. Hij schrijft
+ * `gecommuniceerdeDatum`, en dat is het feit waar de hele module op draait.
+ * Daarom staat hij nog steeds in de dichte regel en niet achter de uitklap.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
 const STATUSTEKST = {
-  indicatief: "indicatief — nog een schatting",
-  bandbreedte: "bandbreedte — tussen twee datums",
-  aangezegd: "aangezegd — formeel vastgelegd",
+  indicatief: "nog een schatting",
+  bandbreedte: "tussen twee datums",
+  aangezegd: "officieel aangezegd",
 } as const;
+
+/** Eén compacte aandachtsregel: wat, waar het over gaat, waar je heen gaat. */
+interface Aandachtspunt {
+  sleutel: string;
+  titel: string;
+  toelichting: string;
+  naar: string;
+  ernstig: boolean;
+}
+
+function Aandachtslijst({ punten }: { punten: readonly Aandachtspunt[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {punten.map((punt) => (
+        <Link
+          key={punt.sleutel}
+          to={punt.naar}
+          className={`brink-card flex flex-wrap items-baseline justify-between gap-2 p-s3 ${
+            punt.ernstig ? "border border-clay/40" : ""
+          }`}
+        >
+          <span className={`text-body font-semibold ${punt.ernstig ? "text-clay-deep" : "text-ink"}`}>
+            {punt.titel}
+          </span>
+          <span className="text-sm text-slate">{punt.toelichting}</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { gebruiker } = useAuth();
@@ -96,6 +149,7 @@ export default function Dashboard() {
   const [bezigMetLaden, setBezigMetLaden] = useState(true);
   const [bezigMetId, setBezigMetId] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
+  const [toonAlles, setToonAlles] = useState(false);
 
   const [herlaadTeller, setHerlaadTeller] = useState(0);
   const herlaad = useCallback(() => {
@@ -177,7 +231,11 @@ export default function Dashboard() {
     try {
       await werkAfspraakBij(uid, project.id, regel.afspraakId, {
         gecommuniceerdeDatum: regel.berekend.verwacht,
-        gecommuniceerdOp: new Date(),
+        // BUG-02: een datum hoort hier op middernacht te staan, net als overal
+        // elders. Met een kaal `new Date()` zit de kloktijd erin, en dan is deze
+        // waarde nooit `===` aan een datum uit een `<input type="date">`.
+        // `vandaag()` pakt bovendien de lókale dag — zie BUG-03.
+        gecommuniceerdOp: vandaag(),
         ...(afspraak?.status === "concept" ? { status: "voorlopig" as const } : {}),
       });
       herlaad();
@@ -229,47 +287,107 @@ export default function Dashboard() {
 
   if (!project) return <Laadscherm />;
 
+  const nu = vandaag();
+  const opgeleverd = isOpgeleverd(project);
+  const adres = adresregel(project.woningpaspoort);
+
   const isBand =
     project.opleverStatus === "bandbreedte" &&
     project.opleverVroegst !== undefined &&
     project.opleverLaatst !== undefined &&
     project.opleverVroegst.getTime() !== project.opleverLaatst.getTime();
 
-  const regels = maakActielijst(project, ankers, betrokkenen, afspraken, opDag(new Date()));
+  // ── Alles wat het scherm nodig heeft, in één keer afgeleid ──────────────
+  const regels = maakActielijst(project, ankers, betrokkenen, afspraken, nu);
   const aantalHandmatig = telHandmatigeBetrokkenen(betrokkenen);
-  const ankersMetDatum = ankers.filter(
-    (a) => a.verwachtOp !== undefined && a.type !== "oplevering",
-  ).length;
-
+  const voortgang = maakBouwvoortgang(ankers, nu);
   const meerwerkstand = telMeerwerk(meerwerk, project.meerwerkbudget);
   const depotstand = telDepot(termijnen);
-
-  // De omslag uit ADR-0010 §1: na de sleuteloverdracht verandert het dashboard
-  // van inhoud, niet van plek. In `opgeleverd` staat de onderhoudslijst waar in
-  // de bouwfase de schuif-impact-actielijst staat.
-  const opgeleverd = isOpgeleverd(project);
-  const adres = adresregel(project.woningpaspoort);
-  const labelstand = bepaalEnergielabelstand(project.woningpaspoort, opDag(new Date()));
-  // Aflopende garanties waar nog geen taak aan hangt (blok E4). Onderdelen
-  // mét een taak vallen weg: daar heeft de garantie de beurt al vervroegd.
-  const zonderTaak = garantiesZonderTaak(onderdelen, onderhoudstaken, opDag(new Date()));
-  // Meters waarvan de laatste stand te oud is (ADR-0015). Alleen zinvol als er
-  // meters zijn: een lege lijst hoort geen sectie op te leveren.
-  const meterAchterstand = metersMetAchterstalligeOpname(meters, meteropnames, opDag(new Date()));
+  const labelstand = bepaalEnergielabelstand(project.woningpaspoort, nu);
+  const zonderTaak = garantiesZonderTaak(onderdelen, onderhoudstaken, nu);
+  const meterAchterstand = metersMetAchterstalligeOpname(meters, meteropnames, nu);
   const registratiesOpen = telOpenstaandeRegistraties(onderdelen);
-
-  // DIT IS DE HERINNERING (ADR-0014 §3). Er gaat geen mail uit tot ronde 8, dus
-  // deze lijst is het enige dat de gebruiker eraan herinnert. Alleen wat nu
-  // aandacht vraagt — de volledige lijst staat op /onderhoud.
   const onderhoudNu = maakOnderhoudslijst(
     onderhoudstaken,
     onderdelen,
     project.opleverVerwacht,
-    opDag(new Date()),
+    nu,
   ).filter((r) => r.stand.urgentie !== "later");
+
+  // De actielijst is gesorteerd op urgentie; de splitsing houdt die volgorde
+  // aan binnen elke groep (ADR-0018).
+  const gesplitst = splitsOpAandacht(
+    regels.map((r) => ({ ...r, urgentie: r.urgentie, datum: r.berekend.verwacht })),
+    nu,
+  );
+  const zichtbareRegels = toonAlles ? regels : gesplitst.nu;
+
+  const meerwerkKern = meerwerkCijfer(meerwerkstand);
+  const depotKern = depotCijfer(depotstand, project.bouwdepotBedrag);
+
+  // ── De losse aandachtspunten, samengevoegd tot één lijst ────────────────
+  // Stonden tot 2 augustus als vijf aparte secties met elk een eigen kop en
+  // inleiding onder elkaar. Dat leest als vijf problemen in plaats van als
+  // één lijstje werk.
+  const aandachtspunten: Aandachtspunt[] = [];
+
+  if (opgeleverd && labelstand?.verlopen) {
+    aandachtspunten.push({
+      sleutel: "energielabel",
+      titel: "Het energielabel is verlopen",
+      toelichting: `${toonDatum(labelstand.verlooptOp)} — blokkeert een verkoop`,
+      naar: "/woning",
+      ernstig: true,
+    });
+  }
+
+  if (registratiesOpen > 0) {
+    aandachtspunten.push({
+      sleutel: "registraties",
+      titel:
+        registratiesOpen === 1
+          ? "Eén onderdeel is nog niet aangemeld"
+          : `${registratiesOpen} onderdelen zijn nog niet aangemeld`,
+      toelichting: "bij de instantie die dat vereist",
+      naar: "/onderdelen",
+      ernstig: true,
+    });
+  }
+
+  if (opgeleverd) {
+    for (const { taak, stand, onderdeelNaam } of onderhoudNu) {
+      aandachtspunten.push({
+        sleutel: `onderhoud-${taak.id}`,
+        titel: taak.titel,
+        toelichting: `${
+          stand.urgentie === "achterstallig"
+            ? dagenOverTijd(stand.dagenResterend)
+            : stand.dagenResterend === 0
+              ? "vandaag"
+              : dagenTeGaan(stand.dagenResterend)
+        }${onderdeelNaam ? ` · ${onderdeelNaam}` : ""}`,
+        naar: "/onderhoud",
+        ernstig: stand.urgentie === "achterstallig",
+      });
+    }
+
+    for (const overzicht of meterAchterstand) {
+      aandachtspunten.push({
+        sleutel: `meter-${overzicht.meter.id}`,
+        titel: `${overzicht.naam} — geen verse meterstand`,
+        toelichting:
+          overzicht.laatste === undefined
+            ? "nog nooit genoteerd"
+            : `laatste ${toonAfstand(overzicht.laatste.opgenomenOp, nu)}`,
+        naar: "/meterstanden",
+        ernstig: false,
+      });
+    }
+  }
 
   return (
     <AppShell>
+      {/* ── 1. Kop ─────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-2">
         <span className="size-2 rounded-pill bg-clay" aria-hidden="true" />
         <span className="text-eyebrow uppercase text-slate">
@@ -277,9 +395,6 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Na de oplevering is het adres de betere kop dan de projectnaam: je
-          beheert dan een huis, geen bouwproject. Staat er nog geen adres in het
-          paspoort, dan valt hij terug op de naam. */}
       <h1 className="mt-s2 text-h2 text-ink">
         {opgeleverd ? (adres ?? project.naam) : project.naam}
       </h1>
@@ -295,122 +410,163 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Een verlopen energielabel blokkeert een verkoop en verdwijnt stil uit
-          EP-online. Daarom staat het hier bovenaan en niet alleen op /woning. */}
-      {opgeleverd && labelstand?.verlopen && (
-        <div className="mt-s3 max-w-3xl">
-          <Melding soort="fout">
-            Het energielabel is verlopen op {toonDatum(labelstand.verlooptOp)}.{" "}
-            <Link to="/woning" className="underline">
-              Bekijk de woning
-            </Link>
-          </Melding>
+      {/* ── 2. Vier cijfers ────────────────────────────────────────────── */}
+      {!opgeleverd && (
+        <div className="mt-s4 grid max-w-3xl gap-s2 sm:grid-cols-2 lg:grid-cols-4">
+          <Kerncijfertegel
+            label="Tot de oplevering"
+            waarde={
+              isBand
+                ? toonAfstand(project.opleverVroegst, nu)
+                : toonAfstand(project.opleverVerwacht, nu)
+            }
+            onder={
+              isBand
+                ? `tot ${toonDatum(project.opleverLaatst)}`
+                : project.opleverStatus
+                  ? `${toonDatum(project.opleverVerwacht)} · ${STATUSTEKST[project.opleverStatus]}`
+                  : undefined
+            }
+            naar="/project"
+            leeg={!project.opleverStatus}
+            legeTekst="Opleverdatum invullen"
+          />
+
+          <Kerncijfertegel
+            label="Vragen om een datum"
+            waarde={String(regels.length)}
+            onder={
+              regels.length === 0
+                ? "iedereen is bij"
+                : `${gesplitst.nu.length} kan niet wachten`
+            }
+            alarm={gesplitst.nu.length > 0}
+            naar="/afspraken"
+          />
+
+          <Kerncijfertegel
+            label="Meerwerk"
+            waarde={toonBedrag(meerwerkKern.waarde)}
+            onder={meerwerkKern.van === undefined ? undefined : `van ${toonBedrag(meerwerkKern.van)}`}
+            alarm={meerwerkKern.alarm}
+            naar="/meerwerk"
+            leeg={!meerwerkKern.ingevuld}
+            legeTekst="Budget invullen"
+          />
+
+          <Kerncijfertegel
+            label="Bouwdepot betaald"
+            waarde={toonBedrag(depotKern.waarde)}
+            onder={
+              depotstand.aantalTeDeclareren > 0
+                ? `${depotstand.aantalTeDeclareren} nog niet ingediend`
+                : depotKern.van === undefined
+                  ? undefined
+                  : `van ${toonBedrag(depotKern.van)}`
+            }
+            alarm={depotKern.alarm}
+            naar="/bouwdepot"
+            leeg={!depotKern.ingevuld}
+            legeTekst="Depot invullen"
+          />
         </div>
       )}
 
-      {/* Een niet-aangemelde installatie heeft een consequentie bij de
-          netbeheerder; dat hoort niet onderaan een lijst te verdwijnen. */}
-      {registratiesOpen > 0 && (
-        <div className="mt-s3 max-w-3xl">
-          <Melding soort="fout">
-            {registratiesOpen === 1
-              ? "Eén onderdeel is nog niet aangemeld"
-              : `${registratiesOpen} onderdelen zijn nog niet aangemeld`}{" "}
-            bij de instantie die dat vereist.{" "}
-            <Link to="/onderdelen" className="underline">
-              Naar de onderdelen
-            </Link>
-          </Melding>
+      {/* ── 3. Twee grafieken ──────────────────────────────────────────── */}
+      {!opgeleverd && (
+        <div className="mt-s4 grid max-w-3xl gap-s2 sm:grid-cols-2">
+          <section className="brink-card p-s3">
+            <h2 className="text-h3 text-ink">Bouwvoortgang</h2>
+            <div className="mt-s3">
+              <Bouwvoortgangsbalk voortgang={voortgang} />
+            </div>
+            <div className="mt-s3">
+              <Link to="/ankers">
+                <Knop variant="secundair">Bouwmomenten invullen</Knop>
+              </Link>
+            </div>
+          </section>
+
+          <section className="brink-card p-s3">
+            <h2 className="text-h3 text-ink">Geld</h2>
+            <div className="mt-s3">
+              <Voortgangsbalk
+                segmenten={[
+                  { label: "Depot betaald", waarde: depotstand.betaald, kleur: "bg-olive" },
+                  {
+                    label: "Wacht op de bank",
+                    waarde: depotstand.wachtOpBank,
+                    kleur: "bg-olive/40",
+                  },
+                  {
+                    label: "Nog niet ingediend",
+                    waarde: depotstand.teDeclareren,
+                    kleur: "bg-clay",
+                    toelichting: depotstand.teDeclareren > 0 ? "hier ben jij aan zet" : undefined,
+                  },
+                ]}
+                toon={toonBedrag}
+                {...(project.bouwdepotBedrag === undefined
+                  ? {}
+                  : { totaal: project.bouwdepotBedrag })}
+                restLabel="Nog in depot"
+              />
+            </div>
+            <p className="mt-s3 text-sm text-slate">
+              Meerwerk vastgelegd: {toonBedrag(meerwerkstand.vastgelegd)}
+              {meerwerkstand.budget !== undefined && ` van ${toonBedrag(meerwerkstand.budget)}`}
+            </p>
+            <div className="mt-s3 flex flex-wrap gap-s2">
+              <Link to="/bouwdepot">
+                <Knop variant="secundair">Bouwdepot</Knop>
+              </Link>
+              <Link to="/meerwerk">
+                <Knop variant="secundair">Meerwerk</Knop>
+              </Link>
+            </div>
+          </section>
         </div>
       )}
 
-      {/* ── De onderhoudslijst — de herinnering uit ADR-0014 §3 ──────────
-          Staat vóór de garanties, want achterstallig onderhoud is werk dat
-          klaarligt; een aflopende garantie is een kans die je kunt benutten. */}
-      {opgeleverd && onderhoudNu.length > 0 && (
+      {/* ── 4a. Losse aandachtspunten ──────────────────────────────────── */}
+      {aandachtspunten.length > 0 && (
         <section className="mt-s4 max-w-3xl">
           <h2 className="text-h3 text-ink">
-            {onderhoudNu.length === 1
-              ? "Eén onderhoudsbeurt vraagt aandacht"
-              : `${onderhoudNu.length} onderhoudsbeurten vragen aandacht`}
+            {aandachtspunten.length === 1
+              ? "Eén ding vraagt aandacht"
+              : `${aandachtspunten.length} dingen vragen aandacht`}
           </h2>
-          <p className="mt-s2 text-body text-slate">
-            Vink af wat je gedaan hebt — dan schuift de volgende keer vanzelf op en komt het in
-            het logboek.
-          </p>
-
-          <div className="mt-s3 flex flex-col gap-2">
-            {onderhoudNu.map(({ taak, stand, onderdeelNaam }) => (
-              <div
-                key={taak.id}
-                className={`brink-card flex flex-wrap items-start justify-between gap-2 p-s3 ${
-                  stand.urgentie === "achterstallig" ? "border border-clay/40" : ""
-                }`}
-              >
-                <div>
-                  <Link to="/onderhoud" className="text-body font-semibold text-ink underline">
-                    {taak.titel}
-                  </Link>
-                  <p className="mt-1 text-sm text-slate">
-                    {toonInterval(taak.intervalDagen)}
-                    {onderdeelNaam && ` · ${onderdeelNaam}`}
-                  </p>
-                  {stand.garantieVerlooptOp && (
-                    <p className="mt-1 text-sm text-clay-deep">
-                      Vervroegd — garantie verloopt {toonDatum(stand.garantieVerlooptOp)}
-                    </p>
-                  )}
-                </div>
-                <span
-                  className={`rounded-pill px-3 py-1 text-sm ${
-                    stand.urgentie === "achterstallig"
-                      ? "bg-clay/15 text-clay-deep"
-                      : "bg-bone text-charcoal"
-                  }`}
-                >
-                  {stand.urgentie === "achterstallig"
-                    ? dagenOverTijd(stand.dagenResterend)
-                    : stand.dagenResterend === 0
-                      ? "vandaag"
-                      : dagenTeGaan(stand.dagenResterend)}
-                </span>
-              </div>
-            ))}
+          <div className="mt-s3">
+            <Aandachtslijst punten={aandachtspunten} />
           </div>
         </section>
       )}
 
-      {/* ── Aflopende garanties zonder onderhoudstaak (blok E4) ──────────
-          Het moment waarop informatie geld waard is: laat het nakijken zolang
-          de fabrikant nog betaalt. Onderdelen mét een taak staan al hierboven,
-          want daar heeft de garantie de beurt vervroegd. */}
+      {/* ── 4b. Aflopende garanties zonder onderhoudstaak (blok E4) ────── */}
       {opgeleverd && zonderTaak.length > 0 && (
         <section className="mt-s4 max-w-3xl">
           <h2 className="text-h3 text-ink">
             {zonderTaak.length === 1
-              ? "Eén garantie loopt af zonder dat er onderhoud gepland staat"
-              : `${zonderTaak.length} garanties lopen af zonder dat er onderhoud gepland staat`}
+              ? "Eén garantie loopt af zonder geplande controle"
+              : `${zonderTaak.length} garanties lopen af zonder geplande controle`}
           </h2>
           <p className="mt-s2 text-body text-slate">
             Laat het nakijken zolang de garantie loopt — daarna is een defect je eigen rekening.
           </p>
 
           <div className="mt-s3 flex flex-col gap-2">
-            {zonderTaak.map(({ onderdeel, verlooptOp, dagenResterend }) => {
+            {zonderTaak.map(({ onderdeel, verlooptOp }) => {
               const voorstel = garantiecontroleVoor(onderdeel.naam);
               return (
                 <div
                   key={onderdeel.id}
-                  className="brink-card flex flex-wrap items-start justify-between gap-2 p-s3"
+                  className="brink-card flex flex-wrap items-center justify-between gap-2 p-s3"
                 >
                   <div>
                     <p className="text-body font-semibold text-ink">{onderdeel.naam}</p>
                     <p className="mt-1 text-sm text-slate">
-                      Garantie tot {toonDatum(verlooptOp)} — {dagenTeGaan(dagenResterend)}
+                      Garantie tot {toonDatumMetAfstand(verlooptOp, nu)}
                     </p>
-                    {voorstel && (
-                      <p className="mt-1 text-sm text-granite">Voorstel: {voorstel.titel}</p>
-                    )}
                   </div>
 
                   {voorstel ? (
@@ -433,55 +589,14 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* ── Meters zonder verse stand (blok E7, ADR-0015) ────────────────
-          Staat ná het onderhoud en de garanties: een gemiste opname kost geen
-          geld, een gemiste garantie wel. Het is een notitie-achterstand, geen
-          deadline. */}
-      {opgeleverd && meterAchterstand.length > 0 && (
-        <section className="mt-s4 max-w-3xl">
-          <h2 className="text-h3 text-ink">
-            {meterAchterstand.length === 1
-              ? "Van één meter is er al een tijd geen stand genoteerd"
-              : `Van ${meterAchterstand.length} meters is er al een tijd geen stand genoteerd`}
-          </h2>
-          <p className="mt-s2 text-body text-slate">
-            Zonder tweede stand valt er geen verbruik te berekenen — en het verschil zie je pas
-            achteraf.
-          </p>
-
-          <div className="mt-s3 flex flex-col gap-2">
-            {meterAchterstand.map((overzicht) => (
-              <div
-                key={overzicht.meter.id}
-                className="brink-card flex flex-wrap items-start justify-between gap-2 p-s3"
-              >
-                <div>
-                  <Link
-                    to="/meterstanden"
-                    className="text-body font-semibold text-ink underline"
-                  >
-                    {overzicht.naam}
-                  </Link>
-                  <p className="mt-1 text-sm text-slate">
-                    {overzicht.laatste === undefined
-                      ? "Nog nooit een stand genoteerd"
-                      : `Laatste stand ${toonDatum(overzicht.laatste.opgenomenOp)} — ${
-                          overzicht.dagenSindsOpname ?? 0
-                        } dagen geleden`}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ── De actielijst staat bovenaan, want dit is het werk ───────────── */}
+      {/* ── 4c. De actielijst ──────────────────────────────────────────── */}
       <section className="mt-s4 max-w-3xl">
         <h2 className="text-h3 text-ink">
           {regels.length === 0
             ? "Niemand wacht op een nieuwe datum"
-            : `${regels.length} ${regels.length === 1 ? "partij wacht" : "partijen wachten"} op een datum van jou`}
+            : gesplitst.nu.length === 0
+              ? `${regels.length} ${regels.length === 1 ? "partij kan" : "partijen kunnen"} nog even wachten`
+              : `${gesplitst.nu.length} ${gesplitst.nu.length === 1 ? "partij wacht" : "partijen wachten"} op een datum van jou`}
         </h2>
 
         {regels.length === 0 ? (
@@ -494,13 +609,16 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
+            {/* Deze zin stond veertien keer onder veertien knoppen. */}
             <p className="mt-s2 text-body text-slate">
-              Gesorteerd op wat er kapotgaat als je niets doet — niet op datum. Druk op
-              “Doorgegeven” zodra je die partij gesproken hebt, anders blijft de regel staan.
+              Gesorteerd op wat er kapotgaat als je niets doet — niet op datum. “Doorgegeven”
+              legt vast dat die partij de nieuwe datum van je heeft gehoord; anders blijft de
+              regel staan.
             </p>
+
             <div className="mt-s3">
               <Actielijst
-                regels={regels}
+                regels={zichtbareRegels}
                 betrokkenen={betrokkenen}
                 berichtopties={{
                   projectnaam: project.naam,
@@ -509,8 +627,23 @@ export default function Dashboard() {
                 }}
                 bezigMetId={bezigMetId}
                 onDoorgegeven={(regel) => void markeerDoorgegeven(regel)}
+                nu={nu}
               />
             </div>
+
+            {gesplitst.later.length > 0 && (
+              <button
+                type="button"
+                className="mt-s3 text-sm text-slate underline hover:text-ink"
+                onClick={() => {
+                  setToonAlles((b) => !b);
+                }}
+              >
+                {toonAlles
+                  ? "Verberg wat kan wachten"
+                  : `Toon de ${gesplitst.later.length} die kunnen wachten`}
+              </button>
+            )}
           </>
         )}
 
@@ -528,94 +661,34 @@ export default function Dashboard() {
         )}
       </section>
 
-      {/* ── De achtergrond: waar de lijst op gebaseerd is ────────────────── */}
-      <div className="mt-s6 grid max-w-3xl gap-s2 sm:grid-cols-2">
-        <section className="brink-card p-s3">
-          <h2 className="text-h3 text-ink">Oplevering</h2>
-
-          {project.opleverStatus ? (
-            <>
-              <p className="mt-s2 text-body text-ink">
-                {isBand
-                  ? `tussen ${toonDatum(project.opleverVroegst)} en ${toonDatum(project.opleverLaatst)}`
-                  : toonDatum(project.opleverVerwacht)}
-              </p>
-              <p className="mt-1 text-sm text-slate">{STATUSTEKST[project.opleverStatus]}</p>
-              {project.opleverBron && (
-                <p className="mt-s2 text-sm text-granite">Bron: {project.opleverBron}</p>
-              )}
-            </>
-          ) : (
-            <p className="mt-s2 text-body text-slate">Nog geen opleverdatum ingevuld.</p>
+      {/* ── 5. Snel naar ───────────────────────────────────────────────── */}
+      <section className="mt-s6 max-w-3xl">
+        <h2 className="text-h3 text-ink">Snel naar</h2>
+        <div className="mt-s3 flex flex-wrap gap-s2">
+          <Link to="/tijdlijn">
+            <Knop variant="secundair">Tijdlijn</Knop>
+          </Link>
+          <Link to="/ankers">
+            <Knop variant="secundair">Bouwmomenten</Knop>
+          </Link>
+          <Link to="/betrokkenen">
+            <Knop variant="secundair">
+              Betrokkenen ({betrokkenen.length})
+            </Knop>
+          </Link>
+          <Link to="/oplevering">
+            <Knop variant="secundair">Oplevering</Knop>
+          </Link>
+          {opgeleverd && (
+            <Link to="/overdrachtsdossier">
+              <Knop variant="secundair">Dossier</Knop>
+            </Link>
           )}
-          <div className="mt-s3">
-            <Link to="/project">
-              <Knop variant="secundair">Aanpassen</Knop>
-            </Link>
-          </div>
-        </section>
-
-        <section className="brink-card p-s3">
-          <h2 className="text-h3 text-ink">Bouwmomenten</h2>
-          <p className="mt-s2 text-body text-ink">
-            {ankersMetDatum} van de {INVULBARE_ANKERS.length} bekend
-          </p>
-          <p className="mt-1 text-sm text-slate">
-            Hoe meer je invult, hoe minder er vanaf de opleverdatum geschat hoeft te worden.
-          </p>
-          <div className="mt-s3">
-            <Link to="/ankers">
-              <Knop variant="secundair">Invullen</Knop>
-            </Link>
-          </div>
-        </section>
-
-        <section className="brink-card p-s3">
-          <h2 className="text-h3 text-ink">Geld</h2>
-          <dl className="mt-s2 grid grid-cols-[auto_1fr] gap-x-s2 gap-y-1 text-body">
-            <dt className="text-slate">Meerwerk vastgelegd</dt>
-            <dd className="text-ink">{toonBedrag(meerwerkstand.vastgelegd)}</dd>
-            <dt className="text-slate">Depot betaald</dt>
-            <dd className="text-ink">{toonBedrag(depotstand.betaald)}</dd>
-          </dl>
-          {depotstand.aantalTeDeclareren > 0 && (
-            <p className="mt-s2 text-sm text-clay-deep">
-              {depotstand.aantalTeDeclareren}{" "}
-              {depotstand.aantalTeDeclareren === 1 ? "factuur" : "facturen"} nog niet bij de bank
-              ingediend.
-            </p>
-          )}
-          {meerwerkstand.ruimte !== undefined && meerwerkstand.ruimte < 0 && (
-            <p className="mt-s2 text-sm text-clay-deep">
-              {toonBedrag(Math.abs(meerwerkstand.ruimte))} over je meerwerkbudget.
-            </p>
-          )}
-          <div className="mt-s3 flex flex-wrap gap-s2">
-            <Link to="/meerwerk">
-              <Knop variant="secundair">Meerwerk</Knop>
-            </Link>
-            <Link to="/bouwdepot">
-              <Knop variant="secundair">Bouwdepot</Knop>
-            </Link>
-          </div>
-        </section>
-
-        <section className="brink-card p-s3">
-          <h2 className="text-h3 text-ink">Betrokkenen</h2>
-          <p className="mt-s2 text-body text-ink">
-            {betrokkenen.length} {betrokkenen.length === 1 ? "partij" : "partijen"} ·{" "}
-            {afspraken.length} {afspraken.length === 1 ? "afspraak" : "afspraken"}
-          </p>
-          <p className="mt-1 text-sm text-slate">
-            Afspraken hangen aan een bouwmoment, niet aan een vaste datum.
-          </p>
-          <div className="mt-s3">
-            <Link to="/betrokkenen">
-              <Knop variant="secundair">Bekijk en pas aan</Knop>
-            </Link>
-          </div>
-        </section>
-      </div>
+          <Link to="/project">
+            <Knop variant="secundair">Projectgegevens</Knop>
+          </Link>
+        </div>
+      </section>
     </AppShell>
   );
 }

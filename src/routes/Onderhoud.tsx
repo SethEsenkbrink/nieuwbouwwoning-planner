@@ -10,9 +10,9 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
+import { toonDatum, vandaag } from "@/lib/datum";
 import { toonBedrag } from "@/lib/bedrag";
-import { opDag } from "@/lib/planning";
+
 import { isOpgeleverd } from "@/lib/woning";
 import {
   dagenOverTijd,
@@ -247,7 +247,7 @@ export default function Onderhoud() {
     setBezigMetId(taak.id);
     setFout(null);
     try {
-      await vinkOnderhoudAf(uid, project.id, taak, afvink.uitgevoerdOp ?? opDag(new Date()), {
+      await vinkOnderhoudAf(uid, project.id, taak, afvink.uitgevoerdOp ?? vandaag(), {
         ...(afvink.doorWie.trim() ? { doorWie: afvink.doorWie.trim() } : {}),
         ...(bedrag === undefined ? {} : { kosten: Math.round(bedrag) }),
         ...(afvink.notitie.trim() ? { notitie: afvink.notitie.trim() } : {}),
@@ -356,11 +356,11 @@ export default function Onderhoud() {
     );
   }
 
-  const vandaag = opDag(new Date());
+  const nu = vandaag();
   const opleverdatum = project.opleverVerwacht;
-  const lijst = maakOnderhoudslijst(taken, onderdelen, opleverdatum, vandaag);
-  const zonderStartpunt = takenZonderStartpunt(taken, onderdelen, opleverdatum, vandaag);
-  const standen = telOnderhoud(taken, onderdelen, opleverdatum, vandaag);
+  const lijst = maakOnderhoudslijst(taken, onderdelen, opleverdatum, nu);
+  const zonderStartpunt = takenZonderStartpunt(taken, onderdelen, opleverdatum, nu);
+  const standen = telOnderhoud(taken, onderdelen, opleverdatum, nu);
   const alGekozen = new Set(taken.map((t) => t.titel.toLowerCase()));
 
   return (
@@ -633,7 +633,7 @@ export default function Onderhoud() {
                 onStartAfvinken={() => {
                   setAfvinkt(regel.taak.id);
                   setAfvink({
-                    uitgevoerdOp: vandaag,
+                    uitgevoerdOp: nu,
                     doorWie: "",
                     kosten: "",
                     notitie: "",

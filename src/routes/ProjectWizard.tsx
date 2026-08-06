@@ -103,6 +103,8 @@ export default function ProjectWizard() {
             koopsom: bestaand.koopsom === undefined ? "" : String(bestaand.koopsom),
             meerwerkbudget:
               bestaand.meerwerkbudget === undefined ? "" : String(bestaand.meerwerkbudget),
+            bouwdepot:
+              bestaand.bouwdepotBedrag === undefined ? "" : String(bestaand.bouwdepotBedrag),
           });
           setBand(uitProject(bestaand));
           setStap(bestaand.opleverStatus ? 2 : 1);

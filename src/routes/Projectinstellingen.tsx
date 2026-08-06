@@ -14,7 +14,8 @@ import { Opleverbandformulier } from "@/components/Opleverbandformulier";
 import { Impactmelding } from "@/components/Impactmelding";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
+import { toonDatum, vandaag } from "@/lib/datum";
+import { leesBedragInvoer } from "@/lib/bedrag";
 import {
   controleerOpleverband,
   naarOpslag,
@@ -22,7 +23,7 @@ import {
   type Opleverbandwaarden,
 } from "@/lib/opleverband";
 import { naarAfspraakInvoer, naarBetrokkeneInvoer, naarPlanningContext } from "@/lib/actielijst";
-import { opDag } from "@/lib/planning";
+
 import { berekenImpact } from "@/lib/watals";
 import {
   haalActiefProject,
@@ -123,6 +124,8 @@ export default function Projectinstellingen() {
           koopsom: gevonden.koopsom === undefined ? "" : String(gevonden.koopsom),
           meerwerkbudget:
             gevonden.meerwerkbudget === undefined ? "" : String(gevonden.meerwerkbudget),
+          bouwdepot:
+            gevonden.bouwdepotBedrag === undefined ? "" : String(gevonden.bouwdepotBedrag),
         });
         setBand(uitProject(gevonden));
       } catch (f) {
@@ -137,12 +140,14 @@ export default function Projectinstellingen() {
     };
   }, [uid, herlaadTeller]);
 
+  /**
+   * Drie uitkomsten, net als op `/na-oplevering`: leeg is geen fout — beide
+   * bedragen zijn optioneel — maar onleesbare invoer moet wél tegengehouden
+   * worden. `leesBedragInvoer()` geeft voor allebei `undefined`.
+   */
   function leesBedrag(tekst: string): number | undefined | "fout" {
-    const schoon = tekst.trim().replace(/[.\s]/g, "");
-    if (schoon === "") return undefined;
-    const getal = Number(schoon);
-    if (!Number.isFinite(getal) || getal < 0) return "fout";
-    return Math.round(getal);
+    if (tekst.trim() === "") return undefined;
+    return leesBedragInvoer(tekst) ?? "fout";
   }
 
   async function bewaarGegevens() {
@@ -155,8 +160,9 @@ export default function Projectinstellingen() {
 
     const koopsom = leesBedrag(gegevens.koopsom);
     const meerwerkbudget = leesBedrag(gegevens.meerwerkbudget);
-    if (koopsom === "fout" || meerwerkbudget === "fout") {
-      setFout("Vul bedragen in als een getal, zonder euroteken.");
+    const bouwdepotBedrag = leesBedrag(gegevens.bouwdepot);
+    if (koopsom === "fout" || meerwerkbudget === "fout" || bouwdepotBedrag === "fout") {
+      setFout("Een van de bedragen kan ik niet lezen. Bijvoorbeeld: 1250 of 1.250,50.");
       return;
     }
 
@@ -172,6 +178,7 @@ export default function Projectinstellingen() {
         garantiewaarborg: gegevens.waarborg,
         koopsom,
         meerwerkbudget,
+        bouwdepotBedrag,
       });
       setGelukt("Projectgegevens opgeslagen.");
       herlaad();
@@ -249,7 +256,7 @@ export default function Projectinstellingen() {
           betrokkenen.map(naarBetrokkeneInvoer),
           naarPlanningContext(project, ankers),
           naarPlanningContext({ ...project, ...naarOpslag(band) }, ankers),
-          opDag(new Date()),
+          vandaag(),
         );
 
   return (

@@ -9,8 +9,8 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
-import { opDag } from "@/lib/planning";
+import { toonDatum, vandaag } from "@/lib/datum";
+
 import {
   ENERGIELABEL_GELDIG_MAANDEN,
   adresregel,
@@ -252,7 +252,7 @@ export default function Woning() {
 
   const status = woningStatusVan(project);
   const stand = paspoortstand(project.woningpaspoort);
-  const label = bepaalEnergielabelstand(project.woningpaspoort, opDag(new Date()));
+  const label = bepaalEnergielabelstand(project.woningpaspoort, vandaag());
   const adres = adresregel(project.woningpaspoort);
 
   return (

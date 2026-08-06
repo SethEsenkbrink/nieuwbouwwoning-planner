@@ -10,8 +10,8 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
-import { opDag } from "@/lib/planning";
+import { toonDatum, vandaag } from "@/lib/datum";
+
 import { isOpgeleverd } from "@/lib/woning";
 import {
   conflicterendeMeters,
@@ -119,7 +119,6 @@ function redenTekst(periode: Verbruiksperiode): string {
       );
   }
 }
-
 
 export default function Meterstanden() {
   const { gebruiker } = useAuth();
@@ -266,8 +265,8 @@ export default function Meterstanden() {
       return;
     }
 
-    const vandaag = opDag(new Date());
-    const datum = opname.opgenomenOp ?? vandaag;
+    const nu = vandaag();
+    const datum = opname.opgenomenOp ?? nu;
 
     // Een datum in de toekomst is altijd een typefout — meestal in het
     // jaartal. En het is de gevaarlijkste soort, want er komt géén melding
@@ -275,7 +274,7 @@ export default function Meterstanden() {
     // dagen en de uitkomst ziet er plausibel uit. 1300 kWh over "396 dagen"
     // levert 0,76 per dag in plaats van 9,68 — factor 12 mis, betrouwbaar
     // gemarkeerd. Zie ADR-0015 §4: liever zichtbaar niets dan stil fout.
-    if (datum.getTime() > vandaag.getTime()) {
+    if (datum.getTime() > nu.getTime()) {
       setFout("Die datum ligt in de toekomst. Controleer het jaartal.");
       return;
     }
@@ -369,8 +368,8 @@ export default function Meterstanden() {
     );
   }
 
-  const vandaag = opDag(new Date());
-  const overzichten = overzichtVoorAlleMeters(meters, opnames, vandaag);
+  const nu = vandaag();
+  const overzichten = overzichtVoorAlleMeters(meters, opnames, nu);
   const conflicten = conflicterendeMeters(meters);
   const achterstallig = overzichten.filter((o) => o.opnameAchterstallig).length;
 

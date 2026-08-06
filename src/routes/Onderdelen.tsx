@@ -10,8 +10,8 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
-import { opDag } from "@/lib/planning";
+import { toonDatum, vandaag } from "@/lib/datum";
+
 import {
   berekenGarantieklok,
   ordenSpecs,
@@ -318,7 +318,7 @@ export default function Onderdelen() {
     setBezigMetId(onderdeel.id);
     setFout(null);
     try {
-      await meldRegistratieAan(uid, project.id, onderdeel, opDag(new Date()));
+      await meldRegistratieAan(uid, project.id, onderdeel, vandaag());
       setGelukt(`${onderdeel.naam} staat nu als aangemeld.`);
       herlaad();
     } catch (f) {
@@ -358,8 +358,8 @@ export default function Onderdelen() {
     );
   }
 
-  const vandaag = opDag(new Date());
-  const gesorteerd = sorteerOnderdelen(onderdelen, vandaag);
+  const nu = vandaag();
+  const gesorteerd = sorteerOnderdelen(onderdelen, nu);
   const openstaand = telOpenstaandeRegistraties(onderdelen);
   const overdracht = telOverdracht(onderdelen);
 
@@ -718,7 +718,7 @@ export default function Onderdelen() {
         ) : (
           <div className="mt-s3 flex flex-col gap-s2">
             {gesorteerd.map((onderdeel) => {
-              const klok = berekenGarantieklok(onderdeel, vandaag);
+              const klok = berekenGarantieklok(onderdeel, nu);
               const standaard = bijbehorendeStandaard(onderdeel);
               const specregels = ordenSpecs(
                 onderdeel.specs,

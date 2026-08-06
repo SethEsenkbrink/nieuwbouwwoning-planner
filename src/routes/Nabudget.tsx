@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { AppShell } from "@/components/AppShell";
 import { Knop } from "@/components/Knop";
 import { Veld } from "@/components/Veld";
+import { Bedragveld } from "@/components/Bedragveld";
 import { Tekstvlak } from "@/components/Tekstvlak";
 import { Keuzeveld, type Keuze } from "@/components/Keuzeveld";
 import { Melding } from "@/components/Melding";
@@ -10,7 +11,7 @@ import { Laadscherm } from "@/components/Laadscherm";
 import { Voortgangsbalk } from "@/components/Voortgangsbalk";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonBedrag } from "@/lib/bedrag";
+import { leesBedragInvoer, toonBedrag } from "@/lib/bedrag";
 import {
   ontbrekendeStandaardposten,
   sorteerNabudget,
@@ -61,12 +62,15 @@ const LEEG = {
   notitie: "",
 };
 
+/**
+ * Hier zijn drie uitkomsten nodig en niet twee: een leeg veld is geen fout —
+ * beide bedragen zijn optioneel — maar onleesbare invoer moet wél tegengehouden
+ * worden. `leesBedragInvoer()` geeft voor allebei `undefined`, dus dat
+ * onderscheid maken we hier op de lege string.
+ */
 function leesBedrag(tekst: string): number | undefined | "fout" {
-  const schoon = tekst.trim().replace(/[.\s]/g, "");
-  if (schoon === "") return undefined;
-  const getal = Number(schoon);
-  if (!Number.isFinite(getal) || getal < 0) return "fout";
-  return Math.round(getal);
+  if (tekst.trim() === "") return undefined;
+  return leesBedragInvoer(tekst) ?? "fout";
 }
 
 export default function Nabudget() {
@@ -126,7 +130,7 @@ export default function Nabudget() {
     const geraamd = leesBedrag(formulier.geraamd);
     const werkelijk = leesBedrag(formulier.werkelijk);
     if (geraamd === "fout" || werkelijk === "fout") {
-      setFout("Vul bedragen in als een getal, zonder euroteken.");
+      setFout("Een van de bedragen kan ik niet lezen. Bijvoorbeeld: 1250 of 1.250,50.");
       return null;
     }
     const notitie = formulier.notitie.trim();
@@ -229,22 +233,20 @@ export default function Nabudget() {
         }}
       />
       <div className="grid gap-s2 sm:grid-cols-2">
-        <Veld
-          label="Geraamd bedrag (optioneel)"
+        <Bedragveld
+          label="Geraamd (optioneel)"
           hint="Wat je denkt dat het wordt."
-          inputMode="numeric"
-          value={formulier.geraamd}
-          onChange={(e) => {
-            setFormulier((f) => ({ ...f, geraamd: e.target.value }));
+          waarde={formulier.geraamd}
+          onWijzig={(tekst) => {
+            setFormulier((f) => ({ ...f, geraamd: tekst }));
           }}
         />
-        <Veld
-          label="Werkelijk bedrag (optioneel)"
+        <Bedragveld
+          label="Werkelijk (optioneel)"
           hint="Zodra de rekening er ligt. Dit telt dan in plaats van de raming."
-          inputMode="numeric"
-          value={formulier.werkelijk}
-          onChange={(e) => {
-            setFormulier((f) => ({ ...f, werkelijk: e.target.value }));
+          waarde={formulier.werkelijk}
+          onWijzig={(tekst) => {
+            setFormulier((f) => ({ ...f, werkelijk: tekst }));
           }}
         />
       </div>

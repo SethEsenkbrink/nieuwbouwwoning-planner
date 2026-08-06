@@ -40,3 +40,46 @@ export function toonOffset(offsetDagen: number, ankerTitel: string): string {
     ? `${dagen} ${eenheid} vóór ${ankerTitel}`
     : `${dagen} ${eenheid} ná ${ankerTitel}`;
 }
+
+const MS_PER_DAG = 86_400_000;
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Van een datum naar een offset — zodat je in datums kunt denken
+ *
+ * DE SPANNING DIE DIT OPLOST. ADR-0008 verbiedt het opslaan van een
+ * afspraakdatum, en dat is de reden dat deze app bestaat: schuift de bouw, dan
+ * schuiven alle afspraken mee zonder dat iemand iets hoeft bij te werken. Maar
+ * niemand dénkt in offsets. Gevraagd op 2 augustus: *"dat hier al gekozen kan
+ * worden wat een datum is voor die partij, dat ze het hier al gelijk goed
+ * kunnen zetten."*
+ *
+ * Beide kan. De gebruiker typt een datum, deze functie rekent uit hoeveel
+ * dagen dat is ten opzichte van het bouwmoment, en **die afstand** gaat het
+ * model in. Het model blijft ongewijzigd, de invoer wordt menselijk.
+ *
+ * WAT DE UI ERBIJ MOET ZEGGEN, want anders is het een verrassing: de ingetypte
+ * datum is geen afspraak in beton. Schuift het bouwmoment, dan schuift deze
+ * datum mee — dat is de bedoeling, maar wie "15 oktober" intypt verwacht dat
+ * niet vanzelf.
+ *
+ * `undefined` als het anker geen datum heeft: dan valt er niets terug te
+ * rekenen en hoort het datumveld uitgeschakeld te zijn.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+export function offsetUitDatum(gewenst: Date, ankerdatum: Date | undefined): number | undefined {
+  if (ankerdatum === undefined) return undefined;
+  return Math.round((gewenst.getTime() - ankerdatum.getTime()) / MS_PER_DAG);
+}
+
+/**
+ * De keerzijde: welke datum levert deze offset op?
+ *
+ * Staat los van `berekenDatum()` in `planning.ts`, dat een hele band met
+ * zekerheid teruggeeft. Hier gaat het om één datum bij één bekend anker — het
+ * voorbeeld dat live meeloopt terwijl je typt.
+ */
+export function datumUitOffset(offsetDagen: number, ankerdatum: Date | undefined): Date | undefined {
+  if (ankerdatum === undefined) return undefined;
+  return new Date(ankerdatum.getTime() + offsetDagen * MS_PER_DAG);
+}

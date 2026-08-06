@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { AppShell } from "@/components/AppShell";
 import { Knop } from "@/components/Knop";
 import { Veld } from "@/components/Veld";
+import { Bedragveld } from "@/components/Bedragveld";
 import { Tekstvlak } from "@/components/Tekstvlak";
 import { Datumveld } from "@/components/Datumveld";
 import { Keuzeveld, type Keuze } from "@/components/Keuzeveld";
@@ -10,10 +11,10 @@ import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
 import { useAuth } from "@/context/useAuth";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
-import { toonDatum } from "@/lib/datum";
-import { toonBedrag } from "@/lib/bedrag";
+import { toonDatum, vandaag } from "@/lib/datum";
+import { leesBedragInvoer, toonBedrag } from "@/lib/bedrag";
 import { Voortgangsbalk } from "@/components/Voortgangsbalk";
-import { opDag } from "@/lib/planning";
+
 import { maakOffset, splitsOffset, type Richting } from "@/lib/afspraken";
 import { naarPlanningContext } from "@/lib/actielijst";
 import {
@@ -203,11 +204,8 @@ export default function Meerwerk() {
     if (formulier.omschrijving.trim().length > 300)
       return "De omschrijving mag hooguit 300 tekens zijn.";
 
-    if (formulier.bedrag.trim() !== "") {
-      const bedrag = Number(formulier.bedrag.trim().replace(/[.\s]/g, ""));
-      if (!Number.isFinite(bedrag) || bedrag < 0)
-        return "Vul het bedrag in als een getal, zonder euroteken.";
-    }
+    if (formulier.bedrag.trim() !== "" && leesBedragInvoer(formulier.bedrag) === undefined)
+      return "Dit bedrag kan ik niet lezen. Bijvoorbeeld: 1250 of 1.250,50.";
 
     if (formulier.sluiting === "vaste_datum" && !formulier.datum)
       return "Vul de sluitingsdatum in, of kies “nog niet bekend”.";
@@ -230,8 +228,10 @@ export default function Meerwerk() {
    * oud ankerveld verdwijnt daarmee ook echt.
    */
   function bouwItem(): MeerwerkData {
-    const bedragTekst = formulier.bedrag.trim().replace(/[.\s]/g, "");
-    const bedrag = bedragTekst === "" ? undefined : Math.round(Number(bedragTekst));
+    // `controleer()` heeft de invoer al goedgekeurd; hier blijft alleen het
+    // onderscheid tussen "leeg gelaten" en "een bedrag ingevuld" over.
+    const bedrag =
+      formulier.bedrag.trim() === "" ? undefined : leesBedragInvoer(formulier.bedrag);
     const notitie = formulier.notitie.trim();
 
     return {
@@ -306,9 +306,9 @@ export default function Meerwerk() {
     );
   }
 
-  const vandaag = opDag(new Date());
+  const nu = vandaag();
   const context = naarPlanningContext(project, ankers);
-  const beoordeeld = sorteerMeerwerk(items.map((i) => beoordeelMeerwerk(i, context, vandaag)));
+  const beoordeeld = sorteerMeerwerk(items.map((i) => beoordeelMeerwerk(i, context, nu)));
   const budget = telMeerwerk(items, project.meerwerkbudget);
   const zonderBedrag = telZonderBedrag(items);
   const sluitBinnenkort = beoordeeld.filter((b) => b.stand === "sluit_binnenkort");
@@ -325,13 +325,12 @@ export default function Meerwerk() {
       />
 
       <div className="grid gap-s2 sm:grid-cols-2">
-        <Veld
-          label="Bedrag in euro's (optioneel)"
-          hint="Hele euro's. Leeg laten mag; de optelling telt het dan als nul."
-          inputMode="numeric"
-          value={formulier.bedrag}
-          onChange={(e) => {
-            setFormulier((f) => ({ ...f, bedrag: e.target.value }));
+        <Bedragveld
+          label="Bedrag (optioneel)"
+          hint="Leeg laten mag; de optelling telt het dan als nul."
+          waarde={formulier.bedrag}
+          onWijzig={(tekst) => {
+            setFormulier((f) => ({ ...f, bedrag: tekst }));
           }}
         />
         <Keuzeveld

@@ -88,6 +88,51 @@ zitten — `grep -rn "new Date()" src/routes/` geeft er nu precies deze twee.
 > **Let op:** dit verklaart niet noodzakelijk álle datumproblemen die Seth zag. Zie de open
 > vragen onderaan.
 
+> ### ⚠️ Correctie, 2 augustus 2026 — de analyse hierboven klopt maar half
+>
+> Bij het schrijven van de regressietest nagerekend, en de conclusie was te stellig. **De fix
+> verandert de getóónde datum niet.** `toonDatum()` leest in UTC, dus een opgeslagen
+> `2026-08-01T23:30Z` en een geklemde `2026-08-01T00:00Z` tonen allebei "1 aug 2026".
+>
+> Wat `opDag()` wél oplost is de **vergelijkbaarheid**. Elke andere datum in de app komt uit
+> `<input type="date">` en is dus UTC-middernacht; een opgeslagen tijdstip is daar nooit
+> gelijk aan. Nagerekend:
+>
+> | | `=== ` een datum uit een datumveld |
+> | --- | --- |
+> | `new Date()` (12:00Z) | **false** |
+> | `opDag(new Date())` | **true** |
+>
+> De fix blijft dus terecht — een tijdstip in een veld waar overal elders middernacht staat is
+> een vergelijking die stil faalt. Maar het is een andere bug dan hierboven beschreven, en het
+> "dag terugspringen" dat Seth zag is er níét mee verklaard. Zie **BUG-03** hieronder.
+
+### BUG-03 — tussen middernacht en 02:00 loopt de hele app een dag achter
+
+**Ernst: laag, maar hij raakt alles.** Gevonden bij het narekenen van BUG-02, niet gemeld.
+
+`opDag()` klemt op de **UTC**-dag, niet op de lokale dag:
+
+```ts
+opDag(datum) => new Date(Date.UTC(datum.getUTCFullYear(), datum.getUTCMonth(), datum.getUTCDate()))
+```
+
+Overal in de app is `opDag(new Date())` de definitie van "vandaag" — in `maakActielijst()`, in
+elke urgentiebepaling, in de onderhoudslijst. In de Nederlandse zomertijd (UTC+2) is het tussen
+00:00 en 02:00 lokaal in UTC nog de vórige dag. Wie op 2 augustus om 01:30 het dashboard opent,
+krijgt de urgenties van 1 augustus. In de wintertijd is dat venster 00:00–01:00.
+
+**Waarom dit niet meteen meegefixt is:** het raakt élke "vandaag"-bepaling in de app en dus de
+sortering van de actielijst. Dat is een eigen wijziging met eigen tests, geen bijvangst van een
+bugfix. Bovendien is de juiste oplossing niet vanzelfsprekend: `planning.ts` is puur en mag geen
+tijdzone kennen (ADR-0008), dus de lokale dag hoort in de aanroep bepaald te worden en niet in
+de rekenkern.
+
+**Voorstel voor ronde 9, blok 2:** een `vandaag()`-functie die de lokale datumdelen op UTC-
+middernacht zet (`new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))` — zonder
+`UTC` in de getters), en alle twintig aanroepen van `opDag(new Date())` daarop laten uitkomen.
+`opDag()` zelf blijft ongewijzigd: die hoort een reeds opgeslagen UTC-datum te klemmen.
+
 ---
 
 ## 3. Wat Seth verder meldde — nog te reproduceren

@@ -1,4 +1,5 @@
 import { Veld } from "@/components/Veld";
+import { Bedragveld } from "@/components/Bedragveld";
 import { Keuzeveld } from "@/components/Keuzeveld";
 import { WAARBORGOPTIES } from "@/data/project-opties";
 import type { Projectgegevenswaarden } from "@/lib/projectgegevens";
@@ -73,22 +74,32 @@ export function Projectgegevensformulier({
 
       {toonBedragen && (
         <div className="grid gap-s2 sm:grid-cols-2">
-          <Veld
-            label="Koopsom in euro's"
-            hint="Optioneel. Hele euro's, zonder punten of komma's."
-            inputMode="numeric"
-            value={waarden.koopsom}
-            onChange={(e) => {
-              onWijzig({ koopsom: e.target.value });
+          {/* De hint zegt nu wat de app met het bedrag dóét. Er stond
+              "Hele euro's, zonder punten of komma's" — geen uitleg maar een
+              omweg om BUG-01 heen, want de opschoning kon geen komma aan.
+              Het veld regelt dat nu zelf. */}
+          <Bedragveld
+            label="Koopsom"
+            hint="Optioneel. Hiermee rekent de app uit of je bouwdepot toereikend is."
+            waarde={waarden.koopsom}
+            onWijzig={(koopsom) => {
+              onWijzig({ koopsom });
             }}
           />
-          <Veld
-            label="Meerwerkbudget in euro's"
-            hint="Wat je maximaal aan meerwerk wilt uitgeven."
-            inputMode="numeric"
-            value={waarden.meerwerkbudget}
-            onChange={(e) => {
-              onWijzig({ meerwerkbudget: e.target.value });
+          <Bedragveld
+            label="Meerwerkbudget"
+            hint="Ga je hieroverheen, dan waarschuwt het dashboard."
+            waarde={waarden.meerwerkbudget}
+            onWijzig={(meerwerkbudget) => {
+              onWijzig({ meerwerkbudget });
+            }}
+          />
+          <Bedragveld
+            label="Bouwdepot"
+            hint="Wat de bank in depot heeft gezet. Hiertegen zet de app de termijnen af."
+            waarde={waarden.bouwdepot}
+            onWijzig={(bouwdepot) => {
+              onWijzig({ bouwdepot });
             }}
           />
         </div>

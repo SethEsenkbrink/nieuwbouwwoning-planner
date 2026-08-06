@@ -1,6 +1,6 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-08-01 · sessie 07 (E7 en E8 — **blok E is af**)
+> **Bijgewerkt:** 2026-08-02 · sessie 09 (ronde 9 blok 1 en 2 — **bugs weg, dashboard herbouwd**)
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
 > Geen geschiedenis hier — die staat in `sessions/`. Houd dit kort.
 
@@ -16,6 +16,83 @@ punt.
 **ronde 9 gaat over bruikbaarheid en bugs**. De app doet het juiste, maar hij werkt niet
 prettig: te veel tekst, te veel invulvelden, geen totaaloverzicht, en het bouwdepot slaat
 bedragen met centen niet op. Zie `2026-08-01-bevindingen-live-test.md`.
+
+**Op 2 augustus is er een tweede live test bij gekomen**, met twaalf schermafbeeldingen. Die
+legde iets bloot dat op 1 augustus nog niet gezien was: **de wizard gaat ervan uit dat je aan
+het begin van je bouwtraject staat.** Seth staat in de eindfase — de woning staat er al. De
+app vraagt dus dingen die niet meer spelen en vraagt níét naar wat wél speelt (geld, en hoe
+ver de bouw is). Het volledige herontwerpplan met vijf blokken staat in
+**`docs/2026-08-02-herontwerp-plan-ronde-9.md`**; de vier beslispunten daarin zijn alle vier
+door Seth goedgekeurd.
+
+## Ronde 9 — blok 1 is af (2 augustus)
+
+| Wat | Uitkomst |
+| --- | --- |
+| **BUG-01** — bedrag met komma | ✅ opgelost. `leesBedragInvoer()` in `lib/bedrag.ts` plus 18 tests; alle zes de call sites erop aangesloten |
+| **BUG-02** — datum zonder `opDag()` | ✅ opgelost op beide plekken, met 3 regressietests |
+| Nieuw component `Bedragveld` | Vast `€` in het veld, `inputMode="decimal"`, formatteert bij het verlaten van het veld |
+| **BUG-03** — nieuw gevonden | ⚠️ **open.** Zie hieronder |
+
+**Door Seth lokaal bevestigd:** `npm run verify` groen — **493 tests in 20 bestanden**,
+tokens (50), headers (10 + 14 CSP), rules-pariteit (28/136/3), build 171 modules.
+`App` staat nu op **334 kB (86 kB gzip)**.
+
+> **De les uit dit blok:** het bevindingendocument van 1 augustus beschreef BUG-02 verkeerd.
+> Bij het schrijven van de regressietest bleek dat de fix de **getoonde** datum niet verandert
+> — `toonDatum()` leest in UTC, dus een tijdstip en een middernacht van dezelfde UTC-dag tonen
+> hetzelfde. Wat `opDag()` wél oplost is de vergelijkbaarheid met een datum uit
+> `<input type="date">`. **Een bug die je uit de code afleidt zonder hem na te rekenen, is een
+> hypothese.** De correctie staat in het bevindingendocument zelf.
+
+## Ronde 9 — blok 2 is af (2 augustus): het dashboard
+
+**ADR-0018** legt vast waarom de actielijst van de eerste naar de vierde laag zakt. Het
+dashboard opent nu met de stand van zaken en niet met het werk.
+
+| Wat | Details |
+| --- | --- |
+| **BUG-03** — `opDag()` pakte de UTC-dag | ✅ opgelost. `vandaag()` in `lib/datum.ts` pakt de **lokale** dag; alle 20 aanroepen in 12 routes om |
+| Relatieve datums | `toonAfstand()` en `toonDatumMetAfstand()`: "over 12 weken — 28 okt 2026" |
+| `bouwdepotBedrag` | Model, rules (create + update), wizard, projectinstellingen. **De depotgrafiek heeft zijn schaal** |
+| `lib/dashboard.ts` | **Nieuw** — pure rekenkern: bouwvoortgang, kerncijfers, aandachtssplitsing. 31 tests |
+| Nieuwe componenten | `Bedragveld`, `Kerncijfertegel`, `Bouwvoortgangsbalk` |
+| `Dashboard.tsx` | Herschreven in vijf lagen. Zes waarschuwingssecties → één aandachtslijst |
+| `Actielijst.tsx` | Van een kaart van tien regels naar één regel, details op klik |
+
+### De opbouw nu
+
+```
+1. KOP          Akkerland 71 · Nijhuis
+2. VIER CIJFERS [tot oplevering] [vragen om datum] [meerwerk] [depot]
+3. GRAFIEKEN    bouwvoortgang 7 segmenten │ geld: depot + meerwerk
+4. WAT ER MOET  aandachtspunten, dan de actielijst — urgent open, rest ingeklapt
+5. SNEL NAAR
+```
+
+### Drie ontwerpbesluiten die niet vanzelf spreken
+
+- **De bouwvoortgang heeft drie standen, niet twee.** Een moment met een verwachte datum is
+  iets, maar niet hetzelfde als een moment dat geweest is; op één hoop ziet de balk er voller
+  uit dan de bouw is. Een `gepasseerd` moment **zonder** datum telt wél mee — dat is wat de
+  fasekeuze uit de wizard (blok W1) straks invult.
+- **De splitsing "nu / kan wachten" heeft twee ingangen.** Urgent komt altijd boven, ook bij
+  een datum ver weg (de keuken met tien weken aanlooptijd). En alles binnen dertig dagen komt
+  boven, ook bij lage urgentie. Een verstreken datum is niet "voorbij" maar "te laat" en hoort
+  dus ook boven.
+- **De doorgegeven-knop staat buiten de uitklap.** Hij zakt al naar laag 4; hem óók achter een
+  klik zetten is de manier om hem niet ingedrukt te krijgen. **Te toetsen bij het live gaan:**
+  hoeveel afspraken hebben na een maand nog nooit een `gecommuniceerdeDatum`? Dat is het
+  risico van ADR-0018, expliciet genoteerd.
+
+### ⚠️ `Project` zit op 21 van de 25 velden
+
+`withinSize(25)` in de rules. Met `bouwdepotBedrag` erbij staat de teller op 21.
+
+**De maandlastenprognose (blok H) voegt er zeven toe** — hypotheekbedrag, rente, vorm,
+looptijd, depotrente, grondbedrag, passeerdatum. Los toevoegen komt uit op 28 en weigert dan
+**élke** write. Die groep moet een **geneste map** worden met een eigen `.size()`-check, net als
+`woningpaspoort` (ADR-0013 §5). Staat als waarschuwing boven `interface Project`.
 
 ## De kernlus, in één zin
 
@@ -268,17 +345,33 @@ blind uitvoeren:
 - **PERF-02: geen offline persistence, en de twaalf subcollecties worden bij het verwijderen
   sequentieel opgehaald.**
 
-## Bekende bugs — open, gevonden bij de live test van 1 augustus
+## Bekende bugs
 
-Volledige beschrijving in `2026-08-01-bevindingen-live-test.md`. Kort:
+Volledige beschrijving in `2026-08-01-bevindingen-live-test.md`.
 
-| # | Wat | Waar |
+| # | Wat | Status |
 | --- | --- | --- |
-| BUG-01 | Een bedrag met een komma (`1250,50`) wordt geweigerd: de opschoning strippt de punt maar niet de komma, dus `Number()` geeft `NaN` | `Bouwdepot.tsx:170`, `Meerwerk.tsx:207`/`:233`, `Nabudget.tsx:65`, `Oplevering.tsx:170`, `Projectinstellingen.tsx:141` |
-| BUG-02 | Een aangevinkte datum kan in de zomertijd een dag terugspringen: `new Date()` in plaats van `opDag(new Date())` | `Bouwdepot.tsx:133`, `Dashboard.tsx:180` |
+| BUG-01 | Een bedrag met een komma (`1250,50`) werd geweigerd | ✅ **weg** — sessie 09, blok 1 |
+| BUG-02 | Aangevinkte datum werd als tijdstip opgeslagen in plaats van UTC-middernacht | ✅ **weg** — sessie 09, blok 1 |
+| BUG-03 | Tussen 00:00 en 02:00 zomertijd draaide de app op de urgenties van gisteren | ✅ **weg** — sessie 09, blok 2 |
 
-Nog te reproduceren: of het bouwdepot verder nog iets mist, en of er datumbugs zijn buiten
-BUG-02 om.
+**BUG-03 was niet gemeld maar gevonden** bij het narekenen van BUG-02. `opDag()` las de
+datumdelen met `getUTC*`, dus in de zomertijd (UTC+2) was het tussen 00:00 en 02:00 lokaal in
+UTC nog de vorige dag — en `opDag(new Date())` was overal de definitie van "vandaag".
+
+Opgelost met `vandaag()` in `lib/datum.ts`, dat de **lokale** datumdelen op UTC-middernacht
+zet (`getFullYear()` zonder `UTC`). `opDag()` in `planning.ts` is ongewijzigd gebleven en houdt
+zijn eigen taak: een reeds opgeslagen UTC-datum klemmen. Die functie mag geen tijdzone kennen,
+want `planning.ts` is puur (ADR-0008).
+
+> **Valkuil bij zulke omzettingen.** De zoek-vervang van `opDag(new Date())` naar `vandaag()`
+> sloeg te breed toe: acht naamconflicten (`const vandaag = vandaag()`), en het hernoemen van
+> die lokale variabele raakte drie UI-teksten en een objectsleutel in `Tijdlijn.tsx`.
+> **`tsc` gaf gewoon exit 0** — een sleutel die overal consistent hernoemd is, compileert
+> prima. Gevonden door de diff te lezen. Lees na een app-brede vervanging altijd de diff, niet
+> alleen de compiler.
+
+Nog te reproduceren: of het bouwdepot verder nog iets mist (OPEN-01).
 
 ## Open vragen / wacht op Seth
 

@@ -170,6 +170,29 @@ describe("veldvalidatie op project", () => {
     );
   });
 
+  it("accepteert een bouwdepotbedrag", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/p1`), {
+        naam: "Huis",
+        koopsom: 425000,
+        bouwdepotBedrag: 280000,
+        aangemaaktOp: serverTimestamp(),
+      }),
+    );
+  });
+
+  it("weigert een negatief bouwdepotbedrag", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p1`), {
+        naam: "Huis",
+        bouwdepotBedrag: -1,
+        aangemaaktOp: serverTimestamp(),
+      }),
+    );
+  });
+
   it("weigert een absurd lange naam (misbruik als opslag)", async () => {
     const db = alsGebruiker(ALICE);
     await assertFails(
@@ -1027,9 +1050,21 @@ describe("woningdossier op project", () => {
     );
   });
 
-  it("weigert een onbekend woningtype", async () => {
+  /**
+   * ⚠️ DIT WEIGERDE VROEGER — nu niet meer. Zie ADR-0019.
+   *
+   * De enumvalidatie op `woningtype` is op 2 augustus 2026 uit de rules
+   * gehaald: één `isOneOf` in een geneste map duwde de projectregel over
+   * Firestore's limiet van 1000 expressie-evaluaties, waardoor een volledig
+   * gevuld project helemaal niet meer opgeslagen kon worden.
+   *
+   * Wat de rules hier nog wél doen staat in de test eronder: het moet een
+   * string zijn, en niet langer dan 30 tekens. De waardecontrole ligt nu bij
+   * `Woningtype` in model.ts en bij het formulier.
+   */
+  it("laat een onbekend woningtype door — de waarde wordt niet meer gevalideerd", async () => {
     const db = alsGebruiker(ALICE);
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(db, `users/${ALICE}/projects/p5`), {
         ...basis,
         woningpaspoort: { woningtype: "woonboot" },
@@ -1037,9 +1072,10 @@ describe("woningdossier op project", () => {
     );
   });
 
-  it("weigert een energielabel buiten de NTA 8800-schaal", async () => {
+  /** Zelfde verhaal als bij woningtype hierboven — ADR-0019. */
+  it("laat een energielabel buiten de schaal door — geen waardevalidatie meer", async () => {
     const db = alsGebruiker(ALICE);
-    await assertFails(
+    await assertSucceeds(
       setDoc(doc(db, `users/${ALICE}/projects/p6`), {
         ...basis,
         woningpaspoort: { energielabel: "A+++++++" },
@@ -1101,6 +1137,41 @@ describe("woningdossier op project", () => {
    * beschrijfbare bak van duizend velden — een gat in constraint C2 van precies
    * dezelfde vorm als het `.data`-gat uit sessie 03.
    */
+  /**
+   * WAT ER OVERBLIJFT NA ADR-0019. De waarde wordt niet meer gecontroleerd,
+   * de vórm wel — en dat is precies de bescherming die constraint C2 nodig
+   * heeft: het paspoort mag geen opslagplek worden.
+   */
+  it("weigert een woningtype dat geen string is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p5b`), {
+        ...basis,
+        woningpaspoort: { woningtype: 42 },
+      }),
+    );
+  });
+
+  it("weigert een woningtype dat als opslagplek wordt misbruikt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p5c`), {
+        ...basis,
+        woningpaspoort: { woningtype: "x".repeat(500) },
+      }),
+    );
+  });
+
+  it("weigert een energielabel dat te lang is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/p6b`), {
+        ...basis,
+        woningpaspoort: { energielabel: "A".repeat(200) },
+      }),
+    );
+  });
+
   it("weigert een paspoort met meer velden dan het model kent", async () => {
     const db = alsGebruiker(ALICE);
     const opgeblazen: Record<string, string> = {};
@@ -1151,6 +1222,455 @@ describe("woningdossier op project", () => {
         ...basis,
         woningpaspoort: geldigPaspoort,
       }),
+    );
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Hypotheekgegevens — de maandlastenprognose (ADR-0019)
+ *
+ * Derde geneste map op het project, na `woningpaspoort` en de twee op
+ * `onderdelen`. Zelfde constructie, zelfde valkuil: `withinSize(25)` telt de
+ * map als één veld, dus zonder een eigen `.size()`-check is het een vrij
+ * beschrijfbare opslagbak.
+ *
+ * Het percentageveld heeft een bovengrens van 100. Zonder die grens glipt een
+ * rente van 3,85 die per ongeluk als 385 wordt ingevoerd erdoorheen, en dat
+ * levert een maandlast op die nergens op slaat maar er wel uitziet als een
+ * getal.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+const geldigeHypotheek = {
+  bedrag: 385000,
+  rente: 3.85,
+  vorm: "annuitair",
+  looptijdMaanden: 360,
+  depotRente: 3.85,
+  grondbedrag: 105000,
+};
+
+describe("hypotheekgegevens op project", () => {
+  const basis = { naam: "Ons huis", aangemaaktOp: serverTimestamp() };
+
+  it("accepteert een volledige hypotheek", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/h1`), {
+        ...basis,
+        hypotheek: { ...geldigeHypotheek, passeerdatum: Timestamp.fromDate(new Date("2026-03-02")) },
+      }),
+    );
+  });
+
+  it("accepteert een project zonder hypotheekvelden", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(setDoc(doc(db, `users/${ALICE}/projects/h2`), basis));
+  });
+
+  it("accepteert een half ingevulde hypotheek", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/h3`), {
+        ...basis,
+        hypotheek: { bedrag: 385000 },
+      }),
+    );
+  });
+
+  it("accepteert alle drie de aflossingsvormen", async () => {
+    const db = alsGebruiker(ALICE);
+    // Elk een eigen document: schrijven naar hetzelfde document maakt van de
+    // tweede write een update, en dan meet deze test iets anders dan de
+    // aflossingsvorm. Zie het blok "expressielimiet" hieronder.
+    const vormen = ["annuitair", "lineair", "aflossingsvrij"];
+    for (const [i, vorm] of vormen.entries()) {
+      await assertSucceeds(
+        setDoc(doc(db, `users/${ALICE}/projects/h4-${String(i)}`), {
+          ...basis,
+          hypotheek: { vorm },
+        }),
+      );
+    }
+  });
+
+  /** Zelfde verhaal als bij het paspoort — ADR-0019. */
+  it("laat een onbekende aflossingsvorm door — geen waardevalidatie meer", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/h5`), {
+        ...basis,
+        hypotheek: { vorm: "spaarhypotheek" },
+      }),
+    );
+  });
+
+  /** Een percentage, geen fractie — en zeker geen 385. */
+  it("weigert een rente boven de honderd procent", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h6`), {
+        ...basis,
+        hypotheek: { rente: 385 },
+      }),
+    );
+  });
+
+  it("weigert een negatieve rente", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h7`), {
+        ...basis,
+        hypotheek: { depotRente: -1 },
+      }),
+    );
+  });
+
+  it("accepteert een rente van nul", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/h8`), {
+        ...basis,
+        hypotheek: { rente: 0 },
+      }),
+    );
+  });
+
+  it("weigert een negatief hypotheekbedrag", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h9`), {
+        ...basis,
+        hypotheek: { bedrag: -1 },
+      }),
+    );
+  });
+
+  it("weigert een onmogelijke looptijd", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h10`), {
+        ...basis,
+        hypotheek: { looptijdMaanden: 0 },
+      }),
+    );
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h11`), {
+        ...basis,
+        hypotheek: { looptijdMaanden: 1200 },
+      }),
+    );
+  });
+
+  it("weigert een passeerdatum die geen timestamp is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h12`), {
+        ...basis,
+        hypotheek: { passeerdatum: "2026-03-02" },
+      }),
+    );
+  });
+
+  /** Ook hier: de waarde niet meer, de vorm wél. Zie ADR-0019. */
+  it("weigert een aflossingsvorm die geen string is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h5b`), {
+        ...basis,
+        hypotheek: { vorm: 3 },
+      }),
+    );
+  });
+
+  it("weigert een aflossingsvorm die als opslagplek wordt misbruikt", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h5c`), {
+        ...basis,
+        hypotheek: { vorm: "x".repeat(500) },
+      }),
+    );
+  });
+
+  /**
+   * DE BELANGRIJKSTE TEST VAN DIT BLOK — zelfde vorm als bij het paspoort.
+   * Zonder `data.hypotheek.size() <= 7` slaagt dit, want de documentlimiet
+   * telt de map als één veld.
+   */
+  it("weigert een hypotheekmap met meer velden dan het model kent", async () => {
+    const db = alsGebruiker(ALICE);
+    const opgeblazen: Record<string, number> = {};
+    for (let i = 0; i < 40; i += 1) opgeblazen[`veld${i}`] = i;
+
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h13`), {
+        ...basis,
+        hypotheek: opgeblazen,
+      }),
+    );
+  });
+
+  it("weigert een hypotheek die geen map is", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h14`), {
+        ...basis,
+        hypotheek: "385000 tegen 3,85%",
+      }),
+    );
+  });
+
+  it("weigert dat Bob de hypotheek van Alice zet", async () => {
+    const db = alsGebruiker(BOB);
+    await assertFails(
+      setDoc(doc(db, `users/${ALICE}/projects/h15`), {
+        ...basis,
+        hypotheek: geldigeHypotheek,
+      }),
+    );
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * De expressielimiet van Firestore — 1000 per regelevaluatie
+ *
+ * GEVONDEN OP 2 AUGUSTUS, doordat één test naar hetzelfde document schreef en
+ * de tweede write dus een `update` werd. Foutmelding:
+ *
+ *   Unable to evaluate the expression as the maximum of 1000 expressions
+ *   to evaluate has been reached. for 'update'
+ *
+ * Dit is GEEN testartefact maar een harde Firestore-limiet, en de projectregel
+ * zit eroverheen. `match /projects/{projectId}` valideert inmiddels acht losse
+ * velden plus vier samengestelde functies (`geldigeOpschorting`,
+ * `geldigeOpleverband`, `geldigWoningdossier` met dertien paspoortvelden, en
+ * `geldigeHypotheek` met zeven). Bij een `update` komt daar het lezen van
+ * `resource.data` bij.
+ *
+ * WAT DIT IN PRODUCTIE BETEKENT: `werkProjectBij()` — het pad achter elke
+ * "opslaan"-knop op `/project`, en achter elke wijziging van de opleverdatum,
+ * het paspoort en de opschorting — kan gaan weigeren zodra een project vol
+ * genoeg is. Dat is geen randgeval.
+ *
+ * De tests hieronder pinnen de grens vast, zodat een oplossing meetbaar is en
+ * een latere uitbreiding hier stukloopt in plaats van bij een gebruiker.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("expressielimiet op de projectregel", () => {
+  const basis = { naam: "Ons huis", aangemaaktOp: serverTimestamp() };
+
+  const losseVelden = {
+    bouwnummer: "14",
+    projectnaam: "Kloosterakker",
+    aannemer: "Nijhuis",
+    garantiewaarborg: "swk",
+    koopsom: 425000,
+    meerwerkbudget: 15000,
+    bouwdepotBedrag: 280000,
+  };
+
+  const opschorting = {
+    opschortingStatus: "in_depot",
+    opschortingBedrag: 21250,
+    opschortingNotitie: "Vier punten open bij oplevering",
+  };
+
+  const opleverband = {
+    opleverStatus: "bandbreedte",
+    opleverVroegst: Timestamp.fromDate(new Date("2026-10-21")),
+    opleverVerwacht: Timestamp.fromDate(new Date("2026-10-28")),
+    opleverLaatst: Timestamp.fromDate(new Date("2026-11-11")),
+    opleverBron: "mail aannemer 12-07",
+  };
+
+  const paspoort = {
+    woningStatus: "in_aanbouw",
+    woningpaspoort: {
+      adres: "Akkerland 71",
+      postcode: "1234 AB",
+      plaats: "Almere",
+      woningtype: "tussenwoning",
+      bouwjaar: 2026,
+      woonoppervlakte: 124,
+      perceeloppervlakte: 180,
+      energielabel: "A++++",
+      energielabelRegistratie: "123456789",
+      waarborgpolisnummer: "P-99",
+      notaris: "Notariskantoor Jansen",
+      hypotheekverstrekker: "ABN AMRO",
+    },
+  };
+
+  const hypotheek = {
+    hypotheek: {
+      bedrag: 385000,
+      rente: 3.85,
+      vorm: "annuitair",
+      looptijdMaanden: 360,
+      depotRente: 3.85,
+      grondbedrag: 105000,
+    },
+  };
+
+  /**
+   * ───────────────────────────────────────────────────────────────────────
+   * EEN LADDER, GEEN ENKELE TEST.
+   *
+   * De vraag is niet óf de regel over de limiet gaat — dat is bewezen — maar
+   * op welke trede. Dat bepaalt de oplossing: is de hypotheek de druppel, dan
+   * volstaat hem naar een eigen subcollectie verplaatsen. Knapt het al eerder,
+   * dan is de projectregel als geheel te zwaar en moet er meer uit.
+   *
+   * Elke trede krijgt een eigen document, zodat het steeds een `create` is en
+   * er geen `resource.data`-lees bij komt.
+   * ───────────────────────────────────────────────────────────────────────
+   */
+  it("trede 1 — alleen losse velden", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede1`), { ...basis, ...losseVelden }),
+    );
+  });
+
+  it("trede 2 — plus opschorting", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede2`), {
+        ...basis,
+        ...losseVelden,
+        ...opschorting,
+      }),
+    );
+  });
+
+  it("trede 3 — plus de opleverband", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede3`), {
+        ...basis,
+        ...losseVelden,
+        ...opschorting,
+        ...opleverband,
+      }),
+    );
+  });
+
+  it("trede 4 — plus een vol woningpaspoort", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede4`), {
+        ...basis,
+        ...losseVelden,
+        ...opschorting,
+        ...opleverband,
+        ...paspoort,
+      }),
+    );
+  });
+
+  it("trede 5 — plus de hypotheek (alles)", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede5`), {
+        ...basis,
+        ...losseVelden,
+        ...opschorting,
+        ...opleverband,
+        ...paspoort,
+        ...hypotheek,
+      }),
+    );
+  });
+
+  /**
+   * ───────────────────────────────────────────────────────────────────────
+   * WAAR IN HET PASPOORT ZITTEN DE KOSTEN?
+   *
+   * Trede 4 faalt, dus het paspoort duwt de regel over de limiet. Maar het
+   * paspoort heeft dertien velden waarvan er twee een `isOneOf` op een lange
+   * lijst doen: `woningtype` (8 waarden) en `energielabel` (12). Die zijn
+   * verdacht, want `value in allowed` moet die lijst aflopen.
+   *
+   * Deze drie treden isoleren dat. Slaagt 4a en faalt 4c, dan zijn de enums
+   * de kostenpost en is er een goedkope oplossing. Faalt 4a al, dan is het
+   * de hoeveelheid velden zelf en moet het paspoort naar een subcollectie.
+   * ───────────────────────────────────────────────────────────────────────
+   */
+  const paspoortZonderEnums = {
+    woningStatus: "in_aanbouw",
+    woningpaspoort: {
+      adres: "Akkerland 71",
+      postcode: "1234 AB",
+      plaats: "Almere",
+      bouwjaar: 2026,
+      woonoppervlakte: 124,
+      perceeloppervlakte: 180,
+      energielabelRegistratie: "123456789",
+      waarborgpolisnummer: "P-99",
+      notaris: "Notariskantoor Jansen",
+      hypotheekverstrekker: "ABN AMRO",
+    },
+  };
+
+  it("trede 4a — paspoort zonder de twee enumvelden", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede4a`), {
+        ...basis,
+        ...losseVelden,
+        ...opschorting,
+        ...opleverband,
+        ...paspoortZonderEnums,
+      }),
+    );
+  });
+
+  it("trede 4b — plus woningtype (8 waarden)", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede4b`), {
+        ...basis,
+        ...losseVelden,
+        ...opschorting,
+        ...opleverband,
+        woningStatus: "in_aanbouw",
+        woningpaspoort: {
+          ...paspoortZonderEnums.woningpaspoort,
+          woningtype: "tussenwoning",
+        },
+      }),
+    );
+  });
+
+  it("trede 4c — plus energielabel (12 waarden) = vol paspoort", async () => {
+    const db = alsGebruiker(ALICE);
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede4c`), {
+        ...basis,
+        ...losseVelden,
+        ...opschorting,
+        ...opleverband,
+        ...paspoort,
+      }),
+    );
+  });
+
+  /** Een update kost extra: `resource.data` moet erbij gelezen worden. */
+  it("trede 6 — een update op het volle project", async () => {
+    const db = alsGebruiker(ALICE);
+    const vol = {
+      ...basis,
+      ...losseVelden,
+      ...opschorting,
+      ...opleverband,
+      ...paspoort,
+      ...hypotheek,
+    };
+    await assertSucceeds(setDoc(doc(db, `users/${ALICE}/projects/trede6`), vol));
+    await assertSucceeds(
+      setDoc(doc(db, `users/${ALICE}/projects/trede6`), { ...vol, aannemer: "Nijhuis Bouw" }),
     );
   });
 });

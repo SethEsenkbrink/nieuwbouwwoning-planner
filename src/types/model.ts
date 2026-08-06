@@ -149,6 +149,71 @@ export interface Woningpaspoort {
   hypotheekverstrekker?: string;
 }
 
+/**
+ * ⚠️ **`Project` zit dicht tegen `withinSize(25)` aan: 22 van de 25.**
+ *
+ * De maandlastenprognose voegde zeven gegevens toe. Die staan daarom in de
+ * geneste map `hypotheek` en niet als losse velden — los zou het op 28
+ * uitkomen en élke write weigeren. Zelfde constructie als `woningpaspoort`
+ * (ADR-0013 §5).
+ *
+ * **Komt er nóg een groep bij, doe hetzelfde.** En geef elke map een eigen
+ * `.size()`-check in de rules: een geneste map telt in `withinSize(25)` als
+ * één veld, dus die begrenst de inhoud ervan niet. Zie de valkuil in
+ * `docs/STATE.md`.
+ */
+/**
+ * De aflossingsvorm. Gesloten lijst — hij beschrijft wat er in Nederland
+ * bestaat, niet een voorkeur.
+ *
+ * Sinds 1 januari 2013 geldt: alleen bij annuïtair of lineair volledig aflossen
+ * in 30 jaar is de hypotheekrente aftrekbaar. `aflossingsvrij` bestaat nog wel
+ * (oude leningen, of een deel van de som) maar kent geen aflossingscomponent,
+ * en dat maakt de maandlastenberekening wezenlijk anders.
+ */
+export type Hypotheekvorm = "annuitair" | "lineair" | "aflossingsvrij";
+
+/**
+ * Wat er nodig is om de maandlasten tijdens de bouw te schatten (ADR-0019).
+ *
+ * DIT IS EEN GENESTE MAP EN GEEN ZEVEN LOSSE VELDEN. `Project` stond op 21 van
+ * de 25 velden die `withinSize(25)` toestaat; zeven erbij zou élke write
+ * weigeren. Als map kost het er één. Zelfde constructie en zelfde reden als
+ * `woningpaspoort` — zie ADR-0013 §5.
+ *
+ * **De map heeft daarom een eigen `.size()`-check in de rules.** Een geneste
+ * map telt in `withinSize()` als één veld, dus zonder die extra check is dit
+ * een vrij beschrijfbare opslagbak.
+ *
+ * WAT HIER BEWUST NIET IN ZIT: inkomen, belastingschijf, eigenwoningforfait.
+ * De app rekent **bruto** en doet niet aan hypotheekrenteaftrek. Netto rekenen
+ * zou een bedrag opleveren waar iemand zijn begroting op baseert, en dat is
+ * constraint C5 voorbij: de tool structureert, hij adviseert niet.
+ */
+export interface Hypotheekgegevens {
+  /** De totale lening in hele euro's. */
+  bedrag?: number;
+  /** Jaarlijks percentage, bijv. 3.85. Niet als fractie. */
+  rente?: number;
+  vorm?: Hypotheekvorm;
+  /** Doorgaans 360 (30 jaar). */
+  looptijdMaanden?: number;
+  /**
+   * De vergoeding die de bank betaalt over het saldo dat nog in bouwdepot
+   * staat. Bij nieuwbouw meestal gelijk aan de hypotheekrente, maar niet
+   * altijd — daarom een eigen veld en geen aanname.
+   */
+  depotRente?: number;
+  /**
+   * Wat er bij het passeren van de akte al is opgenomen: de grond, plus
+   * termijnen die op dat moment al vervallen waren. Dit deel kost vanaf dag
+   * één rente en staat niet in het depot.
+   */
+  grondbedrag?: number;
+  /** Vanaf deze datum lopen de maandlasten. */
+  passeerdatum?: Timestamp;
+}
+
 export interface Project {
   /** Vrije naam van de gebruiker, bijv. "Ons huis in Almere". Verplicht. */
   naam: string;
@@ -160,6 +225,17 @@ export interface Project {
   /** Bedragen in hele euro's. */
   koopsom?: number;
   meerwerkbudget?: number;
+  /**
+   * Wat de bank in bouwdepot heeft gezet.
+   *
+   * Bewust door de gebruiker in te vullen en NIET af te leiden uit de som van
+   * de termijnen: die som is wat de aannemer in rekening brengt, en het depot
+   * kan hoger zijn (meerwerk, een eigen inleg) of lager (een deel van de
+   * aanneemsom is al bij het passeren voldaan). Zonder dit getal is de
+   * depotgrafiek een balk zonder schaal — je ziet wél € 12.000 betaald, maar
+   * niet of dat een derde of driekwart is.
+   */
+  bouwdepotBedrag?: number;
 
   // ── De opleverdatum als band ────────────────────────────────────────────
   // Drie datums in plaats van één, plus de staat en de herkomst. Bij
@@ -198,6 +274,9 @@ export interface Project {
 
   woningStatus?: WoningStatus;
   woningpaspoort?: Woningpaspoort;
+
+  /** De maandlastenprognose (ADR-0019). Geneste map — zie `Hypotheekgegevens`. */
+  hypotheek?: Hypotheekgegevens;
 
   aangemaaktOp: Timestamp;
   bijgewerktOp?: Timestamp;

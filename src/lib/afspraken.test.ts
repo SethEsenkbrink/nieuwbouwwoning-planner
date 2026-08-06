@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { maakOffset, splitsOffset, toonOffset } from "@/lib/afspraken";
+import {
+  datumUitOffset,
+  maakOffset,
+  offsetUitDatum,
+  splitsOffset,
+  toonOffset,
+} from "@/lib/afspraken";
 
 /**
  * Klein maar niet triviaal: hier wordt een teken omgezet in taal en terug.
@@ -61,5 +67,55 @@ describe("toonOffset", () => {
   it("gebruikt enkelvoud bij één dag", () => {
     expect(toonOffset(1, "Oplevering")).toBe("1 dag ná Oplevering");
     expect(toonOffset(-1, "Oplevering")).toBe("1 dag vóór Oplevering");
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Denken in datums, opslaan als afstand
+ *
+ * De gebruiker typt "15 oktober"; het model bewaart "12 dagen ná Oplevering".
+ * Zo blijft ADR-0008 overeind — schuift de bouw, dan schuift de afspraak mee —
+ * terwijl niemand meer in offsets hoeft te denken.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/** Korte notatie voor een datum op UTC-middernacht. */
+const dag = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+
+describe("offsetUitDatum", () => {
+  it("rekent een datum ná het anker om naar een positieve offset", () => {
+    expect(offsetUitDatum(dag("2026-11-09"), dag("2026-10-28"))).toBe(12);
+  });
+
+  it("rekent een datum vóór het anker om naar een negatieve offset", () => {
+    expect(offsetUitDatum(dag("2026-10-14"), dag("2026-10-28"))).toBe(-14);
+  });
+
+  it("geeft nul op de dag zelf", () => {
+    expect(offsetUitDatum(dag("2026-10-28"), dag("2026-10-28"))).toBe(0);
+  });
+
+  /** Zomertijd maakt sommige dagen 23 uur; afronden vangt dat af. */
+  it("blijft heel over de overgang naar wintertijd", () => {
+    expect(offsetUitDatum(dag("2026-11-03"), dag("2026-10-20"))).toBe(14);
+  });
+
+  it("geeft undefined als het anker geen datum heeft", () => {
+    expect(offsetUitDatum(dag("2026-11-09"), undefined)).toBeUndefined();
+  });
+});
+
+describe("datumUitOffset", () => {
+  it("is de omkering van offsetUitDatum", () => {
+    const anker = dag("2026-10-28");
+    for (const offset of [-45, -14, 0, 7, 42, 60]) {
+      const datum = datumUitOffset(offset, anker);
+      expect(offsetUitDatum(datum!, anker)).toBe(offset);
+    }
+  });
+
+  it("geeft undefined zonder anker", () => {
+    expect(datumUitOffset(7, undefined)).toBeUndefined();
   });
 });

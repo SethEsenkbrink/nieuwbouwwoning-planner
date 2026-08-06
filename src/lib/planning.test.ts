@@ -4,6 +4,7 @@ import {
   berekenDatum,
   bouwActielijst,
   laatsteGratisSchuifdatum,
+  opDag,
   verschilInDagen,
   voegDagenToe,
   type AfspraakInvoer,
@@ -48,6 +49,46 @@ describe("datumrekenwerk", () => {
 
   it("geeft een negatief verschil als de eerste datum eerder ligt", () => {
     expect(verschilInDagen(d("2026-07-30"), d("2026-08-06"))).toBe(-7);
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * BUG-02 — regressie
+ *
+ * `Bouwdepot.tsx` en `Dashboard.tsx` sloegen een aangevinkt moment op met een
+ * kaal `new Date()`, terwijl de rest van de app `opDag()` gebruikt. Deze tests
+ * pinnen vast wát die wrapper precies oplost, want dat is iets anders dan wat
+ * er in `2026-08-01-bevindingen-live-test.md` staat.
+ *
+ * NIET de getoonde datum: `toonDatum()` leest in UTC, dus een tijdstip van
+ * 23:30Z en een middernacht van dezelfde UTC-dag tonen allebei hetzelfde.
+ *
+ * WÉL de vergelijkbaarheid. Elke andere datum in de app komt uit
+ * `<input type="date">` en is dus UTC-middernacht. Een opgeslagen tijdstip is
+ * daar nooit gelijk aan, waardoor een `===` op twee datums die dezelfde dag
+ * voorstellen stilzwijgend `false` geeft.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("opDag — het klemmen dat BUG-02 oploste", () => {
+  /** 2 augustus 2026, 01:30 Nederlandse zomertijd (UTC+2). */
+  const middenInDeNacht = new Date("2026-08-01T23:30:00.000Z");
+  const middenOpDeDag = new Date("2026-08-02T12:00:00.000Z");
+
+  it("haalt de kloktijd eruit", () => {
+    expect(opDag(middenOpDeDag)).toEqual(d("2026-08-02"));
+    expect(opDag(middenInDeNacht)).toEqual(d("2026-08-01"));
+  });
+
+  it("is gelijk aan dezelfde dag uit een datumveld — een kaal tijdstip niet", () => {
+    const uitDatumveld = d("2026-08-02");
+    expect(opDag(middenOpDeDag).getTime()).toBe(uitDatumveld.getTime());
+    // Dit is wat er misging: dezelfde dag, toch ongelijk.
+    expect(middenOpDeDag.getTime()).not.toBe(uitDatumveld.getTime());
+  });
+
+  it("is idempotent, zodat een tweede keer klemmen niets verschuift", () => {
+    expect(opDag(opDag(middenInDeNacht))).toEqual(opDag(middenInDeNacht));
   });
 });
 
