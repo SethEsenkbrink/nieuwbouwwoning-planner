@@ -34,6 +34,7 @@ import {
   type Toegang,
 } from "@/lib/backup/doel";
 import { importeerDossier } from "@/lib/backup/import";
+import { wisAllesLokaal } from "@/lib/paniek";
 
 import { berekenImpact } from "@/lib/watals";
 import {
@@ -105,6 +106,11 @@ export default function Projectinstellingen() {
   const [bevestiging, setBevestiging] = useState("");
   const [bezigMetVerwijderen, setBezigMetVerwijderen] = useState(false);
 
+  // Paniekknop: alles op dit apparaat wissen.
+  const [toonPaniek, setToonPaniek] = useState(false);
+  const [paniekBevestiging, setPaniekBevestiging] = useState("");
+  const [bezigMetPaniek, setBezigMetPaniek] = useState(false);
+
   const [herlaadTeller, setHerlaadTeller] = useState(0);
   const herlaad = useCallback(() => {
     setHerlaadTeller((n) => n + 1);
@@ -159,6 +165,25 @@ export default function Projectinstellingen() {
     const map = await haalBewaardeBackupmap();
     if (!map) return;
     setBackupToegang(await vraagToegangOpnieuw(map));
+  }
+
+  async function voerPaniekUit() {
+    setBezigMetPaniek(true);
+    setFout(null);
+    try {
+      const resultaat = await wisAllesLokaal();
+      if (resultaat.fouten.length > 0) {
+        // Niet "alles gewist" melden als er iets is blijven staan — dan denkt
+        // iemand dat het apparaat schoon is terwijl dat niet zo is.
+        setFout(`Niet alles kon gewist worden:\n${resultaat.fouten.join("\n")}`);
+        return;
+      }
+      void navigeer("/inloggen", { replace: true });
+    } catch (err) {
+      setFout(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBezigMetPaniek(false);
+    }
   }
 
   async function voerImportUit() {
@@ -674,6 +699,69 @@ export default function Projectinstellingen() {
             </div>
           </div>
         )}
+
+        {/* ── Paniekknop ──────────────────────────────────────────────────
+            Voor het moment dat dit apparaat uit handen gaat: verkoop,
+            reparatie, een gedeelde computer. Wist de sleutel, alle documenten
+            en de volledige database inclusief vault_meta — zonder die laatste
+            bestaan de gewrapte DEK's niet meer, en is er geen route terug.
+            Daarom dezelfde overtypbevestiging als bij verwijderen: iets wat je
+            op de automatische piloot wegklikt is hier niet genoeg. */}
+        <div className="mt-s4 border-t border-mist pt-s3">
+          <h3 className="text-h4 text-ink">Alles op dit apparaat wissen</h3>
+          <p className="mt-s2 text-body text-slate">
+            Wist je sleutel, al je documenten en de volledige database. Zonder je backup en
+            wachtwoordzin is dit onomkeerbaar. Gebruik dit als deze computer uit je handen
+            gaat.
+          </p>
+
+          {!toonPaniek ? (
+            <div className="mt-s2">
+              <Knop
+                variant="secundair"
+                onClick={() => {
+                  setToonPaniek(true);
+                }}
+              >
+                Ik wil alles wissen
+              </Knop>
+            </div>
+          ) : (
+            <div className="mt-s2">
+              <Melding soort="fout">
+                Dit verwijdert alles onherstelbaar. Typ <strong>WISSEN</strong> om te
+                bevestigen.
+              </Melding>
+              <div className="mt-s2">
+                <Veld
+                  label="Typ WISSEN om te bevestigen"
+                  value={paniekBevestiging}
+                  onChange={(e) => {
+                    setPaniekBevestiging(e.target.value);
+                  }}
+                />
+              </div>
+              <div className="mt-s2 flex flex-wrap gap-s2">
+                <Knop
+                  bezig={bezigMetPaniek}
+                  disabled={paniekBevestiging.trim() !== "WISSEN"}
+                  onClick={() => void voerPaniekUit()}
+                >
+                  Alles definitief wissen
+                </Knop>
+                <Knop
+                  variant="secundair"
+                  onClick={() => {
+                    setToonPaniek(false);
+                    setPaniekBevestiging("");
+                  }}
+                >
+                  Annuleren
+                </Knop>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
     </AppShell>
   );
