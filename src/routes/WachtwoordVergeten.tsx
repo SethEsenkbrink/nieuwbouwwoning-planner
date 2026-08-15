@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router";
-import { useAuth } from "@/context/useAuth";
+import { Link, useNavigate } from "react-router";
+import { useVault } from "@/context/useVault";
 import { authFoutmelding } from "@/lib/authFouten";
 import { AuthLayout } from "@/components/AuthLayout";
 import { Veld } from "@/components/Veld";
@@ -8,20 +8,26 @@ import { Knop } from "@/components/Knop";
 import { Melding } from "@/components/Melding";
 
 export default function WachtwoordVergeten() {
-  const { wachtwoordResetMailen } = useAuth();
+  const { ontgrendelViaHerstel } = useVault();
+  const navigeer = useNavigate();
 
-  const [email, setEmail] = useState("");
-  const [verstuurd, setVerstuurd] = useState(false);
+  const [herstelcode, setHerstelcode] = useState("");
   const [fout, setFout] = useState<string | null>(null);
   const [bezig, setBezig] = useState(false);
 
   async function verstuur(e: FormEvent) {
     e.preventDefault();
     setFout(null);
+
+    if (!herstelcode.trim()) {
+      setFout("Voer je 128-bit herstelcode in.");
+      return;
+    }
+
     setBezig(true);
     try {
-      await wachtwoordResetMailen(email);
-      setVerstuurd(true);
+      await ontgrendelViaHerstel(herstelcode);
+      void navigeer("/", { replace: true });
     } catch (err) {
       setFout(authFoutmelding(err));
     } finally {
@@ -31,39 +37,32 @@ export default function WachtwoordVergeten() {
 
   return (
     <AuthLayout
-      titel="Wachtwoord vergeten"
-      ondertitel="Vul je e-mailadres in, dan sturen we een link om een nieuw wachtwoord in te stellen."
+      titel="Kluis herstellen"
+      ondertitel="Omdat je kluis 100% lokaal versleuteld is, kan niemand je wachtwoord resetten. Voer je 128-bit herstelcode in om toegang te herstellen."
       voettekst={
         <Link to="/inloggen" className="font-semibold text-link underline">
-          Terug naar inloggen
+          Terug naar ontgrendelen
         </Link>
       }
     >
-      {verstuurd ? (
-        // Bewust neutraal geformuleerd: we bevestigen niet of dit adres bestaat.
-        <Melding soort="gelukt">
-          Als er een account bij dit e-mailadres hoort, is er een reset-link onderweg. Kijk ook
-          even in je spam.
-        </Melding>
-      ) : (
-        <form onSubmit={(e) => void verstuur(e)} className="flex flex-col gap-s2" noValidate>
-          {fout && <Melding soort="fout">{fout}</Melding>}
+      <form onSubmit={(e) => void verstuur(e)} className="flex flex-col gap-s2" noValidate>
+        {fout && <Melding soort="fout">{fout}</Melding>}
 
-          <Veld
-            label="E-mailadres"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="jij@voorbeeld.nl"
-          />
+        <Veld
+          label="128-bit Herstelcode"
+          hint="Bijv. XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X (streepjes en hoofdletters zijn optioneel)"
+          type="text"
+          autoComplete="off"
+          required
+          value={herstelcode}
+          onChange={(e) => setHerstelcode(e.target.value)}
+          placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX-X"
+        />
 
-          <Knop type="submit" bezig={bezig} volledigeBreedte>
-            Stuur reset-link
-          </Knop>
-        </form>
-      )}
+        <Knop type="submit" bezig={bezig} volledigeBreedte>
+          {bezig ? "Kluis herstellen..." : "Kluis herstellen met code"}
+        </Knop>
+      </form>
     </AuthLayout>
   );
 }

@@ -8,7 +8,7 @@ import { Datumveld } from "@/components/Datumveld";
 import { Tekstvlak } from "@/components/Tekstvlak";
 import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
-import { useAuth } from "@/context/useAuth";
+import { useVault as useAuth } from "@/context/useVault";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
 import { toonDatum, vandaag } from "@/lib/datum";
 import { toonBedrag } from "@/lib/bedrag";

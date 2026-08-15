@@ -33,6 +33,14 @@
 | [0017](ADR-0017-bruikbaarheid-voor-nieuwe-features.md) | Bruikbaarheid vóór nieuwe features | Geaccepteerd | **Herziet de volgorde uit het bouwplan.** Ronde 9 gaat over UX en bugs; C5, blok F en de improvements-wachtrij schuiven op |
 | [0018](ADR-0018-dashboard-als-overzicht.md) | Dashboard als overzicht, niet als werklijst | Geaccepteerd | **Draait ADR-0008 principe 5 om in de verticale volgorde.** Eerst de stand van zaken, dan het werk. Rekenkern naar `lib/dashboard.ts` |
 | [0019](ADR-0019-expressielimiet-en-enums-in-geneste-maps.md) | Geen enumvalidatie in geneste maps | Geaccepteerd | **Verzwakt bewust de model-/rules-pariteit.** Eén `isOneOf` in een geneste map duwt de projectregel over Firestore's limiet van 1000 expressies |
+| [0020](ADR-0020-vervallen-serverside-en-firebase-naar-100-procent-lokaal.md) | 100% lokaal en versleuteld | Geaccepteerd | **Vervallen serverside en Firebase.** Dexie + OPFS + Web Crypto, zero-network CSP (`connect-src 'none'`), PWA |
+| [0021](ADR-0021-sleutelhierarchie-en-cryptografie.md) | Sleutelhiërarchie en lokale cryptografie | Geaccepteerd | DEK (non-extractable AES-256-GCM), KEK-A (Argon2id Web Worker), KEK-C (HKDF 128-bit herstelcode), auto-lock |
+| [0022](ADR-0022-backup-en-restore-formaat.md) | Backup- en herstelformaat (.woningdossier) | Geaccepteerd | Streaming zip (fflate), onversleuteld manifest.json, data.enc onder DEK, CHECKSUMS integriteit |
+| [0023](ADR-0023-kerndatamodel-en-regelmotor.md) | Kerndatamodel (Woning) en Deterministische Regelmotor | Geaccepteerd | Woningtrajecten (`nieuwbouw` / `bestaandeBouw`), OPFS versleutelde bestandsopslag, pure regelmotor (`src/rules/`) |
+| [0024](ADR-0024-domeinmodules-en-mjop.md) | Domeinmodules (Materialen, Garanties, Verzekeringen & MJOP-Light) | Geaccepteerd | Materialen- & kleurcodes, garantietermijn-klokken, meerjarenonderhoudsplanning, opstal/inboedel |
+| [0025](ADR-0025-energie-p1-en-saldering.md) | Energieverbruik, P1 CSV-Import en Saldering | Geaccepteerd | P1 CSV parser, indicatief label met permanente disclaimer, post-2027 salderingsparameters |
+| [0026](ADR-0026-mobile-companion-inbox-delta-en-overdracht.md) | Mobile Companion (Inbox-Delta), Woningpaspoort Overdracht en WebAuthn-PRF | Geaccepteerd | Offline quick-capture inbox-delta, zelfstandig overdrachtsdossier (HTML/JSON), biometrisch kluisslot |
+| [0027](ADR-0027-diagnostiek-en-audit-systeem.md) | Diagnostiek, Systeemaudit en Ontwikkelaarsrapportage | Geaccepteerd | Diepgaande integriteitsaudit, verweesde relatie detectie & herstel, benchmark timers, Markdown/JSON rapport |
 
 ## De vier die je als eerste moet lezen
 

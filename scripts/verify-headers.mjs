@@ -2,16 +2,9 @@
 /**
  * verify-headers.mjs — valideert de HTTP-headers uit netlify.toml
  *
- * Aanleiding: de Content-Security-Policy stond als gewone TOML-multiline string
- * (`"""..."""`), waardoor er letterlijke newlines in de header-waarde terechtkwamen.
- * HTTP-headers mogen die niet bevatten. Resultaat: de lokale Netlify-emulator
- * crashte bij élke request met
- *
- *   TypeError: Headers.set: "..." is an invalid header value
- *
- * Dit script vangt dat af vóórdat je het in de browser merkt. Het gebruikt de
- * ingebouwde Headers-klasse van Node, dus exact dezelfde validatie (undici) als
- * de emulator gebruikt.
+ * Controleert:
+ * 1. Elke header is een geldige HTTP-header (geen syntaxfouten of losse newlines).
+ * 2. CSP is compleet, zero-network en dwingt connect-src 'none' af.
  *
  * Draait als onderdeel van `npm run verify`.
  */
@@ -23,7 +16,7 @@ import { parse } from "smol-toml";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TOML_PAD = join(ROOT, "netlify.toml");
 
-/** Directives die er altijd moeten staan. Verdwijnt er één, dan valt er stil een muur weg. */
+/** Directives die er altijd moeten staan. */
 const VERPLICHTE_DIRECTIVES = [
   "default-src",
   "base-uri",
@@ -32,14 +25,7 @@ const VERPLICHTE_DIRECTIVES = [
   "form-action",
   "script-src",
   "connect-src",
-];
-
-/** Firebase-endpoints die de app nodig heeft. Ontbreekt er één, dan faalt inloggen of Firestore. */
-const VERPLICHTE_CONNECT_SRC = [
-  "https://identitytoolkit.googleapis.com", // inloggen / registreren
-  "https://securetoken.googleapis.com", // token-refresh
-  "https://firestore.googleapis.com", // database
-  "wss://*.firebaseio.com", // realtime listeners
+  "frame-src",
 ];
 
 const problemen = [];
@@ -76,7 +62,7 @@ for (const blok of config.headers ?? []) {
   }
 }
 
-// ── 2. De CSP moet compleet zijn ──────────────────────────────────────────
+// ── 2. De CSP moet compleet en zero-network zijn ───────────────────────────
 const csp = config.headers?.[0]?.values?.["Content-Security-Policy"];
 
 if (!csp) {
@@ -95,23 +81,29 @@ if (!csp) {
   }
 
   const connectSrc = directives.find((d) => d.startsWith("connect-src")) ?? "";
-  for (const endpoint of VERPLICHTE_CONNECT_SRC) {
-    if (!connectSrc.includes(endpoint)) {
-      problemen.push(
-        `CSP connect-src mist ${endpoint}.\n` +
-          `      Zonder dit endpoint faalt Firebase stil in de browser.`,
-      );
-    }
+  if (connectSrc !== "connect-src 'none'") {
+    problemen.push(
+      `CSP connect-src moet exact "connect-src 'none'" zijn (gevonden: "${connectSrc}").\n` +
+        `      Woningdossier is 100% lokaal en mag geen uitgaande netwerkverbindingen toestaan.`,
+    );
   }
 
-  // Het hele punt van deze CSP is dat inline scripts geblokkeerd blijven.
   const scriptSrc = directives.find((d) => d.startsWith("script-src")) ?? "";
   if (scriptSrc.includes("'unsafe-inline'") || scriptSrc.includes("'unsafe-eval'")) {
     problemen.push(
       `CSP script-src bevat 'unsafe-inline' of 'unsafe-eval'.\n` +
-        `      Dat haalt de belangrijkste bescherming tegen XSS weg. Los het op met een\n` +
-        `      extern script, niet door de policy te verzwakken.`,
+        `      Dat haalt de belangrijkste bescherming tegen XSS weg.`,
     );
+  }
+  if (scriptSrc.includes("http:") || scriptSrc.includes("https:")) {
+    problemen.push(
+      `CSP script-src bevat externe bronnen. Alle scripts moeten 'self' zijn.`,
+    );
+  }
+
+  const frameSrc = directives.find((d) => d.startsWith("frame-src")) ?? "";
+  if (frameSrc !== "frame-src 'none'") {
+    problemen.push(`CSP frame-src moet 'none' zijn.`);
   }
 }
 
@@ -124,6 +116,6 @@ if (problemen.length > 0) {
 }
 
 console.log(
-  `✓ Headers OK — ${gecontroleerd} headers geldig, CSP compleet ` +
+  `✓ Headers OK — ${gecontroleerd} headers geldig, CSP zero-network bevestigd ` +
     `(${String(csp).split(";").filter((s) => s.trim()).length} directives)`,
 );

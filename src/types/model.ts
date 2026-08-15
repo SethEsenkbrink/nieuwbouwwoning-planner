@@ -1,4 +1,37 @@
-import type { Timestamp } from "firebase/firestore";
+/**
+ * Lokale representatie van een tijdstempel met seconden en nanoseconden.
+ */
+export class Timestamp {
+  constructor(
+    public readonly seconds: number,
+    public readonly nanoseconds = 0,
+  ) {}
+
+  toDate(): Date {
+    return new Date(this.seconds * 1000 + Math.floor(this.nanoseconds / 1000000));
+  }
+
+  toMillis(): number {
+    return this.seconds * 1000 + Math.floor(this.nanoseconds / 1000000);
+  }
+
+  toISOString(): string {
+    return this.toDate().toISOString();
+  }
+
+  static fromDate(date: Date): Timestamp {
+    const ms = date.getTime();
+    return new Timestamp(Math.floor(ms / 1000), (ms % 1000) * 1000000);
+  }
+
+  static fromMillis(ms: number): Timestamp {
+    return new Timestamp(Math.floor(ms / 1000), (ms % 1000) * 1000000);
+  }
+
+  static now(): Timestamp {
+    return Timestamp.fromDate(new Date());
+  }
+}
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -119,16 +152,36 @@ export type Energielabel =
  * op het project zelf: die horen bij het bouwtraject en zijn al ingevuld
  * voordat het paspoort relevant wordt.
  */
+export type TrajectType = "nieuwbouw" | "bestaandeBouw";
+
+export interface KadastraleGegevens {
+  gemeente?: string;
+  sectie?: string;
+  perceelnummer?: string;
+  complexaanduiding?: string;
+  appartementsindex?: string;
+}
+
 export interface Woningpaspoort {
   adres?: string;
+  huisnummer?: string;
+  huisnummerToevoeging?: string;
   postcode?: string;
   plaats?: string;
   woningtype?: Woningtype;
   bouwjaar?: number;
   /** Gebruiksoppervlakte wonen in m², zoals in de brochure. */
   woonoppervlakte?: number;
+  woonoppervlakteM2?: number;
   /** Perceeloppervlakte in m². Leeg bij een appartement. */
   perceeloppervlakte?: number;
+  /** Bruto inhoud van de woning in m³. */
+  inhoudM3?: number;
+  aantalKamers?: number;
+  aantalSlaapkamers?: number;
+  aantalWoonlagen?: number;
+
+  kadaster?: KadastraleGegevens;
 
   // ── Het energielabel als klok, niet als tekstje (ADR-0013 §4) ──────────
   // Een label is TIEN JAAR geldig vanaf de opnamedatum en verloopt stil: is
@@ -146,6 +199,7 @@ export interface Woningpaspoort {
   /** Het polisnummer bij Woningborg of SWK — het waarborgtype staat op het project. */
   waarborgpolisnummer?: string;
   notaris?: string;
+  transportdatum?: Timestamp;
   hypotheekverstrekker?: string;
 }
 
@@ -217,6 +271,7 @@ export interface Hypotheekgegevens {
 export interface Project {
   /** Vrije naam van de gebruiker, bijv. "Ons huis in Almere". Verplicht. */
   naam: string;
+  traject?: TrajectType;
   bouwnummer?: string;
   /** Naam van het bouwproject van de ontwikkelaar. */
   projectnaam?: string;
@@ -887,6 +942,92 @@ export interface Meterstand {
   notitie?: string;
 }
 
+// ── Materialen & Kleurcodes (Fase 4) ──────────────────────────────────────
+
+export type MateriaalCategorie =
+  | "verf"
+  | "vloer"
+  | "tegel"
+  | "sanitair"
+  | "gevel"
+  | "kozijn"
+  | "raambekleding"
+  | "overig";
+
+export interface MateriaalItem {
+  naam: string;
+  categorie: MateriaalCategorie;
+  ruimte?: string;
+  merk?: string;
+  kleurcode?: string;
+  glansgraad?: string;
+  typeOfAfwerking?: string;
+  leverancier?: string;
+  batchnummer?: string;
+  reserveHoeveelheid?: string;
+  documentUuid?: string;
+  notitie?: string;
+}
+
+// ── Garanties & Waarborgen (Fase 4) ────────────────────────────────────────
+
+export type GarantieType =
+  | "wettelijk_wkb"
+  | "waarborgcertificaat"
+  | "fabrieksgarantie"
+  | "installatiegarantie"
+  | "uitvoerdersgarantie"
+  | "overig";
+
+export interface GarantieItem {
+  titel: string;
+  type: GarantieType;
+  partij?: string;
+  polisOfCertificaatnummer?: string;
+  ingangsdatum: Timestamp;
+  looptijdJaren: number;
+  voorwaarden?: string;
+  documentUuid?: string;
+  notitie?: string;
+}
+
+// ── Verzekeringen & Inboedel (Fase 4) ──────────────────────────────────────
+
+export type VerzekeringSoort =
+  | "opstal"
+  | "inboedel"
+  | "aansprakelijkheid"
+  | "glas"
+  | "car_bouw"
+  | "rechtsbijstand_wonen"
+  | "overig";
+
+export interface VerzekeringItem {
+  soort: VerzekeringSoort;
+  maatschappij: string;
+  polisnummer?: string;
+  premiePerJaar?: number;
+  verzekerdBedrag?: number;
+  eigenRisico?: number;
+  ingangsdatum?: Timestamp;
+  verlengdatum?: Timestamp;
+  glasdekking?: boolean;
+  herbouwwaarde?: number;
+  documentUuid?: string;
+  notitie?: string;
+}
+
+export interface InboedelItem {
+  naam: string;
+  ruimte?: string;
+  aankoopdatum?: Timestamp;
+  aankoopbedrag?: number;
+  serienummer?: string;
+  aankoopbonUuid?: string;
+  fotoUuid?: string;
+  notitie?: string;
+}
+
 // ── Handige aliassen voor gelezen documenten ───────────────────────────────
 
 export type ProjectDoc = Project & MetId;
@@ -904,3 +1045,7 @@ export type OnderhoudTaakDoc = OnderhoudTaak & MetId;
 export type OnderhoudLogregelDoc = OnderhoudLogregel & MetId;
 export type MeterDoc = Meter & MetId;
 export type MeterstandDoc = Meterstand & MetId;
+export type MateriaalDoc = MateriaalItem & MetId;
+export type GarantieDoc = GarantieItem & MetId;
+export type VerzekeringDoc = VerzekeringItem & MetId;
+export type InboedelDoc = InboedelItem & MetId;

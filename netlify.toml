@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Netlify-configuratie — Nieuwbouwplanner
+# Netlify-configuratie — Woningdossier
 # Instellingen hier overrulen wat er in de Netlify UI staat.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -12,13 +12,8 @@
   # Reproduceerbare installs op CI.
   NPM_FLAGS = "--prefer-offline --no-audit"
 
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-
 # ── SPA-fallback ─────────────────────────────────────────────────────────────
-# Client-side routing: elke onbekende route serveert index.html. Functions en
-# echte assets worden hier niet door geraakt (Netlify matcht die eerder).
+# Client-side routing: elke onbekende route serveert index.html.
 [[redirects]]
   from = "/*"
   to = "/index.html"
@@ -28,9 +23,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Security headers
 #
-# De Content-Security-Policy is bewust strak. Voeg je een externe dienst toe,
-# dan MOET je het bijbehorende domein hier expliciet toestaan — anders faalt het
-# stil in de browserconsole. Dat is opzet: het dwingt een bewuste keuze af.
+# Zero-network en 100% lokaal: connect-src 'none', geen externe scripts/CDNs.
 # ─────────────────────────────────────────────────────────────────────────────
 [[headers]]
   for = "/*"
@@ -41,8 +34,7 @@
     # Browser mag content-types niet zelf raden.
     X-Content-Type-Options = "nosniff"
 
-    # Alleen de origin meesturen bij cross-origin navigatie, nooit het volledige
-    # pad — daar kunnen project-id's in staan.
+    # Alleen de origin meesturen bij cross-origin navigatie.
     Referrer-Policy = "strict-origin-when-cross-origin"
 
     # Browserfeatures die deze app niet gebruikt, hard uitzetten.
@@ -52,17 +44,10 @@
     Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
 
     # Isoleer het browsing-context van andere origins.
-    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Resource-Policy = "same-origin"
 
     # ⚠ LET OP DE BACKSLASHES aan het einde van elke regel.
-    # Een HTTP-header mag geen newlines bevatten. Een gewone TOML-multiline
-    # string ("""...""") behoudt die newlines wél, waardoor de header ongeldig
-    # wordt: de lokale Netlify-emulator crasht dan met
-    #   TypeError: Headers.set: "..." is an invalid header value
-    # De backslash is TOML's line-continuation: hij verwijdert de newline én de
-    # inspringing van de volgende regel. Zo blijft dit leesbaar én geldig.
-    # Voeg je een regel toe, zet er dan een spatie + backslash achter.
     Content-Security-Policy = """\
 default-src 'self'; \
 base-uri 'self'; \
@@ -72,9 +57,9 @@ form-action 'self'; \
 img-src 'self' data: blob:; \
 font-src 'self' data:; \
 style-src 'self' 'unsafe-inline'; \
-script-src 'self' https://apis.google.com https://www.gstatic.com; \
-connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://firebaseinstallations.googleapis.com https://www.googleapis.com wss://*.firebaseio.com; \
-frame-src 'self' https://*.firebaseapp.com https://accounts.google.com; \
+script-src 'self'; \
+connect-src 'none'; \
+frame-src 'none'; \
 worker-src 'self' blob:; \
 manifest-src 'self'; \
 upgrade-insecure-requests\
@@ -91,33 +76,3 @@ upgrade-insecure-requests\
   for = "/index.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Toelichting bij de CSP — lees dit vóór je hem aanpast
-#
-# script-src
-#   'self'                    onze eigen gebundelde JS
-#   apis.google.com           nodig zodra Google-login (popup) wordt aangezet
-#   www.gstatic.com           Firebase Auth laadt hier hulpscripts vandaan
-#   GEEN 'unsafe-inline'      en dat moet zo blijven. Werkt iets niet, los het
-#                             op met een extern script, niet door dit te verzwakken.
-#
-# style-src
-#   'unsafe-inline' staat toe omdat sommige libraries stijl injecteren. Deze app
-#   toont geen door gebruikers aangeleverde HTML, dus het risico is klein. Bij
-#   twijfel: nonce-based CSP via een edge function.
-#
-# connect-src
-#   Precies de Firebase-endpoints voor Auth, token-refresh, Firestore (inclusief
-#   websocket voor realtime listeners) en installations. Voeg je een LLM-call toe,
-#   dan loopt die via onze eigen Netlify Function op 'self' — dus geen wijziging
-#   nodig. Roep een externe API NOOIT rechtstreeks vanuit de browser aan; dan zou
-#   de key in de bundle moeten staan.
-#
-# frame-src
-#   Alleen nodig voor de Firebase Auth-popup/redirect-flow.
-#
-# Handmatig testen na een wijziging: open de deploy preview, log in, maak een
-# project aan, en controleer of de console leeg blijft van CSP-violations.
-# ─────────────────────────────────────────────────────────────────────────────

@@ -1,41 +1,25 @@
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
-import { useAuth } from "@/context/useAuth";
+import { useVault } from "@/context/useVault";
 import { Logo } from "./Logo";
 import { Knop } from "./Knop";
 import { Hoofdnavigatie, Menuknop, Mobielmenu, Subnavigatie } from "./Hoofdnavigatie";
 
 /**
- * Header + container voor alle ingelogde pagina's.
- *
- * De header bestaat uit drie rijen, en dat is de reden dat de open/dicht-stand
- * van het mobiele menu hier woont en niet in de navigatie zelf:
- *
- *   1. logo · groepen (of de menuknop op mobiel) · account
- *   2. het uitgeklapte mobiele menu
- *   3. de subnavigatie van de groep waar je in zit
- *
- * Zaten die in één component, dan zou rij 2 het accountblok met `flex-wrap`
- * naar een derde regel duwen.
- *
- * Het menu sluit vanzelf bij navigatie: `useLocation` verandert, en de
- * `onKies`-callback zet hem dicht.
+ * Header + container voor alle schermen in het Woningdossier.
  */
 export function AppShell({ children }: { children: ReactNode }) {
-  const { gebruiker, uitloggen } = useAuth();
+  const { vergrendel } = useVault();
   const navigeer = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  async function afmelden() {
-    await uitloggen();
+  function sluitKluis() {
+    vergrendel();
     void navigeer("/inloggen", { replace: true });
   }
 
   return (
     <div className="min-h-screen bg-canvas">
-      {/* `niet-printen` haalt de app-chrome van het papier af. Alleen zichtbaar
-          bij het afdrukken van het overdrachtsdossier (ADR-0016), maar het geldt
-          voor elk scherm dat iemand print — en dat is daar ook beter. */}
       <header className="niet-printen border-b border-bone bg-lifted">
         <div className="mx-auto max-w-content px-s2 py-s2">
           <div className="flex flex-wrap items-center gap-s2">
@@ -52,11 +36,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             />
 
             <div className="ml-auto flex items-center gap-s2">
-              {gebruiker?.email && (
-                <span className="hidden text-body text-slate lg:inline">{gebruiker.email}</span>
-              )}
-              <Knop variant="secundair" onClick={() => void afmelden()}>
-                Uitloggen
+              <Link
+                to="/diagnostiek"
+                className="hidden items-center gap-1.5 rounded-pill px-3 py-1.5 text-xs font-medium text-slate hover:bg-bone hover:text-ink md:inline-flex"
+                title="Systeemaudit & Diagnostiek"
+              >
+                <span className="size-2 rounded-full bg-emerald-500" />
+                Diagnostiek
+              </Link>
+              <Knop variant="secundair" onClick={sluitKluis}>
+                Vergrendelen
               </Knop>
             </div>
           </div>
@@ -77,7 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <footer className="niet-printen mx-auto max-w-content px-s2 pb-s4">
         <p className="text-sm text-granite">
-          Nieuwbouwplanner structureert en herinnert; het is geen juridisch of financieel advies.
+          Woningdossier structureert en herinnert; het is geen juridisch of financieel advies.
           Termijnen zijn indicatief — controleer ze altijd tegen je eigen contract.
         </p>
       </footer>

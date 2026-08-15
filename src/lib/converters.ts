@@ -1,4 +1,7 @@
-import { Timestamp, type DocumentData } from "firebase/firestore";
+import { Timestamp } from "@/types/model";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type DocumentData = Record<string, any>;
 import type {
   Afspraak,
   AfspraakStatus,
