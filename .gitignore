@@ -69,6 +69,14 @@ logs/
 /testdocumenten/
 *.aannemingsovereenkomst.pdf
 
+# Lokale backups. Een .woningdossier is versleuteld, maar het is nog steeds
+# het volledige dossier van een echte woning — die hoort niet in git. De
+# golden fixtures zijn de enige uitzondering: die zijn synthetisch en moeten
+# juist wél mee, want verify-backup draait erop.
+*.woningdossier
+!tests/fixtures/*.woningdossier
+!test/fixtures/backups/*.woningdossier
+
 # ── Artefacten van de FUSE-mount ───────────────────────────────────────────
 # Wordt een bestand vervangen terwijl het nog ergens open staat, dan laat de
 # mount de oude inhoud achter als `.fuse_hidden<hex>`. Het zijn volledige
