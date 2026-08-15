@@ -7,7 +7,7 @@ import { Keuzeveld } from "@/components/Keuzeveld";
 import { Datumveld } from "@/components/Datumveld";
 import { Melding } from "@/components/Melding";
 import { Laadscherm } from "@/components/Laadscherm";
-import { useAuth } from "@/context/useAuth";
+import { useVault as useAuth } from "@/context/useVault";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
 import { toonDatum, vandaag } from "@/lib/datum";
 

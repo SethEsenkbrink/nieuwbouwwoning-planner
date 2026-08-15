@@ -1,87 +1,57 @@
-# Nieuwbouwplanner
+# Woningdossier
 
-Webapplicatie die kopers van een **nieuwbouwwoning (gekocht van tekening)** door het complete
-traject loodst — van koop-/aannemingsovereenkomst tot en met de garantietermijn — met
-deadlines, meerwerk-bewaking, bouwdepot-overzicht en een opleverchecklist.
+**100% lokaal, end-to-end versleuteld dossier voor het complete leven van een woning — van aankoop tot overdracht en het beheer daarna.**
 
-**Documenten worden wél ingelezen, maar nooit opgeslagen.** De PDF blijft in het geheugen van
-je browser; alleen de door jou bevestigde gegevens gaan naar de database.
+Geschikt voor zowel **nieuwbouwwoningen** (van koop-/aannemingsovereenkomst tot oplevering, meerwerk en garanties) als **bestaande bouw** (van bod en bouwkundige keuring tot notarieel transport en meerjarenonderhoud).
 
 ---
 
-## Snel starten
+## Kernprincipes
 
-```bash
-npm install
-cp .env.example .env.local     # en invullen
-npm run dev                    # http://localhost:5173
-```
+1. **Geen server, geen account, geen netwerk (Zero-network)**
+   - Nul uitgaande netwerkverzoeken tijdens gebruik. De Content-Security-Policy blokkeert elk netwerkcontact (`connect-src 'none'`).
+   - Geen servers die kunnen lekken, geen accounts, geen tracking.
+   - Alle lettertypen, iconen en assets zijn self-hosted. De app werkt direct en gegarandeerd in vliegtuigmodus.
 
-Eerste keer? Volg `docs/2026-07-29-setup-checklist.md` — daar staat ook hoe je het
-Firebase-project aanmaakt.
+2. **Desktop & Mobiel Model**
+   - **Desktop (Chromium: Chrome/Edge):** De volledige beheeromgeving, bron van waarheid en automatische backup via de File System Access API.
+   - **Mobiel (iOS/Android):** Companion-modus. Read-only weergave op basis van geïmporteerde snapshots, plus een quick-capture inbox voor bonnen/foto's die als versleutelde inbox-delta geëxporteerd wordt naar de desktop.
+   - Geen live synchronisatie over internet: één schrijfrichting per apparaat, dus nooit merge-conflicten.
 
-## Commando's
+3. **Alles versleuteld at rest (AES-256-GCM)**
+   - Data Encryption Key (DEK) gegenereerd in Web Crypto als non-extractable sleutel, leeft uitsluitend in werkgeheugen.
+   - Vergrendeld met Argon2id (wachtwoordzin) en HKDF (128-bit herstelcode).
+   - Documenten en foto's worden per stuk in OPFS versleuteld in 1 MiB chunks met unieke IV's.
 
-| Commando | Doet |
-|---|---|
-| `npm run dev` | Vite-devserver + Netlify Functions lokaal |
-| `npm run build` | Productiebuild naar `dist/` |
-| `npm run typecheck` | TypeScript zonder output |
-| `npm run lint` | ESLint, inclusief type-aware regels |
-| `npm run verify:tokens` | Controleert of de huisstijl-CSS gelijk loopt met `brink-ui/tokens.js` |
-| `npm run verify:headers` | Valideert de security headers en de CSP uit `netlify.toml` |
-| `npm run verify:rules` | Controleert of de enum-waarden in `firestore.rules` gelijk lopen met `model.ts` |
-| `npm run verify` | Alles hierboven + build. **Draai dit vóór elke commit.** |
-| `npm run rules:test` | Firestore-rules tegen de emulator |
+4. **De Eeuwige Backupbelofte**
+   - Streaming `.woningdossier` zip-formaat via `fflate`.
+   - Onversleutelde manifest met cryptoparameters (zonder persoonsgegevens) zodat een backup uit 2027 in 2032 nog exact weet hoe hij geopend moet worden.
+   - Additief datamodel met onsterfelijke migratieketens en gouden fixtures (`verify:backup`).
 
-## Stack
+5. **Lokale Deterministische Regelmotor**
+   - Geen onvoorspelbare LLM's of externe API's. De regelmotor rekent zuiver lokaal termijnen, 5%-opschortingsrechten, garantie-einddatums en onderhoudsintervallen door.
+   - De drie wetten: nooit stil muteren (altijd voorstellen met overnemen/aanpassen/wegklikken), traceerbare herkomst per datapunt, en heldere uitleg.
 
-React 19 · Vite 8 · TypeScript 6 · Tailwind v4 (CSS-first) · Firebase Auth + Firestore
-(Spark) · Netlify Functions. Zie `docs/PROJECT.md` §8 voor de volledige tabel en
-`docs/decisions/` voor het waarom van elke keuze.
-
-## Structuur
-
-```
-Nieuwbouwplanner/
-├─ AGENTS.md              ← lees dit eerst bij een nieuwe sessie
-├─ docs/                  ← projectkennis die tussen sessies overleeft
-│  ├─ PROJECT.md          scope, constraints, datamodel  (vaste waarheid)
-│  ├─ STATE.md            waar staan we nu               (elke sessie bijwerken)
-│  ├─ CONTEXT.md          startprompt voor een nieuwe chat
-│  ├─ WORKFLOW.md         spelregels
-│  ├─ decisions/          ADR's — waarom is het zoals het is
-│  └─ sessions/           sessielogs
-├─ firebase/              security rules + indexes
-├─ brink-ui/              kopie van het huisstijlfundament — niet handmatig wijzigen
-├─ netlify/functions/     serverside logica (stateless)
-├─ public/                logo, iconen, manifest
-├─ scripts/               verify-tokens.mjs
-└─ src/
-   ├─ lib/                firebase.ts, authFouten.ts
-   ├─ context/            AuthContext + useAuth
-   ├─ components/         herbruikbare UI
-   ├─ routes/             pagina's
-   ├─ types/              model.ts is het canonieke datamodel
-   └─ styles/             brink-theme.css (huisstijl in Tailwind v4)
-```
-
-## Werken aan dit project met AI-assistentie
-
-Dit project is opgezet om over veel losse chatsessies gebouwd te worden. Begin een nieuwe
-sessie door de startprompt uit `docs/CONTEXT.md` te plakken; die dwingt af dat de juiste
-bestanden in de juiste volgorde gelezen worden. Sluit een sessie nooit af zonder
-`docs/STATE.md` bij te werken.
-
-## Drie dingen die niet mogen
-
-1. **Firebase Storage of Cloud Functions gebruiken.** Storage breekt de privacybelofte,
-   Cloud Functions vereisen het betaalde Blaze-plan. Serverside logica hoort in
-   `netlify/functions/`. Zie ADR-0005.
-2. **Importeren uit `react-router-dom`.** Dat pakket is EOL; gebruik `react-router`.
-3. **Losse hex-kleuren in componenten.** Alles via de huisstijl-classes. Zie `../AGENTS.md`.
+---
 
 ## Disclaimer
 
-Deze tool structureert en herinnert. Het is geen juridisch of financieel advies; termijnen
-zijn indicatief en je eigen contract blijft leidend.
+> **Geen juridisch of financieel advies:**
+> Woningdossier berekent termijnen, rentes, stelposten, opschortingsrechten en energielabels op basis van algemene juridische kaders (zoals art. 7:768 BW, Woningborg/SWK regelingen en NTA 8800 richtlijnen) en de door u ingevoerde data.
+> Deze berekeningen zijn uitsluitend informatief en indicatief. Uw eigen koop-, aannemings- of hypotheekovereenkomst en het advies van uw notaris of gecertificeerd adviseur zijn te allen tijde leidend en juridisch bindend.
+
+---
+
+## Ontwikkeling & Commando's
+
+```bash
+npm install          # installeer dependencies
+npm run dev          # start Vite dev server lokaal
+npm run build        # bouw productiebundel naar dist/
+npm run verify       # typecheck + lint + tests + tokens + headers + verify:offline + build
+```
+
+## Licentie
+
+De code is gelicenseerd onder de **AGPL-3.0-only** (zie `LICENSE`).
+Merknamen, beeldmerken en de brink-ui styling zijn beschermd en vallen onder `TRADEMARK.md`.

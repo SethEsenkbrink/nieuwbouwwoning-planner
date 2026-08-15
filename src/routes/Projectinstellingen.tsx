@@ -12,7 +12,7 @@ import {
 } from "@/lib/projectgegevens";
 import { Opleverbandformulier } from "@/components/Opleverbandformulier";
 import { Impactmelding } from "@/components/Impactmelding";
-import { useAuth } from "@/context/useAuth";
+import { useVault as useAuth } from "@/context/useVault";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
 import { toonDatum, vandaag } from "@/lib/datum";
 import { leesBedragInvoer } from "@/lib/bedrag";
@@ -23,6 +23,9 @@ import {
   type Opleverbandwaarden,
 } from "@/lib/opleverband";
 import { naarAfspraakInvoer, naarBetrokkeneInvoer, naarPlanningContext } from "@/lib/actielijst";
+import { db } from "@/db/db";
+import { exporteerDossier, downloadDossierBestand } from "@/lib/backup/export";
+import { importeerDossier } from "@/lib/backup/import";
 
 import { berekenImpact } from "@/lib/watals";
 import {
@@ -62,7 +65,7 @@ import type {
  */
 
 export default function Projectinstellingen() {
-  const { gebruiker } = useAuth();
+  const { gebruiker, meta, dek } = useAuth();
   const navigeer = useNavigate();
   const uid = gebruiker?.uid;
 
@@ -79,6 +82,13 @@ export default function Projectinstellingen() {
   const [bezigMetGegevens, setBezigMetGegevens] = useState(false);
   const [bezigMetBand, setBezigMetBand] = useState(false);
 
+  // Backup & Herstel state
+  const [bezigMetBackup, setBezigMetBackup] = useState(false);
+  const [bezigMetImport, setBezigMetImport] = useState(false);
+  const [toonImportDialoog, setToonImportDialoog] = useState(false);
+  const [importWachtwoord, setImportWachtwoord] = useState("");
+  const [gekozenBestand, setGekozenBestand] = useState<File | null>(null);
+
   // Verwijderen vraagt om de projectnaam intikken. Een knop met "weet je het
   // zeker?" klikt iemand op de automatische piloot weg; iets overtypen niet.
   const [toonGevarenzone, setToonGevarenzone] = useState(false);
@@ -89,6 +99,46 @@ export default function Projectinstellingen() {
   const herlaad = useCallback(() => {
     setHerlaadTeller((n) => n + 1);
   }, []);
+
+  async function maakBackup() {
+    if (!dek || !meta) return;
+    setBezigMetBackup(true);
+    setFout(null);
+    setGelukt(null);
+    try {
+      const zipBytes = await exporteerDossier(db, dek, meta);
+      downloadDossierBestand(zipBytes, project?.naam ?? "woningdossier");
+      setGelukt("Backupbestand (.woningdossier) succesvol gedownload.");
+    } catch (err) {
+      setFout(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBezigMetBackup(false);
+    }
+  }
+
+  async function voerImportUit() {
+    if (!gekozenBestand || !importWachtwoord.trim()) {
+      setFout("Kies een backupbestand en voer de bijbehorende wachtwoordzin of herstelcode in.");
+      return;
+    }
+    setBezigMetImport(true);
+    setFout(null);
+    setGelukt(null);
+    try {
+      const buffer = await gekozenBestand.arrayBuffer();
+      const zipBytes = new Uint8Array(buffer);
+      const res = await importeerDossier(zipBytes, importWachtwoord, db);
+      setGelukt(`Dossier '${res.projectNaam}' succesvol hersteld (${res.aantalRecords} records).`);
+      setToonImportDialoog(false);
+      setGekozenBestand(null);
+      setImportWachtwoord("");
+      herlaad();
+    } catch (err) {
+      setFout(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBezigMetImport(false);
+    }
+  }
 
   useEffect(() => {
     if (!uid) return;
@@ -339,6 +389,106 @@ export default function Projectinstellingen() {
             Projectgegevens opslaan
           </Knop>
         </div>
+      </section>
+
+      {/* ── Kluis & Beveiliging ────────────────────────────────────────── */}
+      <section className="brink-card mt-s6 max-w-xl p-s3">
+        <h2 className="text-h3 text-ink">Kluis &amp; Beveiliging</h2>
+        <p className="mt-s2 text-body text-slate">
+          Je dossier is 100% lokaal versleuteld met een non-extractable 256-bit DEK onder AES-256-GCM.
+        </p>
+
+        <div className="mt-s3 space-y-s2">
+          <div className="flex items-center justify-between rounded-xs bg-bone p-s2 text-sm">
+            <span className="font-semibold text-charcoal">Sleutelafleiding</span>
+            <span className="font-mono text-slate">Argon2id (64 MiB, 3 it, 4 lanes)</span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xs bg-bone p-s2 text-sm">
+            <span className="font-semibold text-charcoal">Herstelcode hint</span>
+            <span className="font-mono text-slate">•••••-•••••-•••••-•••••-•••••-{meta?.recoveryCodeHint ? meta.recoveryCodeHint.slice(-1) : "•"}</span>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xs bg-bone p-s2 text-sm">
+            <span className="font-semibold text-charcoal">Automatische vergrendeling</span>
+            <span className="text-slate">15 min inactiviteit of tabblad sluiten</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Backup & Herstel (.woningdossier) ─────────────────────────── */}
+      <section className="brink-card mt-s6 max-w-xl p-s3">
+        <h2 className="text-h3 text-ink">Backup &amp; Herstel</h2>
+        <p className="mt-s2 text-body text-slate">
+          Download een versleutelde momentopname van je complete dossier of herstel een eerder backupbestand.
+        </p>
+
+        <div className="mt-s3 flex flex-wrap gap-s2">
+          <Knop
+            variant="primair"
+            bezig={bezigMetBackup}
+            onClick={() => void maakBackup()}
+          >
+            Download backup (.woningdossier)
+          </Knop>
+
+          <Knop
+            variant="secundair"
+            onClick={() => {
+              setToonImportDialoog((open) => !open);
+              setFout(null);
+            }}
+          >
+            {toonImportDialoog ? "Sluit hersteldialoog" : "Dossier herstellen..."}
+          </Knop>
+        </div>
+
+        {toonImportDialoog && (
+          <div className="mt-s3 rounded-card border border-bone bg-bone/50 p-s3 flex flex-col gap-s2">
+            <h3 className="text-body font-semibold text-ink">Dossier importeren uit backup</h3>
+            <p className="text-sm text-slate">
+              Let op: het herstellen van een backup overschrijft de huidige gegevens in de browser.
+            </p>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-eyebrow uppercase text-slate">Backupbestand (.woningdossier)</label>
+              <input
+                type="file"
+                accept=".woningdossier"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  setGekozenBestand(file);
+                }}
+                className="text-sm text-charcoal file:mr-2 file:rounded file:border-0 file:bg-clay file:px-3 file:py-1 file:text-sm file:font-semibold file:text-lifted hover:file:bg-clay/90"
+              />
+            </div>
+
+            <Veld
+              label="Wachtwoordzin of Herstelcode van de backup"
+              type="password"
+              value={importWachtwoord}
+              onChange={(e) => setImportWachtwoord(e.target.value)}
+              placeholder="Voer het wachtwoord van het backupbestand in"
+            />
+
+            <div className="mt-s1 flex gap-s2">
+              <Knop
+                variant="primair"
+                bezig={bezigMetImport}
+                disabled={!gekozenBestand || !importWachtwoord.trim()}
+                onClick={() => void voerImportUit()}
+              >
+                Start herstel
+              </Knop>
+              <Knop
+                variant="secundair"
+                onClick={() => setToonImportDialoog(false)}
+              >
+                Annuleren
+              </Knop>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ── Opnieuw beginnen ────────────────────────────────────────────── */}

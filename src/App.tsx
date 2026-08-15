@@ -1,8 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
-import { AuthProvider } from "@/context/AuthContext";
-import { useAuth } from "@/context/useAuth";
+import { VaultProvider } from "@/context/VaultContext";
+import { useVault } from "@/context/useVault";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Laadscherm } from "@/components/Laadscherm";
 import Inloggen from "@/routes/Inloggen";
 import Registreren from "@/routes/Registreren";
 import WachtwoordVergeten from "@/routes/WachtwoordVergeten";
@@ -22,6 +21,7 @@ import Onderdelen from "@/routes/Onderdelen";
 import Onderhoud from "@/routes/Onderhoud";
 import Meterstanden from "@/routes/Meterstanden";
 import Overdrachtsdossier from "@/routes/Overdrachtsdossier";
+import Diagnostiek from "@/routes/Diagnostiek";
 import NietGevonden from "@/routes/NietGevonden";
 
 /**
@@ -29,41 +29,40 @@ import NietGevonden from "@/routes/NietGevonden";
  * Let op: importeren uit "react-router", niet uit "react-router-dom".
  */
 
-/** Al ingelogd? Dan heeft het inlogscherm geen zin. */
-function AlleenUitgelogd({ children }: { children: React.ReactNode }) {
-  const { gebruiker, bezigMetLaden } = useAuth();
-  if (bezigMetLaden) return <Laadscherm />;
-  if (gebruiker) return <Navigate to="/" replace />;
+/** Al ontgrendeld? Dan heeft het ontgrendelscherm geen zin. */
+function AlleenVergrendeld({ children }: { children: React.ReactNode }) {
+  const { isOntgrendeld } = useVault();
+  if (isOntgrendeld) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
+      <VaultProvider>
         <Routes>
           <Route
             path="/inloggen"
             element={
-              <AlleenUitgelogd>
+              <AlleenVergrendeld>
                 <Inloggen />
-              </AlleenUitgelogd>
+              </AlleenVergrendeld>
             }
           />
           <Route
             path="/registreren"
             element={
-              <AlleenUitgelogd>
+              <AlleenVergrendeld>
                 <Registreren />
-              </AlleenUitgelogd>
+              </AlleenVergrendeld>
             }
           />
           <Route
             path="/wachtwoord-vergeten"
             element={
-              <AlleenUitgelogd>
+              <AlleenVergrendeld>
                 <WachtwoordVergeten />
-              </AlleenUitgelogd>
+              </AlleenVergrendeld>
             }
           />
 
@@ -196,9 +195,18 @@ export default function App() {
             }
           />
 
+          <Route
+            path="/diagnostiek"
+            element={
+              <ProtectedRoute>
+                <Diagnostiek />
+              </ProtectedRoute>
+            }
+          />
+
           <Route path="*" element={<NietGevonden />} />
         </Routes>
-      </AuthProvider>
+      </VaultProvider>
     </BrowserRouter>
   );
 }

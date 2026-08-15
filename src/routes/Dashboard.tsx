@@ -9,7 +9,7 @@ import { Kerncijfertegel } from "@/components/Kerncijfertegel";
 import { Bouwvoortgangsbalk } from "@/components/Bouwvoortgangsbalk";
 import { Voortgangsbalk } from "@/components/Voortgangsbalk";
 import { toonAfstand, toonDatum, toonDatumMetAfstand, vandaag } from "@/lib/datum";
-import { useAuth } from "@/context/useAuth";
+import { useVault as useAuth } from "@/context/useVault";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
 import {
   haalActiefProject,
@@ -622,7 +622,7 @@ export default function Dashboard() {
                 betrokkenen={betrokkenen}
                 berichtopties={{
                   projectnaam: project.naam,
-                  afzender: gebruiker?.displayName ?? undefined,
+                  afzender: undefined,
                   opleverAangezegd: project.opleverStatus === "aangezegd",
                 }}
                 bezigMetId={bezigMetId}

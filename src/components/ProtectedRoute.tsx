@@ -1,25 +1,15 @@
 import { Navigate, useLocation } from "react-router";
 import type { ReactNode } from "react";
-import { useAuth } from "@/context/useAuth";
-import { Laadscherm } from "./Laadscherm";
+import { useVault } from "@/context/useVault";
 
 /**
- * Beschermt routes die alleen voor ingelogde gebruikers zijn.
- *
- * De volgorde is belangrijk: eerst wachten tot Firebase de sessie hersteld
- * heeft, pas daarna beslissen. Zonder die check stuurt de app iedereen bij een
- * refresh kort naar /inloggen voordat de sessie terug is.
+ * Beschermt routes die een ontgrendelde lokale kluis vereisen.
  */
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { gebruiker, bezigMetLaden } = useAuth();
+  const { isOntgrendeld } = useVault();
   const locatie = useLocation();
 
-  if (bezigMetLaden) {
-    return <Laadscherm />;
-  }
-
-  if (!gebruiker) {
-    // Bewaar waar iemand heen wilde, zodat we na inloggen terug kunnen sturen.
+  if (!isOntgrendeld) {
     return <Navigate to="/inloggen" state={{ vanaf: locatie.pathname }} replace />;
   }
 

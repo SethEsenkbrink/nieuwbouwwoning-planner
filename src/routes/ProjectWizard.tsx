@@ -11,7 +11,7 @@ import {
   type Projectgegevenswaarden,
 } from "@/lib/projectgegevens";
 import { Opleverbandformulier } from "@/components/Opleverbandformulier";
-import { useAuth } from "@/context/useAuth";
+import { useVault as useAuth } from "@/context/useVault";
 import { opslagFoutmelding } from "@/lib/opslagFouten";
 import {
   controleerOpleverband,
