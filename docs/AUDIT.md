@@ -235,7 +235,7 @@ B2.2 (hex-kleuren), B2.6 (ongebruikte dependencies per stuk), B5.1/B5.4/B5.5 (tr
 `src/lib/.fuse_hidden000000480000000d`, twaalf in `src/routes/`, en `src/styles/.fuse_hidden0000001000000001` — die laatste is getrackt. Samen ruim 300 kB dode kopieën van oude broncode die nog naar het verwijderde `@/lib/projecten` verwijzen. `.gitignore` dekt het patroon inmiddels wél, maar het getrackte bestand blijft.
 *Reparatie:* alle veertien verwijderen en het getrackte bestand uit git halen. **Verwijderen van projectbestanden vereist expliciete goedkeuring — zie "vereist besluit".**
 
-**A-19 — `.gitignore` dekt lokale backupbestanden niet** — ✅ **GEREPAREERD** (`4a1c0ff`)
+**A-19 — `.gitignore` dekt lokale backupbestanden niet** — ✅ **GEREPAREERD** (`aa3e28b`)
 `*.woningdossier` ontbrak. Een gebruiker die een backup in de projectmap zet, commit hem mee.
 *Reparatie (doorgevoerd):* `*.woningdossier` toegevoegd met uitzondering voor `tests/fixtures/` en `test/fixtures/backups/`. Beide kanten getest met `git check-ignore`: de golden fixture blijft getrackt, een losse backup wordt genegeerd.
 
@@ -282,7 +282,7 @@ Mijn advies is (a) als de afrondingsafwijking acceptabel is, anders (c). Dit is 
 - **Fase A** — afgerond. 284 getrackte bestanden buiten `brink-ui/`. `npm ci`, `npm run verify` en `npm run build` groen.
 - **Fase B** — afgerond op de hoofdpunten; de punten in A-15 zijn niet afgetoetst.
 - **Fase C** — dit document.
-- **Fase D** — **gedeeltelijk.** Gerepareerd: A-14 (`39643b0`), A-19 (`4a1c0ff`). A-04 is na analyse verplaatst naar V-6. De overige bevindingen staan open.
+- **Fase D** — **gedeeltelijk.** Gerepareerd: A-14 (`39643b0`), A-19 (`aa3e28b`). A-04 is na analyse verplaatst naar V-6. De overige bevindingen staan open.
 - **Fase E** — niet begonnen; heeft geen zin voordat de BLOKKEREND-bevindingen weg zijn.
 
 ### Commits op deze branch
@@ -291,6 +291,7 @@ Mijn advies is (a) als de afrondingsafwijking acceptabel is, anders (c). Dit is 
 |---|---|---|
 | `5d484bf` | — | baseline: het bouwwerk zoals aangetroffen |
 | `39643b0` | A-14 | verify-crypto toetst nu de echte broncode |
-| `4a1c0ff` | A-19 | .gitignore dekt lokale backups |
+| `aa3e28b` | A-19 | .gitignore dekt lokale backups |
+| `e0d492c` | — | auditrapport + eerlijke STATE.md |
 
 **Hervatten:** begin bij de BLOKKEREND-bevindingen, maar vraag eerst een besluit op **V-1**, want A-01 bepaalt de vorm van A-02 en A-03. Zonder dat besluit is elke reparatie aan de opslaglaag weggegooid werk.
