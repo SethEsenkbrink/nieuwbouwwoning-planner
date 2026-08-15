@@ -65,7 +65,7 @@ import type {
  */
 
 export default function Projectinstellingen() {
-  const { gebruiker, meta, dek } = useAuth();
+  const { gebruiker, meta, dek, opslagIsPersistent } = useAuth();
   const navigeer = useNavigate();
   const uid = gebruiker?.uid;
 
@@ -326,6 +326,28 @@ export default function Projectinstellingen() {
       {gelukt && (
         <div className="mt-s3 max-w-xl">
           <Melding soort="gelukt">{gelukt}</Melding>
+        </div>
+      )}
+
+      {/* ── Opslagpersistentie ──────────────────────────────────────────────
+          De browser mag IndexedDB en OPFS opruimen zodra de schijf vol raakt,
+          tenzij hij de opslag als persistent heeft gemarkeerd. Dat aanvragen
+          zonder de uitkomst te tonen is zinloos: juist als het níét gelukt is
+          moet de gebruiker weten dat zijn backup zijn enige vangnet is. */}
+      {opslagIsPersistent === false && (
+        <div className="mt-s3 max-w-xl">
+          <Melding soort="fout">
+            De browser heeft je opslag <strong>niet</strong> als permanent gemarkeerd. Bij
+            schijfruimtegebrek kan hij je dossier zonder waarschuwing opruimen. Maak een backup
+            en bewaar die buiten deze computer.
+          </Melding>
+        </div>
+      )}
+      {opslagIsPersistent === null && (
+        <div className="mt-s3 max-w-xl">
+          <Melding soort="info">
+            Deze browser kan niet vertellen of je opslag permanent is. Vertrouw op je backup.
+          </Melding>
         </div>
       )}
 

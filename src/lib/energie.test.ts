@@ -74,3 +74,23 @@ describe("Energie & Saldering Berekeningen", () => {
     });
   });
 });
+
+describe("Wettelijke waarschuwing bij het indicatieve label", () => {
+  /**
+   * Deze test staat er omdat de tekst eerder alleen NTA 8800 noemde. Zonder
+   * BRL 9500 en EP-Online kan een lezer niet nagaan wat een label wél
+   * rechtsgeldig maakt (A-12). De termen mogen niet stil verdwijnen.
+   */
+  it.each(["NTA 8800", "BRL 9500", "EP-Online"])("noemt %s", (term) => {
+    expect(ENERGIELABEL_DISCLAIMER).toContain(term);
+  });
+
+  it("zegt expliciet dat het geen rechtsgeldig label is", () => {
+    expect(ENERGIELABEL_DISCLAIMER).toMatch(/géén rechtsgeldig energielabel/i);
+  });
+
+  it("wordt meegegeven in het berekende resultaat", () => {
+    const resultaat = berekenIndicatiefEnergielabel(2500, 900, 120, 365);
+    expect(resultaat.disclaimer).toBe(ENERGIELABEL_DISCLAIMER);
+  });
+});

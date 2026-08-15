@@ -30,6 +30,14 @@ export interface VaultContextWaarde {
   meta: VaultMeta | null;
   /** Lokale gebruikersidentiteit */
   gebruiker: { uid: string } | null;
+  /**
+   * Of de browser de opslag als persistent heeft gemarkeerd.
+   *
+   * `null` = nog niet vastgesteld. Bij `false` mag de browser IndexedDB en OPFS
+   * opruimen zodra de schijf vol raakt — precies het scenario waarvoor ADR-0022
+   * de backup bedacht heeft. De UI hoort dat te tonen, niet te verzwijgen.
+   */
+  opslagIsPersistent: boolean | null;
 
   /** Ontgrendelt de kluis met de wachtwoordzin */
   ontgrendel: (wachtwoord: string) => Promise<void>;
@@ -49,6 +57,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [meta, setMeta] = useState<VaultMeta | null>(null);
   const [isGeinitialiseerd, setIsGeinitialiseerd] = useState<boolean>(true);
   const [bezig, setBezig] = useState<boolean>(true);
+  const [opslagIsPersistent, setOpslagIsPersistent] = useState<boolean | null>(null);
 
   const lockTimerRef = useRef<number | null>(null);
 
@@ -83,8 +92,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
             setIsGeinitialiseerd(false);
           }
         }
-      } catch (err) {
-        console.error("Fout bij laden kluis-metadata:", err);
+      } catch {
+        // Geen leesbare kluis-metadata: behandel dit als "nog geen kluis", dan
+        // stuurt de UI de gebruiker naar het aanmaakscherm. Naar de console
+        // schrijven heeft geen zin — niemand kijkt daar, en het lekt hooguit
+        // details over de opslag naar een devtools-log.
         if (gemonteerd) setIsGeinitialiseerd(false);
       } finally {
         if (gemonteerd) setBezig(false);
@@ -92,6 +104,37 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }
 
     void laadMeta();
+    return () => {
+      gemonteerd = false;
+    };
+  }, []);
+
+  // Vraag de browser om de opslag persistent te maken.
+  //
+  // Zonder dit mag de browser IndexedDB en OPFS zonder waarschuwing opruimen
+  // als de schijf vol raakt (A-11). We vragen het één keer bij het laden;
+  // `persisted()` eerst, zodat we geen tweede prompt uitlokken als het al goed
+  // staat. De uitkomst gaat de context in en hoort in de UI zichtbaar te zijn.
+  useEffect(() => {
+    let gemonteerd = true;
+
+    async function vraagPersistentieAan() {
+      if (typeof navigator === "undefined" || !navigator.storage?.persisted) {
+        if (gemonteerd) setOpslagIsPersistent(null);
+        return;
+      }
+      try {
+        let persistent = await navigator.storage.persisted();
+        if (!persistent && navigator.storage.persist) {
+          persistent = await navigator.storage.persist();
+        }
+        if (gemonteerd) setOpslagIsPersistent(persistent);
+      } catch {
+        if (gemonteerd) setOpslagIsPersistent(null);
+      }
+    }
+
+    void vraagPersistentieAan();
     return () => {
       gemonteerd = false;
     };
@@ -202,12 +245,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       dek,
       meta,
       gebruiker: isOntgrendeld ? { uid: "lokaal" } : null,
+      opslagIsPersistent,
       ontgrendel,
       ontgrendelViaHerstel,
       initialiseerKluis: initialiseer,
       vergrendel,
     }),
-    [isOntgrendeld, isGeinitialiseerd, bezig, dek, meta, ontgrendel, ontgrendelViaHerstel, initialiseer, vergrendel],
+    [isOntgrendeld, isGeinitialiseerd, bezig, dek, meta, opslagIsPersistent, ontgrendel, ontgrendelViaHerstel, initialiseer, vergrendel],
   );
 
   return <VaultContext.Provider value={waarde}>{children}</VaultContext.Provider>;

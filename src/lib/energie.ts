@@ -1,7 +1,19 @@
 import type { Energielabel } from "@/types/model";
 
+/**
+ * De wettelijke waarschuwing bij het indicatieve label.
+ *
+ * Moet permanent en niet-wegklikbaar getoond worden bij élke weergave van het
+ * indicatieve label. De drie termen zijn er bewust alle drie: zonder NTA 8800,
+ * BRL 9500 én de registratie in EP-Online is voor een lezer niet na te gaan wat
+ * een label wél rechtsgeldig maakt — en dan wekt een indicatief cijfer precies
+ * de schijn die het niet mag wekken.
+ */
 export const ENERGIELABEL_DISCLAIMER =
-  "Let op: Dit energielabel is een indicatieve berekening op basis van je feitelijke meterstanden en gebruikersgedrag. Dit vervangt geen officieel NTA 8800 energielabel dat door een gecertificeerd EP-adviseur is opgenomen.";
+  "Let op: dit is een indicatieve berekening op basis van je eigen meterstanden en " +
+  "gebruikersgedrag — géén rechtsgeldig energielabel. Alleen een opname volgens " +
+  "NTA 8800 door een adviseur met BRL 9500-certificering, geregistreerd in EP-Online, " +
+  "telt mee bij verkoop, verhuur of een subsidieaanvraag.";
 
 export interface IndicatiefLabelResultaat {
   label: Energielabel;
