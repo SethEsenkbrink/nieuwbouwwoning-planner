@@ -13,7 +13,7 @@ blokkerend en de vinkjes in de tabel hieronder zijn op meerdere plekken te optim
 
 De drie zwaarste:
 
-1. **Alle woningdata staat plat in IndexedDB** (`src/db/db.ts:77-98`), terwijl ADR-0021 eist dat
+1. ~~**Alle woningdata staat plat in IndexedDB.**~~ ✅ **Gerepareerd** (`82d9cb9`). Recordinhoud staat nu versleuteld; alleen `id` en `projectId` blijven leesbaar als indexsleutel. Vastgelegd met een test die controleert dat naam, e-mail, telefoonnummer, bedrag en datum niet leesbaar op schijf staan. ~~terwijl ADR-0021 eist dat
    alle data at rest versleuteld is. De DEK beschermt alleen OPFS-bestanden en de backup. De
    kluis, de auto-lock en de Argon2id-hiërarchie beschermen de dossierinhoud dus niet.
 2. **Bijlagen gaan nooit mee in de backup.** `src/lib/backup/export.ts:96` heeft een hardgecodeerd
@@ -51,7 +51,7 @@ niet. Zie de waarschuwing hierboven.
 | **Licentie & Juridisch (Deel 10)** | ✅ Afgerond | AGPL-3.0-only (`LICENSE`), Handelsmerkbeleid (`TRADEMARK.md`), Security policy (`SECURITY.md`), Disclaimer en privacybelofte in `README.md` |
 | **Architectuur (ADR's)** | ✅ Afgerond | `ADR-0020` (100% lokaal), `ADR-0021` (Sleutelhiërarchie), `ADR-0022` (Backup-formaat), `ADR-0023` (Kerndatamodel & regelmotor), `ADR-0024` (Domeinmodules & MJOP), `ADR-0025` (Energie, P1 & Saldering), `ADR-0026` (Mobile Companion, Overdracht & WebAuthn) en `ADR-0027` (Diagnostiek & Systeemaudit) |
 | **Zero-Network & PWA (Fase 0)** | ⚠️ Vrijwel af — A-04 | `connect-src 'none'` CSP in `netlify.toml`, standalone manifest, service worker precaching, bundle offline scanning |
-| **Kluis & Cryptografie (Fase 1)** | ⚠️ Onvolledig — A-01 (data at rest), A-05 | Master DEK (non-extractable AES-256-GCM in memory), KEK-A (Argon2id WASM Worker $m=64\text{ MiB}, t=3, p=4$), KEK-C (HKDF 128-bit herstelcode in Crockford Base32), 15-min auto-lock en directe vergrendeling bij tabswitch |
+| **Kluis & Cryptografie (Fase 1)** | ⚠️ Vrijwel af — paniekknop open (A-11) | Master DEK (non-extractable AES-256-GCM in memory), KEK-A (Argon2id WASM Worker $m=64\text{ MiB}, t=3, p=4$), KEK-C (HKDF 128-bit herstelcode in Crockford Base32), 15-min auto-lock en directe vergrendeling bij tabswitch |
 | **Backup & Restore (Fase 2)** | ⚠️ Herstelbaar; roulerend schema open — A-08 | Streaming zip met `fflate`: onversleuteld `manifest.json`, `data.enc` onder DEK, `files/index.enc`, `CHECKSUMS` SHA-256 integriteitsvalidatie, golden fixture v1 |
 | **Kerndatamodel & OPFS (Fase 3)** | ⚠️ Onvolledig — A-10 | `traject: 'nieuwbouw' | 'bestaandeBouw'`, kadastrale aanduiding, woonkenmerken, en versleutelde bestandsopslag in OPFS (`files/<uuid>.enc`) met fallback |
 | **Deterministische Regelmotor (Fase 3)** | ⚠️ Onvolledig — A-09 | Termijnregels (5%-depot onderhoudstermijn, gebreken hersteltermijnen, meerwerksluitingen), financiële regels (24-maanden bouwdepot, meerwerkbudget) |
@@ -67,11 +67,11 @@ niet. Zie de waarschuwing hierboven.
 
 | Meting | Waarde |
 | --- | --- |
-| Unit tests | **626 passed** in 35 testbestanden |
+| Unit tests | **639 passed** in 36 testbestanden |
 | Token-pariteit | **50 tokens** synchroon met `brink-ui/tokens.js` |
 | Headers & CSP | **10 headers**, CSP zero-network (`connect-src 'none'`) |
 | Cryptografie | AES-256-GCM non-extractable DEK, Argon2id (64 MiB/3/4), HKDF 128-bit, WebAuthn-PRF |
-| Opslag & Bestanden | OPFS versleuteld; **Dexie IndexedDB staat plat** — zie A-01 |
+| Opslag & Bestanden | Beide versleuteld: IndexedDB per record, OPFS per 1 MiB-chunk |
 | Regelmotor | 100% deterministisch (0 netwerk / 0 side-effects) |
 | Diagnostiek | Volledig geïntegreerd audit- en rapportagesysteem (`/diagnostiek`) |
 | Overdracht | Zelfstandig HTML/JSON Woningpaspoort |
@@ -82,7 +82,7 @@ niet. Zie de waarschuwing hierboven.
 ## Roadmap & Afronding
 
 1. **FASE 0 — FUNDAMENT & REPO-HYGIËNE:** ⚠️ vrijwel af — A-04, A-17, A-18
-2. **FASE 1 — KLUIS (Cryptografie & Sleutelhiërarchie):** ⚠️ onvolledig — A-01 (data at rest), A-05
+2. **FASE 1 — KLUIS (Cryptografie & Sleutelhiërarchie):** ⚠️ vrijwel af — versleuteling at rest en chunking gedaan; paniekknop open (A-11)
 3. **FASE 2 — BACKUP & RESTORE:** ⚠️ herstel werkt en is getest; roulerend schema + directory-handle open (A-08)
 4. **FASE 3 — KERN-DATAMODEL + REGELMOTOR-FUNDAMENT:** ⚠️ onvolledig — A-09, A-10
 5. **FASE 4 — DOMEINMODULES:** ⚠️ gebouwd maar niet aangesloten — A-06

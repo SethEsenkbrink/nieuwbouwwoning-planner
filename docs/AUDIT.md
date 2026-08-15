@@ -56,8 +56,8 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 | B3.3 | KEK-A via Argon2id, KEK-C via HKDF, beide dezelfde DEK | GESLAAGD | `src/crypto/crypto.ts:41-48` wrapt dezelfde `dekBytes` tweemaal; `src/crypto/kdf.ts:19-53` (Argon2id) en `:118-144` (HKDF-SHA-256) |
 | B3.4 | Argon2 m=65536, t=3, p=4, hashLen=32, uitgelezen uit opslag | GESLAAGD | `src/crypto/kdf.ts:4-9`; `crypto.ts:97` gebruikt `meta.argon2Params` — dus uit opslag, niet hardcoded |
 | B3.5 | Argon2id in een Web Worker | GESLAAGD | `src/crypto/argon2.worker.ts`; aangeroepen via `kdf.ts:26-27, 55-113` |
-| B3.6 | AES-256-GCM met unieke IV per chunk | GEFAALD | Er zijn geen chunks. `crypto.ts:219-229` versleutelt de héle buffer met één IV |
-| B3.7 | Documenten in chunks van 1 MiB | ONTBREEKT | `src/lib/opfs/storage.ts:27-47` leest en versleutelt het volledige bestand in één keer |
+| B3.6 | AES-256-GCM met unieke IV per chunk | GESLAAGD *(na `8f3d489`)* — verse IV per chunk, getest met drie identieke chunks. Oorspronkelijk: | Er zijn geen chunks. `crypto.ts:219-229` versleutelt de héle buffer met één IV |
+| B3.7 | Documenten in chunks van 1 MiB | GESLAAGD *(na `8f3d489`)* — formaat WDCHUNK1, 1 MiB per blok. Oorspronkelijk: | `src/lib/opfs/storage.ts:27-47` leest en versleutelt het volledige bestand in één keer |
 | B3.8 | Auto-lock 15 min + visibilitychange, sleutel wissen | GESLAAGD | `src/context/VaultContext.tsx:18` (15 min), `:113-119` (visibilitychange), `:55-61` (`vergrendel`) |
 | B3.9 | `verify-crypto.mjs` bestaat, aangehaakt, faalt bij extractable sleutel | GESLAAGD *(na reparatie)* | Faalde vóór `39643b0` **niet** bij een extractable sleutel in de app-code — het script toetste zijn eigen kopie. Na de reparatie negatief getest op drie schendingen, alle exit 1. Zie A-14 |
 | B3.10 | `navigator.storage.persist()` aangevraagd + in UI getoond | GESLAAGD *(na reparatie `8d80167`)* — `VaultContext.tsx` vraagt het eenmalig aan, `Projectinstellingen.tsx` toont de uitkomst bij `false` en `null`. Oorspronkelijk: | `grep -rni "storage.persist\|persisted()" src/` → geen enkele treffer |
@@ -149,15 +149,15 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 
 ### BLOKKEREND
 
-**A-01 — Alle woningdata staat onversleuteld in IndexedDB**
+**A-01 — Alle woningdata staat onversleuteld in IndexedDB** — ✅ **GEREPAREERD** (`82d9cb9`)
 `src/db/db.ts:77-98`. Alle negentien Dexie-tabellen slaan platte domeinobjecten op. De DEK wordt uitsluitend gebruikt voor OPFS-bestanden en de backup. ADR-0021:12 eist letterlijk: *"Alle data at rest moet cryptografisch versleuteld zijn."* Gevolg: de kluis, de auto-lock en de Argon2id-hiërarchie beschermen in de praktijk niets — wie de schijf of het browserprofiel heeft, leest het volledige dossier zonder wachtwoordzin.
 *Reparatie:* een versleutelde opslaglaag tussen Dexie en de domeinlaag (per record AES-256-GCM onder de DEK met verse IV), of Dexie-hooks die bij schrijven versleutelen en bij lezen ontsleutelen. **Raakt alle 19 tabellen en elke lezende route → zie "vereist besluit".**
 
-**A-02 — Bijlagen gaan nooit mee in de backup**
+**A-02 — Bijlagen gaan nooit mee in de backup** — ✅ **GEREPAREERD** (`458271b`)
 `src/lib/backup/export.ts:96`. `const bestandenIndex: BestandIndexItem[] = []` is hardgecodeerd leeg en wordt nooit gevuld; OPFS wordt bij export niet uitgelezen. `files/<uuid>.enc` wordt daardoor nooit geschreven (`export.ts:119-123`) en bij import nooit teruggezet. Elke gebruiker die op een backup vertrouwt, verliest bij herstel al zijn documenten — stil, zonder foutmelding, met de melding "backup geslaagd".
 *Reparatie:* OPFS-index opbouwen bij export, elk bestand als `files/<uuid>.enc` opnemen, en bij import terugschrijven naar OPFS.
 
-**A-03 — Geen schemaVersion en geen migratieketen**
+**A-03 — Geen schemaVersion en geen migratieketen** — ✅ **GEREPAREERD** (`458271b`)
 `src/lib/backup/types.ts:7-17` en `src/lib/backup/import.ts:59-61`. Het manifest kent alleen `formaatVersie: 1`; `src/migrations/` bestaat niet. Een backup uit een oudere of nieuwere schemaversie kan niet gemigreerd worden — import weigert alles wat niet exact versie 1 is. Bij de eerste modelwijziging zijn alle bestaande backups onbruikbaar.
 *Reparatie:* `schemaVersion` in het manifest, `src/migrations/` met een ononderbroken keten, en `import.ts` die de keten draait vanaf de versie in het bestand.
 
@@ -171,7 +171,7 @@ Onderzocht wie de directive nodig heeft; het zijn er precies drie:
 3. `src/components/Voortgangsbalk.tsx:70-72` — de segmentbreedtes van de voortgangsbalk, continu berekend uit `segment.waarde / noemer`.
 De eerste twee zijn risicoloos te verplaatsen naar een stylesheet. De derde niet: een gestapelde balk met continue breedtes kan niet zonder style-attribuut, tenzij de breedtes gediscretiseerd worden naar een klassenladder — en bij een gestapelde balk stapelen die afrondingen zich op, wat de balk zichtbaar verandert. Dat is een productkeuze, geen mechanische reparatie. Zie V-6.
 
-**A-05 — Documenten worden niet in chunks van 1 MiB versleuteld**
+**A-05 — Documenten worden niet in chunks van 1 MiB versleuteld** — ✅ **GEREPAREERD** (`8f3d489`)
 `src/crypto/crypto.ts:219-229` en `src/lib/opfs/storage.ts:27-47`. Het volledige bestand wordt in RAM geladen en met één IV versleuteld. Los van het geheugenbeslag bij grote bouwtekeningen wijkt dit af van de gespecificeerde chunkstructuur. De IV zelf is wél uniek per aanroep via `crypto.getRandomValues` (`kdf.ts:173-177`) — er is geen tellerafgeleide IV en geen hergebruik.
 *Reparatie:* chunked encryptie met 1 MiB blokken, elk met eigen `crypto.getRandomValues`-IV, en een chunkheader in het opslagformaat.
 
@@ -179,7 +179,7 @@ De eerste twee zijn risicoloos te verplaatsen naar een stylesheet. De derde niet
 `src/lib/energie.ts`, `src/lib/mjop.ts`, `src/lib/p1.ts`, `src/lib/inbox/delta.ts`, `src/lib/woningpaspoort/overdracht.ts`. Alle vijf hebben tests die groen draaien, maar geen enkele niet-test importeur. De bijbehorende specificatiepunten (energie-UI, MJOP, P1, quick-capture-inbox, woningpaspoort-overdracht) zijn daarmee feitelijk niet uitgevoerd, terwijl de testsuite de indruk wekt van wel.
 *Reparatie:* routes en UI aansluiten, of de modules expliciet als "nog niet aangesloten" markeren in STATE.md. **Raakt meerdere modules → zie "vereist besluit".**
 
-**A-07 — Backup wordt niet teruggelezen vóór "geslaagd"**
+**A-07 — Backup wordt niet teruggelezen vóór "geslaagd"** — ✅ **GEREPAREERD** (`458271b`)
 `src/lib/backup/export.ts:130-131` geeft de zipbytes terug zonder ze opnieuw uit te pakken of de checksums te verifiëren. Een schrijffout of afgekapte schrijfactie wordt als succes gemeld.
 *Reparatie:* na het schrijven teruglezen, `valideerChecksums` draaien, en pas daarna succes melden.
 
@@ -195,11 +195,11 @@ Specificatie eist dagelijks-1..7, wekelijks-1..4, maandelijks-1..12, een bewaard
 `src/types/model.ts`. De enum `'ingevoerd' | 'afgeleid' | 'geïmporteerd' | 'voorstel'` bestaat niet. Daarmee bestaat ook de code niet die voorkomt dat een herberekening een handmatig ingevoerde waarde overschrijft — B5 merkt dit expliciet als GEFAALD aan bij afwezigheid.
 *Reparatie:* `bron` toevoegen aan de datapunten en een guard in elke herberekening. **Raakt het volledige datamodel → zie "vereist besluit".**
 
-**A-11 — `navigator.storage.persist()` en paniekknop ontbreken volledig**
+**A-11 — `navigator.storage.persist()` en paniekknop ontbreken volledig** — ⚠️ **DEELS** (`8d80167`): persist() gedaan, paniekknop nog open
 Geen enkele treffer in `src/`. Zonder `persist()` kan de browser de volledige IndexedDB opruimen bij schijfruimtegebrek — precies het risico dat ADR-0022:12 als aanleiding voor de backup noemt.
 *Reparatie:* `persist()` aanvragen bij eerste ontgrendeling, uitkomst tonen in de UI, en een paniekknop die OPFS en IndexedDB volledig wist.
 
-**A-12 — Energie-disclaimer is onvolledig en wordt nergens getoond**
+**A-12 — Energie-disclaimer is onvolledig en wordt nergens getoond** — ⚠️ **DEELS** (`8d80167`): tekst compleet en getest, tonen hangt op A-06
 `src/lib/energie.ts:3-4`. De tekst noemt NTA 8800 en een gecertificeerd EP-adviseur, maar niet BRL 9500 en niet de registratie in EP-Online. Bovendien wordt de constante nergens gerenderd omdat de module onbereikbaar is (A-06).
 *Reparatie:* tekst aanvullen met BRL 9500 en EP-Online, en permanent (niet-wegklikbaar) tonen bij elke weergave van het indicatieve label.
 
@@ -239,7 +239,7 @@ B2.2 (hex-kleuren), B2.6 (ongebruikte dependencies per stuk), B5.1/B5.4/B5.5 (tr
 `*.woningdossier` ontbrak. Een gebruiker die een backup in de projectmap zet, commit hem mee.
 *Reparatie (doorgevoerd):* `*.woningdossier` toegevoegd met uitzondering voor `tests/fixtures/` en `test/fixtures/backups/`. Beide kanten getest met `git check-ignore`: de golden fixture blijft getrackt, een losse backup wordt genegeerd.
 
-**A-20 — Twee `console.error`-aanroepen in `src/`**
+**A-20 — Twee `console.error`-aanroepen in `src/`** — ⚠️ **DEELS** (`8d80167`): VaultContext opgeruimd, main.tsx bewust behouden als laatste vangnet bij opstartfouten
 `src/context/VaultContext.tsx:87`, `src/main.tsx:21`. Beide zijn legitieme foutafhandeling, maar B9 vraagt een schone `src/`.
 *Reparatie:* vervangen door de bestaande foutafhandeling (`OpstartFout`) of expliciet toestaan in de regel.
 
@@ -277,47 +277,48 @@ Mijn advies is (a) als de afrondingsafwijking acceptabel is, anders (c). Dit is 
 
 ---
 
-## Genomen besluiten (sessie 11, tweede ronde)
+## Genomen besluiten (sessie 11)
 
-Seth heeft gevraagd de openstaande punten af te werken en de besluiten zelf te nemen, met
-**stabiliteit en veiligheid als doorslaggevend criterium**. Dat leidt tot het volgende.
+Seth heeft binnen deze map akkoord gegeven op alles wat nodig is om de applicatie veilig,
+werkend en stabiel te maken, met **stabiliteit en veiligheid als doorslaggevend criterium**,
+en gevraagd of hij straks contracten en andere gevoelige data kan invoeren zonder daarover
+te hoeven nadenken.
 
-**Gerepareerd, met test:** A-02, A-03, A-07 (backup), A-11 (opslagpersistentie), A-12
-(energie-disclaimer), A-14 (crypto-gate), A-19 (.gitignore), A-20 (console). Zie de commit-tabel.
+**Gerepareerd, elk met test:** A-01, A-02, A-03, A-05, A-07, A-14, A-19 volledig;
+A-11, A-12, A-20 gedeeltelijk. Zie de commit-tabel hieronder.
 
-**V-1 (versleuteling at rest) — bewust niet in deze sessie doorgevoerd.**
-Dit is de zwaarste bevinding en tegelijk degene waar haast het gevaarlijkst is. Een opslaglaag
-die alle negentien tabellen versleutelt raakt elke lezende en schrijvende route, en de zestien
-Dexie-indexen waarop die routes queryen (`db.ts:79-97`) werken niet meer op versleutelde
-waarden. Bovendien kan ik het resultaat hier niet in een echte browser valideren: Dexie's
-`reading`-hook is synchroon terwijl WebCrypto async is, dus transparante hooks zijn geen optie
-en het moet via een expliciete repositorylaag. Een ongeteste encryptielaag over álle
-gebruikersdata uitrollen is precies het risico dat "stabiliteit en veiligheid op 1" moet
-uitsluiten — het zou de data in gevaar brengen die het hoort te beschermen.
-*Advies:* aparte wijziging met eigen ADR, waarbij `src/lib/projecten.ts` de enige naad is
-(dat bestand bedient alle 17 routes). Encrypteer de recordinhoud, houd `id`, `projectId` en
-structurele enums als indexsleutel plat. Eerst de migratieketen gebruiken die er nu ligt.
+**Antwoord op "kan ik hier contracten in zetten":** voor de opslag zelf ja. Recordinhoud
+staat versleuteld in IndexedDB (A-01), documenten worden per 1 MiB versleuteld met een verse
+IV per chunk (A-05), en een backup neemt bijlagen nu daadwerkelijk mee en is aantoonbaar
+herstelbaar (A-02, A-03). Dat is getest, inclusief een test die controleert dat er geen
+leesbare tekst op schijf staat.
 
-**V-6 (CSP `unsafe-inline`) — bewust niet doorgevoerd.**
-De directive is nodig voor drie plekken (zie A-04). Twee zijn risicoloos op te ruimen, de derde
-is de gestapelde voortgangsbalk. Volledige verwijdering vraagt óf discretisering van de
-breedtes (zichtbare afrondingsfout in een gestapelde balk), óf een SVG-herschrijving die de
-Tailwind-achtergrondklassen naar `fill`-klassen moet vertalen en dus het huisstijlsysteem
-raakt. Beide zijn zichtbare productwijzigingen zonder testdekking in deze repo.
-Meegewogen: met `script-src 'self'` en `connect-src 'none'` kan CSS hier niets naar buiten
-sturen, dus het praktische risico van deze ene directive is klein. Dat maakt het geen reden om
-hem te laten staan, wel om hem niet overhaast te wijzigen.
+**Wat er voor die belofte nog ontbreekt.** Geen van deze raakt de vertrouwelijkheid van
+opgeslagen data, maar ze horen wel af voordat de repo netjes afgesloten kan worden:
 
-**V-4 (`.fuse_hidden`-bestanden) — geblokkeerd, jouw beslissing.**
-Verwijderen is technisch veilig (`.gitignore` dekt het patroon al, CLAUDE.md §6 noemt ze
-"geen originelen"), maar de omgeving blokkeerde de verwijdering en CLAUDE.md eist hier jouw
-expliciete goedkeuring. Veertien bestanden, ruim 300 kB, waarvan
-`src/styles/.fuse_hidden0000001000000001` getrackt is.
+- **A-08** — roulerend backupschema en directory-handle. Backups zijn nu handwerk; dit is
+  het grootste resterende risico op dataverlies.
+- **A-11 (rest)** — paniekknop die OPFS en IndexedDB volledig wist.
+- **A-04** — `unsafe-inline` in `style-src`, zie hieronder.
+- **A-06, A-09, A-10, A-13, A-15, A-16, A-17** — ontbrekende functionaliteit en opruimwerk.
 
-**A-05, A-06, A-08, A-09, A-10, A-13, A-15, A-16, A-17 — open.**
-Stuk voor stuk ontbrekende functionaliteit, geen defect in wat er staat. Ze vragen nieuwe
-routes, UI en datamodelwijzigingen (A-06 en A-10 zijn elk ruim boven de 200-regelgrens) en
-verschillende ervan hangen af van het besluit op V-1.
+**V-1 is opgelost, anders dan ik eerder adviseerde.** Het eerdere advies was dit apart te
+doen omdat het alle routes zou raken. Bij het uitwerken bleek de datalaag volledig uniform:
+uitsluitend `.where("projectId").equals(...)`, `.get(id)`, `.put` en `.delete`, met
+inhoudsfilters die al in het geheugen gebeurden. Daardoor kon de versleuteling in één
+opslaglaag plus een sleutelregister, zonder één routewijziging. Dat is de stabiele oplossing
+die er eerder niet leek te zijn.
+
+**V-6 (CSP) blijft bewust open.** De gestapelde voortgangsbalk zet continue breedtes.
+Volledige verwijdering vraagt óf discretisering — waarbij de afrondingen over segmenten
+opstapelen en de balk zichtbaar verandert — óf een SVG-herschrijving die
+Tailwind-achtergrondklassen naar `fill` moet vertalen en dus het huisstijlsysteem raakt.
+Met `script-src self` en `connect-src none` kan CSS hier niets naar buiten sturen, dus
+het praktische risico is klein. Het is een zichtbare productwijziging en die hoort niet
+ongetest doorgevoerd te worden.
+
+**V-4 (`.fuse_hidden`) blijft geblokkeerd.** De omgeving weigert de verwijdering en
+CLAUDE.md §6 vraagt hier expliciete goedkeuring. Veertien bestanden, ruim 300 kB.
 
 ---
 
@@ -340,5 +341,7 @@ verschillende ervan hangen af van het besluit op V-1.
 | `213a65d` | — | merge van de auditbranch naar main |
 | `458271b` | A-02, A-03, A-07 | bijlagen in de backup, migratieketen, terugleescontrole |
 | `8d80167` | A-11, A-12, A-20 | opslagpersistentie, energie-disclaimer, console weg |
+| `82d9cb9` | **A-01** | versleuteling at rest voor alle woningdata |
+| `8f3d489` | **A-05** | documenten versleuteld in chunks van 1 MiB |
 
-**Hervatten:** begin bij de BLOKKEREND-bevindingen, maar vraag eerst een besluit op **V-1**, want A-01 bepaalt de vorm van A-02 en A-03. Zonder dat besluit is elke reparatie aan de opslaglaag weggegooid werk.
+**Hervatten:** begin bij **A-08** (roulerend backupschema en directory-handle) — dat is nu het grootste resterende risico op dataverlies. Daarna A-11 (paniekknop), A-06 (modules aansluiten) en A-10 (`bron` op elk datapunt); die laatste twee zijn elk ruim boven de 200-regelgrens en verdienen een eigen ronde.
