@@ -1,4 +1,40 @@
-import { ontsleutelBytes, versleutelBytes } from "@/crypto/crypto";
+import { ontsleutelBytes } from "@/crypto/crypto";
+import { genereerIV } from "@/crypto/kdf";
+
+/**
+ * ── Chunkformaat voor versleutelde documenten ──────────────────────────────
+ *
+ * Een bouwtekening of aannemingsovereenkomst kan tientallen megabytes zijn.
+ * Die in één keer in het geheugen laden en met één IV versleutelen werkt, maar
+ * schaalt slecht en wijkt af van de specificatie (A-05).
+ *
+ * Opzet, na een vaste kop van 8 bytes:
+ *
+ *   "WDCHUNK1"                       magic + formaatversie
+ *   per chunk:
+ *     12 bytes   IV, vers uit crypto.getRandomValues — nooit afgeleid van een
+ *                teller, nooit hergebruikt tussen chunks
+ *      4 bytes   lengte van de ciphertext (big-endian uint32)
+ *      n bytes   AES-256-GCM ciphertext incl. 16-byte authenticatietag
+ *
+ * Elke chunk heeft dus zijn eigen IV én zijn eigen authenticatietag. Een
+ * gewijzigde of afgekapte chunk valt daardoor op bij het ontsleutelen in
+ * plaats van stil verkeerde bytes op te leveren.
+ */
+const CHUNK_MAGIC = "WDCHUNK1";
+const CHUNK_GROOTTE = 1024 * 1024; // 1 MiB
+const IV_LENGTE = 12;
+const LENGTE_VELD = 4;
+
+function magicBytes(): Uint8Array {
+  return new TextEncoder().encode(CHUNK_MAGIC);
+}
+
+function heeftChunkKop(payload: Uint8Array): boolean {
+  const magic = magicBytes();
+  if (payload.length < magic.length) return false;
+  return magic.every((b, i) => payload[i] === b);
+}
 
 /**
  * In-memory fallback voor omgevingen zonder OPFS (zoals Node / Vitest)
@@ -29,10 +65,7 @@ export async function slaBestandOp(
   uuid: string,
   data: Uint8Array,
 ): Promise<void> {
-  const { ciphertext, iv } = await versleutelBytes(dek, data);
-  const payload = new Uint8Array(iv.length + ciphertext.length);
-  payload.set(iv, 0);
-  payload.set(ciphertext, iv.length);
+  const payload = await versleutelInChunks(dek, data);
 
   const dir = await haalFilesDirectory();
   if (!dir) {
@@ -42,7 +75,7 @@ export async function slaBestandOp(
 
   const fileHandle = await dir.getFileHandle(`${uuid}.enc`, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(payload);
+  await writable.write(payload as unknown as FileSystemWriteChunkType);
   await writable.close();
 }
 
@@ -76,9 +109,112 @@ export async function leesBestand(
     throw new Error(`Bestand '${uuid}' is corrupt of onvolledig.`);
   }
 
-  const iv = payload.slice(0, 12);
-  const ciphertext = payload.slice(12);
-  return ontsleutelBytes(dek, ciphertext, iv);
+  return ontsleutelUitChunks(dek, payload, uuid);
+}
+
+// ── Chunked encryptie ──────────────────────────────────────────────────────
+
+/** Versleutelt data in blokken van 1 MiB, elk met een eigen verse IV. */
+async function versleutelInChunks(dek: CryptoKey, data: Uint8Array): Promise<Uint8Array> {
+  const magic = magicBytes();
+  const delen: Uint8Array[] = [magic];
+  let totaal = magic.length;
+
+  for (let start = 0; start < data.length; start += CHUNK_GROOTTE) {
+    const blok = data.subarray(start, Math.min(start + CHUNK_GROOTTE, data.length));
+
+    // Verse IV per chunk. Bewust géén teller en géén afleiding uit de vorige
+    // IV: hergebruik van een IV onder dezelfde sleutel breekt AES-GCM volledig.
+    const iv = genereerIV(IV_LENGTE);
+    const ciphertext = await versleutelMetIV(dek, iv, blok);
+
+    const kop = new Uint8Array(IV_LENGTE + LENGTE_VELD);
+    kop.set(iv, 0);
+    new DataView(kop.buffer).setUint32(IV_LENGTE, ciphertext.length, false);
+
+    delen.push(kop, ciphertext);
+    totaal += kop.length + ciphertext.length;
+  }
+
+  // Een leeg bestand levert alleen de kop op; dat is geldig en leest terug
+  // als een lege Uint8Array.
+  const payload = new Uint8Array(totaal);
+  let offset = 0;
+  for (const deel of delen) {
+    payload.set(deel, offset);
+    offset += deel.length;
+  }
+  return payload;
+}
+
+/**
+ * Ontsleutelt een chunked payload.
+ *
+ * Bestanden die vóór A-05 zijn opgeslagen hebben geen chunkkop: die staan als
+ * één IV gevolgd door één ciphertext op schijf. Die worden nog gewoon gelezen,
+ * zodat bestaande bijlagen niet onbruikbaar worden door deze wijziging.
+ */
+async function ontsleutelUitChunks(
+  dek: CryptoKey,
+  payload: Uint8Array,
+  uuid: string,
+): Promise<Uint8Array> {
+  if (!heeftChunkKop(payload)) {
+    const iv = payload.slice(0, IV_LENGTE);
+    const ciphertext = payload.slice(IV_LENGTE);
+    return ontsleutelBytes(dek, ciphertext, iv);
+  }
+
+  const delen: Uint8Array[] = [];
+  let totaal = 0;
+  let offset = magicBytes().length;
+
+  while (offset < payload.length) {
+    if (offset + IV_LENGTE + LENGTE_VELD > payload.length) {
+      throw new Error(`Bestand '${uuid}' is afgekapt: onvolledige chunkkop.`);
+    }
+
+    const iv = payload.slice(offset, offset + IV_LENGTE);
+    const lengte = new DataView(
+      payload.buffer,
+      payload.byteOffset + offset + IV_LENGTE,
+      LENGTE_VELD,
+    ).getUint32(0, false);
+    offset += IV_LENGTE + LENGTE_VELD;
+
+    if (offset + lengte > payload.length) {
+      throw new Error(`Bestand '${uuid}' is afgekapt: chunk loopt voorbij het einde.`);
+    }
+
+    const ciphertext = payload.slice(offset, offset + lengte);
+    offset += lengte;
+
+    const blok = await ontsleutelBytes(dek, ciphertext, iv);
+    delen.push(blok);
+    totaal += blok.length;
+  }
+
+  const resultaat = new Uint8Array(totaal);
+  let schrijf = 0;
+  for (const deel of delen) {
+    resultaat.set(deel, schrijf);
+    schrijf += deel.length;
+  }
+  return resultaat;
+}
+
+/** AES-256-GCM met een expliciet meegegeven IV. */
+async function versleutelMetIV(
+  dek: CryptoKey,
+  iv: Uint8Array,
+  data: Uint8Array,
+): Promise<Uint8Array> {
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: iv as ArrayBufferView<ArrayBuffer> },
+    dek,
+    data as ArrayBufferView<ArrayBuffer>,
+  );
+  return new Uint8Array(encrypted);
 }
 
 /**
