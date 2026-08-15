@@ -7,7 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { db } from "@/db/db";
+import { db, versleuteldeTabellen } from "@/db/db";
+import { wisSleutel, zetSleutel } from "@/db/sleutelregister";
+import { hermigreerPlatteRecords } from "@/db/kluisopslag";
 import type { VaultMeta } from "@/crypto/types";
 import {
   initialiseerNieuweKluis,
@@ -62,6 +64,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const lockTimerRef = useRef<number | null>(null);
 
   const vergrendel = useCallback(() => {
+    // Eerst het sleutelregister, dan pas de React-state. De datalaag leest uit
+    // het register, dus zonder deze regel zou een vergrendelde kluis nog
+    // gewoon leesbaar zijn voor elke lopende query.
+    wisSleutel();
     setDek(null);
     if (lockTimerRef.current !== null) {
       window.clearTimeout(lockTimerRef.current);
@@ -188,6 +194,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         }
 
         const ontgrendeldeDek = await ontgrendelMetWachtwoord(huidigeMeta, wachtwoord);
+        zetSleutel(ontgrendeldeDek);
+        await hermigreerPlatteRecords(versleuteldeTabellen(db));
         setDek(ontgrendeldeDek);
         resetLockTimer();
       } finally {
@@ -212,6 +220,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         }
 
         const ontgrendeldeDek = await ontgrendelMetHerstelcode(huidigeMeta, herstelcode);
+        zetSleutel(ontgrendeldeDek);
+        await hermigreerPlatteRecords(versleuteldeTabellen(db));
         setDek(ontgrendeldeDek);
         resetLockTimer();
       } finally {
@@ -226,6 +236,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     try {
       const resultaat = await initialiseerNieuweKluis(wachtwoord);
       await db.vault_meta.put(resultaat.meta);
+      zetSleutel(resultaat.dek);
       setMeta(resultaat.meta);
       setDek(resultaat.dek);
       setIsGeinitialiseerd(true);

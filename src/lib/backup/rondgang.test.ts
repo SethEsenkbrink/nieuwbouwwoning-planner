@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import "fake-indexeddb/auto";
 import { db } from "@/db/db";
+import { bewaar, haal } from "@/db/kluisopslag";
+import { zetSleutel } from "@/db/sleutelregister";
 import { initialiseerNieuweKluis } from "@/crypto/crypto";
 import { lijstBestandUuids, leesBestand, slaBestandOp, wisAlleBestanden } from "@/lib/opfs/storage";
 import { exporteerDossier } from "./export";
@@ -27,21 +29,23 @@ const WACHTWOORDZIN = "een lange zin die niemand raadt 42";
 async function maakDataset(aantalRecords: number, aantalBestanden: number) {
   const { meta, dek, herstelcode } = await initialiseerNieuweKluis(WACHTWOORDZIN);
   await db.vault_meta.put(meta);
+  // Schrijf via de versleutelde opslaglaag, precies zoals de app dat doet.
+  zetSleutel(dek);
 
-  await db.projecten.put({
+  await bewaar(db.projecten, {
     id: "project-1",
     naam: "Kavel 27",
     aangemaaktOp: new Date().toISOString(),
     bijgewerktOp: new Date().toISOString(),
-  } as never);
+  });
 
   for (let i = 0; i < aantalRecords; i++) {
-    await db.onderdelen.put({
+    await bewaar(db.onderdelen, {
       id: `onderdeel-${String(i)}`,
       projectId: "project-1",
       naam: `Onderdeel ${String(i)}`,
       categorie: "installatie",
-    } as never);
+    });
   }
 
   const bestandsInhoud: Record<string, Uint8Array> = {};
@@ -109,22 +113,19 @@ describe("Backup-rondgang: export, wissen, herstel", () => {
   it("behoudt onbekende velden uit een nieuwere backup", async () => {
     const { meta, dek } = await maakDataset(1, 0);
 
-    await db.onderdelen.put({
+    await bewaar(db.onderdelen, {
       id: "onderdeel-vreemd",
       projectId: "project-1",
       naam: "Met extra veld",
       ditVeldKentDezeVersieNiet: { diep: ["waarde", 42] },
-    } as never);
+    });
 
     const zip = await exporteerDossier(db, dek, meta);
     await wisAlles();
     await importeerDossier(zip, WACHTWOORDZIN, db);
 
-    const hersteld = (await db.onderdelen.get("onderdeel-vreemd")) as unknown as Record<
-      string,
-      unknown
-    >;
-    expect(hersteld.ditVeldKentDezeVersieNiet).toEqual({ diep: ["waarde", 42] });
+    const hersteld = await haal(db.onderdelen, "onderdeel-vreemd");
+    expect(hersteld?.ditVeldKentDezeVersieNiet).toEqual({ diep: ["waarde", 42] });
   });
 
   it("schrijft een volledig manifest zonder persoonsgegevens", async () => {
