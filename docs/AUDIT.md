@@ -60,26 +60,26 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 | B3.7 | Documenten in chunks van 1 MiB | ONTBREEKT | `src/lib/opfs/storage.ts:27-47` leest en versleutelt het volledige bestand in één keer |
 | B3.8 | Auto-lock 15 min + visibilitychange, sleutel wissen | GESLAAGD | `src/context/VaultContext.tsx:18` (15 min), `:113-119` (visibilitychange), `:55-61` (`vergrendel`) |
 | B3.9 | `verify-crypto.mjs` bestaat, aangehaakt, faalt bij extractable sleutel | GESLAAGD *(na reparatie)* | Faalde vóór `39643b0` **niet** bij een extractable sleutel in de app-code — het script toetste zijn eigen kopie. Na de reparatie negatief getest op drie schendingen, alle exit 1. Zie A-14 |
-| B3.10 | `navigator.storage.persist()` aangevraagd + in UI getoond | ONTBREEKT | `grep -rni "storage.persist\|persisted()" src/` → geen enkele treffer |
+| B3.10 | `navigator.storage.persist()` aangevraagd + in UI getoond | GESLAAGD *(na reparatie `8d80167`)* — `VaultContext.tsx` vraagt het eenmalig aan, `Projectinstellingen.tsx` toont de uitkomst bij `false` en `null`. Oorspronkelijk: | `grep -rni "storage.persist\|persisted()" src/` → geen enkele treffer |
 | B3.11 | Paniekknop wist OPFS + IndexedDB volledig | ONTBREEKT | `grep -rni "paniek\|panic" src/` → geen enkele treffer |
 
 ### B4 — Backup
 
 | # | Punt | Uitkomst | Bewijs |
 |---|---|---|---|
-| B4.1 | manifest onversleuteld met alle vereiste velden | GEFAALD | `src/lib/backup/types.ts:7-17` — heeft `formaatVersie`, `appVersie`, `aangemaaktOp`, `kluismeta`, `statistieken`. **Mist** `format`, `schemaVersion`, `cipher`, en per-tabel `counts` |
+| B4.1 | manifest onversleuteld met alle vereiste velden | GESLAAGD *(na reparatie `458271b`)* | `types.ts` kent nu `formaat`, `formaatVersie`, `schemaVersie`, `appVersie`, `aangemaaktOp`, `cipher`, `kluismeta` en `aantallen` per tabel |
 | B4.2 | manifest bevat geen persoonsgegeven | GESLAAGD | `export.ts:105-115` schrijft alleen versies, datum, kluismeta en drie tellers |
 | B4.3 | wrappedKeys bevat passphrase + recovery, PRF niet | GESLAAGD | `kluismeta` bevat `wrappedDekA` en `wrappedDekC`; `VaultMeta` kent geen PRF-veld, dus er gaat geen PRF-sleutel mee |
-| B4.4 | data.enc, files/<uuid>.enc, files/index.enc, CHECKSUMS | GEFAALD | `export.ts:119-127` schrijft alleen `manifest.json`, `data.enc`, `files/index.enc`, `CHECKSUMS`. **`files/<uuid>.enc` wordt nooit geschreven** |
+| B4.4 | data.enc, files/<uuid>.enc, files/index.enc, CHECKSUMS | GESLAAGD *(na reparatie `458271b`)* | Export leest OPFS uit en schrijft elke bijlage als `files/<uuid>.enc`; getest in `rondgang.test.ts` |
 | B4.5 | CHECKSUMS over ciphertext, niet plaintext | GESLAAGD | `export.ts:126` hasht `zipDict`, dat op dat moment alleen versleutelde entries + manifest bevat |
 | B4.6 | fflate streaming, zip nooit volledig in geheugen | GEFAALD | `export.ts:130` `fflate.zipSync(...)`; `import.ts:30` `fflate.unzipSync(...)` — beide synchroon en volledig in RAM |
-| B4.7 | `src/migrations/` ononderbroken keten v1..huidig | ONTBREEKT | De map `src/migrations/` bestaat niet |
-| B4.8 | Restore draait de keten vanaf schemaVersion | ONTBREEKT | `import.ts` kent geen `schemaVersion`; `grep -rni schemaVersion src/ scripts/` → geen treffer |
+| B4.7 | `src/migrations/` ononderbroken keten v1..huidig | GESLAAGD *(na reparatie `458271b`)* | `src/migrations/index.ts` met `controleerKetenIsSluitend()`, die een gat of oversla-stap afvangt |
+| B4.8 | Restore draait de keten vanaf schemaVersion | GESLAAGD *(na reparatie `458271b`)* | `import.ts` draait `migreer()` vóór elke schrijfactie en weigert een nieuwere schemaversie |
 | B4.9 | Onbekende velden blijven behouden bij restore | GESLAAGD | `import.ts:159-234` doet `bulkPut` van de volledige records; `db.ts` typeert tabellen als `& Record<string, any>` |
 | B4.10 | Golden fixture per schemaVersion die ooit bestond | GEFAALD | Alleen `tests/fixtures/golden-v1.woningdossier`. `test/fixtures/backups/` bestaat niet |
 | B4.11 | `verify-backup.mjs` herstelt élke fixture + snapshotvergelijking | GEDEELTELIJK | Script draait groen op de ene fixture; vergelijkt geen verwachte snapshot per versie |
 | B4.12 | Roulerend schema dagelijks-1..7 / wekelijks-1..4 / maandelijks-1..12 | ONTBREEKT | Geen enkele treffer in `src/` |
-| B4.13 | Terugleescontrole + checksums vóór "backup geslaagd" | ONTBREEKT | `export.ts` geeft de bytes terug zonder terug te lezen of te verifiëren |
+| B4.13 | Terugleescontrole + checksums vóór "backup geslaagd" | GESLAAGD *(na reparatie `458271b`)* | `controleerArchief()` pakt het archief opnieuw uit en valideert alle checksums voordat export terugkeert |
 | B4.14 | Directory-handle bewaard, permissie bij elke start herbevestigd | ONTBREEKT | Geen `showDirectoryPicker`, `queryPermission` of `requestPermission` in `src/` |
 | B4.15 | Fallback naar download als FSA-API ontbreekt | GEDEELTELIJK | `export.ts:137-154` doet altijd een download; er is geen FSA-pad om op terug te vallen |
 
@@ -277,6 +277,50 @@ Mijn advies is (a) als de afrondingsafwijking acceptabel is, anders (c). Dit is 
 
 ---
 
+## Genomen besluiten (sessie 11, tweede ronde)
+
+Seth heeft gevraagd de openstaande punten af te werken en de besluiten zelf te nemen, met
+**stabiliteit en veiligheid als doorslaggevend criterium**. Dat leidt tot het volgende.
+
+**Gerepareerd, met test:** A-02, A-03, A-07 (backup), A-11 (opslagpersistentie), A-12
+(energie-disclaimer), A-14 (crypto-gate), A-19 (.gitignore), A-20 (console). Zie de commit-tabel.
+
+**V-1 (versleuteling at rest) — bewust niet in deze sessie doorgevoerd.**
+Dit is de zwaarste bevinding en tegelijk degene waar haast het gevaarlijkst is. Een opslaglaag
+die alle negentien tabellen versleutelt raakt elke lezende en schrijvende route, en de zestien
+Dexie-indexen waarop die routes queryen (`db.ts:79-97`) werken niet meer op versleutelde
+waarden. Bovendien kan ik het resultaat hier niet in een echte browser valideren: Dexie's
+`reading`-hook is synchroon terwijl WebCrypto async is, dus transparante hooks zijn geen optie
+en het moet via een expliciete repositorylaag. Een ongeteste encryptielaag over álle
+gebruikersdata uitrollen is precies het risico dat "stabiliteit en veiligheid op 1" moet
+uitsluiten — het zou de data in gevaar brengen die het hoort te beschermen.
+*Advies:* aparte wijziging met eigen ADR, waarbij `src/lib/projecten.ts` de enige naad is
+(dat bestand bedient alle 17 routes). Encrypteer de recordinhoud, houd `id`, `projectId` en
+structurele enums als indexsleutel plat. Eerst de migratieketen gebruiken die er nu ligt.
+
+**V-6 (CSP `unsafe-inline`) — bewust niet doorgevoerd.**
+De directive is nodig voor drie plekken (zie A-04). Twee zijn risicoloos op te ruimen, de derde
+is de gestapelde voortgangsbalk. Volledige verwijdering vraagt óf discretisering van de
+breedtes (zichtbare afrondingsfout in een gestapelde balk), óf een SVG-herschrijving die de
+Tailwind-achtergrondklassen naar `fill`-klassen moet vertalen en dus het huisstijlsysteem
+raakt. Beide zijn zichtbare productwijzigingen zonder testdekking in deze repo.
+Meegewogen: met `script-src 'self'` en `connect-src 'none'` kan CSS hier niets naar buiten
+sturen, dus het praktische risico van deze ene directive is klein. Dat maakt het geen reden om
+hem te laten staan, wel om hem niet overhaast te wijzigen.
+
+**V-4 (`.fuse_hidden`-bestanden) — geblokkeerd, jouw beslissing.**
+Verwijderen is technisch veilig (`.gitignore` dekt het patroon al, CLAUDE.md §6 noemt ze
+"geen originelen"), maar de omgeving blokkeerde de verwijdering en CLAUDE.md eist hier jouw
+expliciete goedkeuring. Veertien bestanden, ruim 300 kB, waarvan
+`src/styles/.fuse_hidden0000001000000001` getrackt is.
+
+**A-05, A-06, A-08, A-09, A-10, A-13, A-15, A-16, A-17 — open.**
+Stuk voor stuk ontbrekende functionaliteit, geen defect in wat er staat. Ze vragen nieuwe
+routes, UI en datamodelwijzigingen (A-06 en A-10 zijn elk ruim boven de 200-regelgrens) en
+verschillende ervan hangen af van het besluit op V-1.
+
+---
+
 ## Stand van het werk
 
 - **Fase A** — afgerond. 284 getrackte bestanden buiten `brink-ui/`. `npm ci`, `npm run verify` en `npm run build` groen.
@@ -293,5 +337,8 @@ Mijn advies is (a) als de afrondingsafwijking acceptabel is, anders (c). Dit is 
 | `39643b0` | A-14 | verify-crypto toetst nu de echte broncode |
 | `aa3e28b` | A-19 | .gitignore dekt lokale backups |
 | `e0d492c` | — | auditrapport + eerlijke STATE.md |
+| `213a65d` | — | merge van de auditbranch naar main |
+| `458271b` | A-02, A-03, A-07 | bijlagen in de backup, migratieketen, terugleescontrole |
+| `8d80167` | A-11, A-12, A-20 | opslagpersistentie, energie-disclaimer, console weg |
 
 **Hervatten:** begin bij de BLOKKEREND-bevindingen, maar vraag eerst een besluit op **V-1**, want A-01 bepaalt de vorm van A-02 en A-03. Zonder dat besluit is elke reparatie aan de opslaglaag weggegooid werk.
