@@ -26,6 +26,13 @@ import type { VaultMeta } from "@/crypto/types";
 export type StoredRecord<T> = T & MetId & { projectId: string };
 export type StoredProject = Project & MetId;
 
+/** De bewaarde backupmap. Bevat geen dossierinhoud — zie versie 3 hieronder. */
+export interface BackupDoel {
+  id: "doel";
+  handle: FileSystemDirectoryHandle;
+  gekozenOp: string;
+}
+
 /**
  * Dexie IndexedDB instantie — Woningdossier
  *
@@ -71,6 +78,7 @@ export class WoningdossierDB extends Dexie {
   verzekeringen!: EntityTable<StoredRecord<VerzekeringItem> & Record<string, any>, "id">;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inboedel!: EntityTable<StoredRecord<InboedelItem> & Record<string, any>, "id">;
+  backup_doel!: EntityTable<BackupDoel, "id">;
 
   constructor() {
     super("woningdossier");
@@ -136,6 +144,19 @@ export class WoningdossierDB extends Dexie {
       garanties: "id, projectId",
       verzekeringen: "id, projectId",
       inboedel: "id, projectId",
+    });
+
+    // ── Versie 3 — bewaarde backupmap ─────────────────────────────────────
+    //
+    // Eén record met de FileSystemDirectoryHandle van de gekozen backupmap.
+    // Handles zijn structured-cloneable, dus IndexedDB kan ze bewaren; de
+    // gebruiker hoeft de map daardoor maar één keer aan te wijzen.
+    //
+    // Bewust níét versleuteld: een handle bevat geen dossierinhoud, en hij
+    // moet leesbaar zijn vóórdat de kluis ontgrendeld is — anders kun je bij
+    // het opstarten niet controleren of de permissie nog geldt.
+    this.version(3).stores({
+      backup_doel: "id",
     });
   }
 }

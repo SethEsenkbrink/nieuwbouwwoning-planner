@@ -24,7 +24,15 @@ import {
 } from "@/lib/opleverband";
 import { naarAfspraakInvoer, naarBetrokkeneInvoer, naarPlanningContext } from "@/lib/actielijst";
 import { db } from "@/db/db";
-import { exporteerDossier, downloadDossierBestand } from "@/lib/backup/export";
+import { voerRoulerendeBackupUit } from "@/lib/backup/roulerend";
+import {
+  controleerToegang,
+  haalBewaardeBackupmap,
+  kiesBackupmap,
+  ondersteuntBackupmap,
+  vraagToegangOpnieuw,
+  type Toegang,
+} from "@/lib/backup/doel";
 import { importeerDossier } from "@/lib/backup/import";
 
 import { berekenImpact } from "@/lib/watals";
@@ -84,6 +92,8 @@ export default function Projectinstellingen() {
 
   // Backup & Herstel state
   const [bezigMetBackup, setBezigMetBackup] = useState(false);
+  const [backupmapNaam, setBackupmapNaam] = useState<string | null>(null);
+  const [backupToegang, setBackupToegang] = useState<Toegang>("geen-map");
   const [bezigMetImport, setBezigMetImport] = useState(false);
   const [toonImportDialoog, setToonImportDialoog] = useState(false);
   const [importWachtwoord, setImportWachtwoord] = useState("");
@@ -106,14 +116,49 @@ export default function Projectinstellingen() {
     setFout(null);
     setGelukt(null);
     try {
-      const zipBytes = await exporteerDossier(db, dek, meta);
-      downloadDossierBestand(zipBytes, project?.naam ?? "woningdossier");
-      setGelukt("Backupbestand (.woningdossier) succesvol gedownload.");
+      // Schrijf naar de gekozen backupmap als die er is; anders downloaden.
+      // De gebruiker drukt hier zelf op de knop, dus een downloadvenster is
+      // hier wél gepast — bij de achtergrondcontrole niet.
+      const uitkomst = await voerRoulerendeBackupUit(db, dek, meta, {
+        valTerugOpDownload: true,
+        projectNaam: project?.naam ?? "woningdossier",
+      });
+
+      if (uitkomst.soort === "geschreven") {
+        const namen = uitkomst.slots.map((s) => s.rotatie).join(", ");
+        setGelukt(`Backup geschreven en teruggelezen (${namen}).`);
+      } else if (uitkomst.soort === "niets-te-doen") {
+        setGelukt("Alle backupslots zijn al actueel — er was niets te schrijven.");
+      } else {
+        setGelukt("Backupbestand (.woningdossier) gedownload.");
+      }
+      await ververBackupdoel();
     } catch (err) {
       setFout(err instanceof Error ? err.message : String(err));
     } finally {
       setBezigMetBackup(false);
     }
+  }
+
+  /** Leest de bewaarde map en de actuele permissie opnieuw uit. */
+  const ververBackupdoel = useCallback(async () => {
+    const map = await haalBewaardeBackupmap();
+    setBackupmapNaam(map?.name ?? null);
+    setBackupToegang(await controleerToegang(map));
+  }, []);
+
+  async function kiesMap() {
+    setFout(null);
+    const map = await kiesBackupmap();
+    if (!map) return;
+    setBackupmapNaam(map.name);
+    setBackupToegang(await controleerToegang(map));
+  }
+
+  async function herstelToegang() {
+    const map = await haalBewaardeBackupmap();
+    if (!map) return;
+    setBackupToegang(await vraagToegangOpnieuw(map));
   }
 
   async function voerImportUit() {
@@ -139,6 +184,13 @@ export default function Projectinstellingen() {
       setBezigMetImport(false);
     }
   }
+
+  // Herbevestig de permissie op de backupmap bij elke keer dat dit scherm
+  // opent. Een bewaarde handle zegt niets over of we er nog in mogen
+  // schrijven; dat moet actief nagegaan worden (A-08).
+  useEffect(() => {
+    void ververBackupdoel();
+  }, [ververBackupdoel]);
 
   useEffect(() => {
     if (!uid) return;
@@ -444,6 +496,59 @@ export default function Projectinstellingen() {
         <p className="mt-s2 text-body text-slate">
           Download een versleutelde momentopname van je complete dossier of herstel een eerder backupbestand.
         </p>
+
+        {/* ── Backupmap en permissie ───────────────────────────────────────
+            De browser trekt de schrijftoestemming in bij het sluiten van het
+            tabblad. Daarom wordt de permissie bij het openen van dit scherm
+            opnieuw nagegaan en hier eerlijk getoond: een map die er wel staat
+            maar waar we niet in mogen, is geen backup. */}
+        {!ondersteuntBackupmap() && (
+          <div className="mt-s3">
+            <Melding soort="info">
+              Deze browser kan geen backupmap onthouden. Backups worden gedownload; bewaar ze
+              zelf op een vaste plek buiten deze computer.
+            </Melding>
+          </div>
+        )}
+
+        {ondersteuntBackupmap() && (
+          <div className="mt-s3">
+            {backupToegang === "verleend" && backupmapNaam && (
+              <Melding soort="gelukt">
+                Backupmap: <strong>{backupmapNaam}</strong>. Het roulerende schema houdt zeven
+                dagen, vier weken en twaalf maanden terug bij.
+              </Melding>
+            )}
+            {backupToegang === "geen-map" && (
+              <Melding soort="info">
+                Er is nog geen backupmap gekozen. Zonder map moet je elke backup handmatig
+                bewaren.
+              </Melding>
+            )}
+            {backupToegang === "moet-opnieuw-gevraagd" && (
+              <Melding soort="fout">
+                De toestemming voor <strong>{backupmapNaam}</strong> is verlopen. Bevestig hem
+                opnieuw, anders worden er geen backups weggeschreven.
+              </Melding>
+            )}
+            {backupToegang === "geweigerd" && (
+              <Melding soort="fout">
+                Toegang tot <strong>{backupmapNaam}</strong> is geweigerd. Kies een andere map.
+              </Melding>
+            )}
+
+            <div className="mt-s2 flex flex-wrap gap-s2">
+              <Knop variant="secundair" onClick={() => void kiesMap()}>
+                {backupmapNaam ? "Andere map kiezen" : "Backupmap kiezen"}
+              </Knop>
+              {backupToegang === "moet-opnieuw-gevraagd" && (
+                <Knop variant="primair" onClick={() => void herstelToegang()}>
+                  Toestemming bevestigen
+                </Knop>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-s3 flex flex-wrap gap-s2">
           <Knop
