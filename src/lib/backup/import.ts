@@ -6,6 +6,8 @@ import {
   ontgrendelMetWachtwoord,
   ontsleutelBytes,
 } from "@/crypto/crypto";
+import { schrijfRuweBytes } from "@/lib/opfs/storage";
+import { HUIDIGE_SCHEMA_VERSIE, migreer } from "@/migrations";
 import type { DossierDatabasePayload, DossierManifest } from "./types";
 import { valideerChecksums } from "./checksums";
 
@@ -14,6 +16,10 @@ export interface ImportResultaat {
   dek: CryptoKey;
   projectNaam: string;
   aantalRecords: number;
+  /** Aantal bijlagen dat naar OPFS is teruggezet. */
+  aantalBestanden: number;
+  /** De schemaversie waarmee het bestand geschreven was, vóór migratie. */
+  gemigreerdVanaf: number;
 }
 
 /**
@@ -62,6 +68,11 @@ export async function importeerDossier(
 
   const manifest = parsedManifest as unknown as DossierManifest;
 
+  // Backups van vóór de migratieketen hadden geen `schemaVersie`. Die zijn per
+  // definitie schemaversie 1 — dat is de enige versie die toen bestond.
+  const schemaVersieUitBestand =
+    typeof parsedManifest.schemaVersie === "number" ? parsedManifest.schemaVersie : 1;
+
   // 4. Ontgrendel de DEK via wachtwoord of herstelcode
   let dek: CryptoKey;
   try {
@@ -99,8 +110,15 @@ export async function importeerDossier(
     throw new Error("Ontsleutelde database-inhoud bevat ongeldige JSON.");
   }
 
-  // 7. Schrijf alles transactioneel weg naar IndexedDB
-  const { tabellen } = payload;
+  // 7. Draai de migratieketen vóórdat er ook maar iets naar de database gaat.
+  //
+  //    `migreer` weigert bewust een schemaversie die nieuwer is dan deze build
+  //    kent: doorgaan zou betekenen dat we velden wegschrijven waarvan we de
+  //    betekenis niet kennen, en dat is stil dataverlies (A-03).
+  const tabellen = migreer(
+    payload.tabellen,
+    schemaVersieUitBestand,
+  ) as unknown as DossierDatabasePayload["tabellen"];
   let totaalAantalRecords = 0;
 
   await database.transaction(
@@ -235,6 +253,21 @@ export async function importeerDossier(
     },
   );
 
+  // 8. Zet de bijlagen terug in OPFS.
+  //
+  //    De bytes in het archief zijn al onder de DEK versleuteld, dus ze gaan
+  //    ongewijzigd terug. Vóór A-02 gebeurde dit helemaal niet en verloor de
+  //    gebruiker bij elk herstel al zijn documenten.
+  let aantalBestanden = 0;
+  for (const [entryNaam, ruweBytes] of Object.entries(unzipped)) {
+    if (!entryNaam.startsWith("files/") || !entryNaam.endsWith(".enc")) continue;
+    if (entryNaam === "files/index.enc") continue;
+
+    const uuid = entryNaam.slice("files/".length, -".enc".length);
+    await schrijfRuweBytes(uuid, ruweBytes);
+    aantalBestanden++;
+  }
+
   const eersteProject = tabellen.projecten?.[0] as { naam?: string } | undefined;
   const projectNaam = eersteProject?.naam ?? "Woningdossier";
 
@@ -243,5 +276,9 @@ export async function importeerDossier(
     dek,
     projectNaam,
     aantalRecords: totaalAantalRecords,
+    aantalBestanden,
+    gemigreerdVanaf: schemaVersieUitBestand,
   };
 }
+
+export { HUIDIGE_SCHEMA_VERSIE };

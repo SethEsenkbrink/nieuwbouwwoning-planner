@@ -114,6 +114,71 @@ export async function bestaatBestand(uuid: string): Promise<boolean> {
 }
 
 /**
+ * Geeft de UUID's van alle opgeslagen bestanden terug.
+ *
+ * Nodig voor de backup: die moet weten wélke bestanden er zijn. Vóór deze
+ * functie bestond dat pad niet, en exporteerde de backup een hardgecodeerd
+ * lege bestandsindex — waardoor bijlagen stil verdwenen bij herstel (A-02).
+ */
+export async function lijstBestandUuids(): Promise<string[]> {
+  const dir = await haalFilesDirectory();
+  if (!dir) {
+    return [...inMemoryFiles.keys()];
+  }
+
+  const uuids: string[] = [];
+  try {
+    const iterableDir = dir as unknown as { keys: () => AsyncIterable<string> };
+    for await (const naam of iterableDir.keys()) {
+      if (naam.endsWith(".enc")) {
+        uuids.push(naam.slice(0, -".enc".length));
+      }
+    }
+  } catch {
+    // Map bestaat nog niet of is leeg
+  }
+  return uuids;
+}
+
+/**
+ * Leest de ruwe, nog versleutelde bytes (IV + ciphertext) van een bestand.
+ *
+ * De backup kopieert deze bytes ongewijzigd het archief in. Ontsleutelen en
+ * opnieuw versleutelen zou onnodig zijn, trager, en zou de plaintext door het
+ * geheugen halen zonder dat daar iets tegenover staat.
+ */
+export async function leesRuweBytes(uuid: string): Promise<Uint8Array> {
+  const dir = await haalFilesDirectory();
+  if (!dir) {
+    const payload = inMemoryFiles.get(uuid);
+    if (!payload) {
+      throw new Error(`Bestand met UUID '${uuid}' niet gevonden.`);
+    }
+    return payload;
+  }
+
+  const fileHandle = await dir.getFileHandle(`${uuid}.enc`);
+  const file = await fileHandle.getFile();
+  return new Uint8Array(await file.arrayBuffer());
+}
+
+/**
+ * Schrijft ruwe, reeds versleutelde bytes terug naar OPFS. Gebruikt bij herstel.
+ */
+export async function schrijfRuweBytes(uuid: string, payload: Uint8Array): Promise<void> {
+  const dir = await haalFilesDirectory();
+  if (!dir) {
+    inMemoryFiles.set(uuid, payload);
+    return;
+  }
+
+  const fileHandle = await dir.getFileHandle(`${uuid}.enc`, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(payload as unknown as FileSystemWriteChunkType);
+  await writable.close();
+}
+
+/**
  * Wist alle bestanden uit de OPFS opslag (bijv. bij kluis reset).
  */
 export async function wisAlleBestanden(): Promise<void> {
