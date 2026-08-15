@@ -9,9 +9,77 @@
  * 4. AES-256-GCM encryptie/decryptie en authenticatie-tag validatie
  * 5. Foutafhandeling bij verkeerd wachtwoord / verkeerde herstelcode
  *
+ * 6. De ECHTE broncode in src/crypto/ — zie controleerBroncode() hieronder.
+ *
  * Draait als onderdeel van `npm run verify`.
  */
 import { argon2id } from "hash-wasm";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+const WORTEL = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Controleert de broncode in `src/crypto/` zelf.
+ *
+ * Waarom dit er staat: de runtime-checks verderop bouwen hun eigen sleutel-
+ * hiërarchie na met de Web Crypto API. Ze bewijzen dat de gekozen algoritmes
+ * kloppen, maar ze raken `src/crypto/crypto.ts` nooit aan. Op 15 augustus 2026
+ * bleek dat gat concreet: `extractable: true` zetten in de echte app-code liet
+ * dit script gewoon op exit 0 staan. Alleen de vitest-suite ving het af.
+ *
+ * Daarom leest deze functie de broncode en dwingt af wat ADR-0021 belooft.
+ */
+function controleerBroncode() {
+  const cryptoBron = readFileSync(join(WORTEL, "src/crypto/crypto.ts"), "utf8");
+  const kdfBron = readFileSync(join(WORTEL, "src/crypto/kdf.ts"), "utf8");
+
+  // 1. Elke importKey/deriveKey in de sleutelhiërarchie moet non-extractable zijn.
+  //    We knippen op de aanroep en kijken naar het `extractable`-argument, dat
+  //    direct vóór de key-usages array staat.
+  for (const [naam, bron] of [
+    ["crypto.ts", cryptoBron],
+    ["kdf.ts", kdfBron],
+  ]) {
+    const aanroepen = bron.match(/crypto\.subtle\.(importKey|deriveKey)\([\s\S]*?\]\s*,?\s*\)/g) ?? [];
+    if (aanroepen.length === 0) {
+      throw new Error(`Geen enkele importKey/deriveKey gevonden in ${naam} — is het bestand hernoemd?`);
+    }
+    for (const aanroep of aanroepen) {
+      if (/(^|[\s,(])true\s*,\s*\[/m.test(aanroep)) {
+        throw new Error(
+          `Extractable sleutel in src/crypto/${naam}:\n${aanroep.slice(0, 160)}\n` +
+            `ADR-0021 eist extractable: false voor DEK en KEK's.`,
+        );
+      }
+    }
+  }
+
+  // 2. De Argon2id-parameters mogen nooit stilletjes omlaag.
+  const params = { m: 65536, t: 3, p: 4, hashLength: 32 };
+  for (const [sleutel, waarde] of Object.entries(params)) {
+    const gevonden = new RegExp(`${sleutel}\\s*:\\s*(\\d+)`).exec(kdfBron);
+    if (!gevonden) {
+      throw new Error(`Argon2id-parameter '${sleutel}' niet gevonden in src/crypto/kdf.ts.`);
+    }
+    if (Number(gevonden[1]) !== waarde) {
+      throw new Error(
+        `Argon2id-parameter '${sleutel}' is ${gevonden[1]}, verwacht ${waarde} (ADR-0021).`,
+      );
+    }
+  }
+
+  // 3. Bij ontgrendelen moeten de parameters uit de opslag komen, niet hardcoded.
+  if (!/berekenKekA\(\s*wachtwoord\s*,\s*saltA\s*,\s*meta\.argon2Params\s*\)/.test(cryptoBron)) {
+    throw new Error(
+      "ontgrendelMetWachtwoord gebruikt meta.argon2Params niet — parameters mogen bij " +
+        "ontgrendelen niet hardcoded zijn, anders breken oude kluizen na een parameterwijziging.",
+    );
+  }
+
+  console.log("✓ Broncode src/crypto/ OK — non-extractable sleutels, Argon2id-parameters uit opslag.");
+}
 
 const STANDAARD_ARGON2_PARAMS = {
   m: 65536,
@@ -77,6 +145,9 @@ function decodeCrockfordBase32(invoer) {
 
 async function run() {
   console.log("Valideren van cryptografische sleutelhiërarchie...");
+
+  // Eerst de echte broncode, dan pas de runtime-eigenschappen.
+  controleerBroncode();
 
   // 1. Genereer DEK
   const rawDek = new Uint8Array(32);
