@@ -138,7 +138,7 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 | B9.4 | PROJECT.md en STATE.md actueel | GEFAALD | Beide zijn bijgewerkt in de baseline maar beschrijven de fasen als afgerond, terwijl B3/B4/B6/B8 aantoonbaar onvolledig zijn |
 | B9.5 | ADR voor elke architectuurkeuze | GESLAAGD | ADR-0020 t/m ADR-0027 dekken lokaal-only, crypto, backup, datamodel/regelmotor, domeinmodules, energie, mobiel en diagnostiek |
 | B9.6 | Geen TODO/FIXME/console.log/debugger/uitgecommentarieerde blokken | GEDEELTELIJK | Geen TODO, FIXME, `console.log` of `debugger`. Wel twee `console.error`: `src/context/VaultContext.tsx:87`, `src/main.tsx:21` |
-| B9.7 | Geen dode bestanden | GEFAALD | `lib/energie`, `lib/mjop`, `lib/p1`, `lib/inbox/delta`, `lib/woningpaspoort/overdracht` hebben geen enkele niet-test importeur. Daarnaast 14 `.fuse_hidden*`-bestanden in `src/`, waarvan `src/styles/.fuse_hidden0000001000000001` in git zit |
+| B9.7 | Geen dode bestanden | GEFAALD *(deels opgelost)* | De 14 `.fuse_hidden*`-bestanden zijn verwijderd. Nog open: `lib/energie`, `lib/mjop`, `lib/p1`, `lib/inbox/delta` en `lib/woningpaspoort/overdracht` hebben geen niet-test importeur — zie A-06 |
 | B9.8 | Geen dubbele implementaties | GEFAALD | `src/lib/converters.ts` (Firestore-conversie) en `src/db/db.ts` (Dexie) zijn twee datalagen naast elkaar; `src/lib/projecten.ts` bedient nog 17 routes |
 | B9.9 | .gitignore dekt dist, node_modules, .env, lokale backups | GEDEELTELIJK | dist/, node_modules/, .env* en `.fuse_hidden*` gedekt; **`*.woningdossier` niet** |
 | B9.10 | Geen secrets buiten test/fixtures | GESLAAGD | Geen sleutels of wachtwoorden aangetroffen in `src/` of `scripts/` |
@@ -231,7 +231,7 @@ B2.2 (hex-kleuren), B2.6 (ongebruikte dependencies per stuk), B5.1/B5.4/B5.5 (tr
 `src/lib/converters.ts` exporteert `afspraakNaarFirestore`, `ankerUitFirestore` e.a.; toelichtende Firestore-teksten in `src/lib/actielijst.ts:13-27`, `src/lib/bouwfase.ts:30`, `src/lib/betrokkenen.ts:6`. De functies zijn nog in gebruik, maar de naamgeving verwijst naar een datalaag die niet meer bestaat.
 *Reparatie:* hernoemen naar neutrale termen en de comments bijwerken.
 
-**A-18 — Veertien `.fuse_hidden*`-bestanden in `src/`, waarvan één in git**
+**A-18 — Veertien `.fuse_hidden*`-bestanden in `src/`, waarvan één in git** — ✅ **GEREPAREERD**
 `src/lib/.fuse_hidden000000480000000d`, twaalf in `src/routes/`, en `src/styles/.fuse_hidden0000001000000001` — die laatste is getrackt. Samen ruim 300 kB dode kopieën van oude broncode die nog naar het verwijderde `@/lib/projecten` verwijzen. `.gitignore` dekt het patroon inmiddels wél, maar het getrackte bestand blijft.
 *Reparatie:* alle veertien verwijderen en het getrackte bestand uit git halen. **Verwijderen van projectbestanden vereist expliciete goedkeuring — zie "vereist besluit".**
 
@@ -317,8 +317,8 @@ Met `script-src self` en `connect-src none` kan CSS hier niets naar buiten sture
 het praktische risico is klein. Het is een zichtbare productwijziging en die hoort niet
 ongetest doorgevoerd te worden.
 
-**V-4 (`.fuse_hidden`) blijft geblokkeerd.** De omgeving weigert de verwijdering en
-CLAUDE.md §6 vraagt hier expliciete goedkeuring. Veertien bestanden, ruim 300 kB.
+**V-4 (`.fuse_hidden`) is afgehandeld.** Seth heeft expliciet goedkeuring gegeven; alle
+veertien bestanden zijn verwijderd na controle dat het geen originelen waren.
 
 ---
 
