@@ -61,7 +61,7 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 | B3.8 | Auto-lock 15 min + visibilitychange, sleutel wissen | GESLAAGD | `src/context/VaultContext.tsx:18` (15 min), `:113-119` (visibilitychange), `:55-61` (`vergrendel`) |
 | B3.9 | `verify-crypto.mjs` bestaat, aangehaakt, faalt bij extractable sleutel | GESLAAGD *(na reparatie)* | Faalde vóór `39643b0` **niet** bij een extractable sleutel in de app-code — het script toetste zijn eigen kopie. Na de reparatie negatief getest op drie schendingen, alle exit 1. Zie A-14 |
 | B3.10 | `navigator.storage.persist()` aangevraagd + in UI getoond | GESLAAGD *(na reparatie `8d80167`)* — `VaultContext.tsx` vraagt het eenmalig aan, `Projectinstellingen.tsx` toont de uitkomst bij `false` en `null`. Oorspronkelijk: | `grep -rni "storage.persist\|persisted()" src/` → geen enkele treffer |
-| B3.11 | Paniekknop wist OPFS + IndexedDB volledig | ONTBREEKT | `grep -rni "paniek\|panic" src/` → geen enkele treffer |
+| B3.11 | Paniekknop wist OPFS + IndexedDB volledig | GESLAAGD *(na `867a0a8`)* — wist sleutel, OPFS en de hele database incl. vault_meta; getest. Oorspronkelijk: | `grep -rni "paniek\|panic" src/` → geen enkele treffer |
 
 ### B4 — Backup
 
@@ -78,10 +78,10 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 | B4.9 | Onbekende velden blijven behouden bij restore | GESLAAGD | `import.ts:159-234` doet `bulkPut` van de volledige records; `db.ts` typeert tabellen als `& Record<string, any>` |
 | B4.10 | Golden fixture per schemaVersion die ooit bestond | GEFAALD | Alleen `tests/fixtures/golden-v1.woningdossier`. `test/fixtures/backups/` bestaat niet |
 | B4.11 | `verify-backup.mjs` herstelt élke fixture + snapshotvergelijking | GEDEELTELIJK | Script draait groen op de ene fixture; vergelijkt geen verwachte snapshot per versie |
-| B4.12 | Roulerend schema dagelijks-1..7 / wekelijks-1..4 / maandelijks-1..12 | ONTBREEKT | Geen enkele treffer in `src/` |
-| B4.13 | Terugleescontrole + checksums vóór "backup geslaagd" | GESLAAGD *(na reparatie `458271b`)* | `controleerArchief()` pakt het archief opnieuw uit en valideert alle checksums voordat export terugkeert |
-| B4.14 | Directory-handle bewaard, permissie bij elke start herbevestigd | ONTBREEKT | Geen `showDirectoryPicker`, `queryPermission` of `requestPermission` in `src/` |
-| B4.15 | Fallback naar download als FSA-API ontbreekt | GEDEELTELIJK | `export.ts:137-154` doet altijd een download; er is geen FSA-pad om op terug te vallen |
+| B4.12 | Roulerend schema dagelijks-1..7 / wekelijks-1..4 / maandelijks-1..12 | GESLAAGD *(na `fd97399`)* | `src/lib/backup/rotatie.ts`, 23 slots, 12 tests |
+| B4.13 | Terugleescontrole + checksums vóór "backup geslaagd" | GESLAAGD *(na `458271b`, `fd97399`)* | `controleerArchief()` valideert het archief; `schrijfEnControleer()` leest elk weggeschreven bestand terug |
+| B4.14 | Directory-handle bewaard, permissie bij elke start herbevestigd | GESLAAGD *(na `fd97399`)* | `src/lib/backup/doel.ts`; handle in schema v3, permissie nagegaan bij openen instellingenscherm |
+| B4.15 | Fallback naar download als FSA-API ontbreekt | GESLAAGD *(na `fd97399`)* | `roulerend.ts` valt terug op download, maar alleen bij een gebruikersactie |
 
 **Herstelttest (a t/m f):** NIET UITGEVOERD — geblokkeerd door A-02 en A-03. Zolang bijlagen niet meegaan en er geen migratieketen is, kan stap b/d/e per definitie niet slagen zoals gespecificeerd. Zie "vereist besluit".
 
@@ -183,7 +183,7 @@ De eerste twee zijn risicoloos te verplaatsen naar een stylesheet. De derde niet
 `src/lib/backup/export.ts:130-131` geeft de zipbytes terug zonder ze opnieuw uit te pakken of de checksums te verifiëren. Een schrijffout of afgekapte schrijfactie wordt als succes gemeld.
 *Reparatie:* na het schrijven teruglezen, `valideerChecksums` draaien, en pas daarna succes melden.
 
-**A-08 — Geen roulerend backupschema en geen directory-handle**
+**A-08 — Geen roulerend backupschema en geen directory-handle** — ✅ **GEREPAREERD** (`fd97399`)
 Specificatie eist dagelijks-1..7, wekelijks-1..4, maandelijks-1..12, een bewaarde directory-handle en herbevestiging van de permissie bij elke start. Geen van drieën bestaat: geen `showDirectoryPicker`, geen `queryPermission`, geen rotatielogica.
 *Reparatie:* File System Access-integratie met persistente handle in IndexedDB, permissiecheck bij start, en rotatiebeheer.
 
@@ -195,7 +195,7 @@ Specificatie eist dagelijks-1..7, wekelijks-1..4, maandelijks-1..12, een bewaard
 `src/types/model.ts`. De enum `'ingevoerd' | 'afgeleid' | 'geïmporteerd' | 'voorstel'` bestaat niet. Daarmee bestaat ook de code niet die voorkomt dat een herberekening een handmatig ingevoerde waarde overschrijft — B5 merkt dit expliciet als GEFAALD aan bij afwezigheid.
 *Reparatie:* `bron` toevoegen aan de datapunten en een guard in elke herberekening. **Raakt het volledige datamodel → zie "vereist besluit".**
 
-**A-11 — `navigator.storage.persist()` en paniekknop ontbreken volledig** — ⚠️ **DEELS** (`8d80167`): persist() gedaan, paniekknop nog open
+**A-11 — `navigator.storage.persist()` en paniekknop ontbreken volledig** — ✅ **GEREPAREERD** (`8d80167`, `867a0a8`)
 Geen enkele treffer in `src/`. Zonder `persist()` kan de browser de volledige IndexedDB opruimen bij schijfruimtegebrek — precies het risico dat ADR-0022:12 als aanleiding voor de backup noemt.
 *Reparatie:* `persist()` aanvragen bij eerste ontgrendeling, uitkomst tonen in de UI, en een paniekknop die OPFS en IndexedDB volledig wist.
 
@@ -343,5 +343,7 @@ CLAUDE.md §6 vraagt hier expliciete goedkeuring. Veertien bestanden, ruim 300 k
 | `8d80167` | A-11, A-12, A-20 | opslagpersistentie, energie-disclaimer, console weg |
 | `82d9cb9` | **A-01** | versleuteling at rest voor alle woningdata |
 | `8f3d489` | **A-05** | documenten versleuteld in chunks van 1 MiB |
+| `fd97399` | **A-08** | roulerend backupschema, bewaarde map, permissiecontrole |
+| `867a0a8` | **A-11** | paniekknop |
 
-**Hervatten:** begin bij **A-08** (roulerend backupschema en directory-handle) — dat is nu het grootste resterende risico op dataverlies. Daarna A-11 (paniekknop), A-06 (modules aansluiten) en A-10 (`bron` op elk datapunt); die laatste twee zijn elk ruim boven de 200-regelgrens en verdienen een eigen ronde.
+**Hervatten:** alles wat de vertrouwelijkheid en herstelbaarheid van data raakt, is nu af. Wat rest is ontbrekende functionaliteit: **A-06** (vijf modules aansluiten), **A-09** (signaalstatus en snooze), **A-10** (`bron` op elk datapunt) en **A-13** (mobiele modus). A-06 en A-10 zijn elk ruim boven de 200-regelgrens. Daarnaast opruimwerk: A-04, A-15, A-16, A-17, A-18.
