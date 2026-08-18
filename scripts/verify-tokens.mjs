@@ -11,7 +11,7 @@
  *
  * Draait als onderdeel van `npm run verify`.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -113,6 +113,52 @@ for (const [key, value] of Object.entries(typography.tracking)) {
   check(`tracking-${kebab(key)}`, value, "tracking");
 }
 
+
+// ── Losse hexkleuren en onbekende tokens in componenten ────────────────────
+//
+// B2.2 eist dat componenten geen losse hexkleuren bevatten maar de huisstijl
+// gebruiken. En een `var(--color-x)` die niet bestaat is net zo stil fout: de
+// browser rendert dan niets in plaats van een verkeerde kleur, wat je pas ziet
+// als je er toevallig naar kijkt. Op 16 augustus 2026 stond er een
+// `var(--color-cream)` in Logo.tsx die nergens gedefinieerd was.
+{
+  const uiBestanden = [];
+  for (const map of ["src/components", "src/routes"]) {
+    const vol = join(ROOT, map);
+    if (!existsSync(vol)) continue;
+    for (const naam of readdirSync(vol)) {
+      if (/\.tsx?$/.test(naam) && !naam.includes(".test.")) {
+        uiBestanden.push(join(vol, naam));
+      }
+    }
+  }
+
+  const themaCss = readFileSync(join(ROOT, "src/styles/brink-theme.css"), "utf8");
+  const bekendeTokens = new Set(
+    [...themaCss.matchAll(/(--color-[a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  );
+
+  for (const bestand of uiBestanden) {
+    const inhoud = readFileSync(bestand, "utf8");
+    const kort = bestand.replace(ROOT, "").split("\\").join("/");
+
+    for (const hex of inhoud.match(/#[0-9a-fA-F]{6}\b/g) ?? []) {
+      problems.push(
+        `${kort} bevat de losse kleur ${hex}. Gebruik een huisstijl-token ` +
+          `(var(--color-...)) in plaats van een hexwaarde. Zie B2.2.`,
+      );
+    }
+
+    for (const match of inhoud.matchAll(/var\((--color-[a-z0-9-]+)\)/g)) {
+      if (!bekendeTokens.has(match[1])) {
+        problems.push(
+          `${kort} gebruikt ${match[1]}, maar dat token bestaat niet in ` +
+            `brink-theme.css. De browser rendert dan niets.`,
+        );
+      }
+    }
+  }
+}
 // ── Uitkomst ───────────────────────────────────────────────────────────────
 if (problems.length > 0) {
   console.error("\n✗ Huisstijl-pariteit MISLUKT\n");

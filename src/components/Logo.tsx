@@ -25,16 +25,16 @@ function Mark({ gradientId }: { gradientId: string }) {
     <>
       <defs>
         <radialGradient id={gradientId} cx="35%" cy="30%" r="75%">
-          <stop offset="0" stopColor="#D77E4F" />
-          <stop offset="1" stopColor="#C4633B" />
+          <stop offset="0" stopColor="var(--color-clay-light)" />
+          <stop offset="1" stopColor="var(--color-clay)" />
         </radialGradient>
       </defs>
       <path d={GEVEL_PAD} fill={`url(#${gradientId})`} />
-      <circle cx="72" cy="72" r="16" fill="#FBF8F1" />
+      <circle cx="72" cy="72" r="16" fill="var(--color-lifted)" />
       <path
         d="M65 72.5 l4.8 4.8 L79 66.5"
         fill="none"
-        stroke="#4E5B3C"
+        stroke="var(--color-olive)"
         strokeWidth="3.4"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -86,10 +86,10 @@ export function Logo({
         fontSize="36"
         fontWeight="700"
         letterSpacing="-1"
-        fill={donker ? "#F5F1E8" : "#26251F"}
+        fill={donker ? "var(--color-canvas)" : "var(--color-ink)"}
       >
         nieuwbouw
-        <tspan fill={donker ? "#D77E4F" : "#C4633B"}>planner</tspan>
+        <tspan fill={donker ? "var(--color-clay-light)" : "var(--color-clay)"}>planner</tspan>
       </text>
     </svg>
   );
