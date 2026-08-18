@@ -142,17 +142,27 @@ export default function Mjop() {
                   </div>
 
                   {/* Een balk maakt een piekjaar sneller zichtbaar dan een getal. */}
+                  {/* SVG-attribuut in plaats van inline style, zodat de CSP
+                      zonder 'unsafe-inline' kan (A-04). */}
                   <div
                     className="mt-s2 h-2 w-full overflow-hidden rounded-pill bg-bone"
                     role="img"
                     aria-label={`${euro(jaar.geschatteKosten)} in ${String(jaar.jaar)}`}
                   >
-                    <div
-                      className="h-full bg-ink"
-                      style={{
-                        width: `${String(hoogste > 0 ? (jaar.geschatteKosten / hoogste) * 100 : 0)}%`,
-                      }}
-                    />
+                    <svg
+                      className="block h-full w-full"
+                      viewBox="0 0 100 1"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <rect
+                        x={0}
+                        y={0}
+                        width={hoogste > 0 ? (jaar.geschatteKosten / hoogste) * 100 : 0}
+                        height={1}
+                        className="fill-ink"
+                      />
+                    </svg>
                   </div>
 
                   {jaar.taken.length > 0 && (

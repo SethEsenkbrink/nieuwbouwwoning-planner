@@ -56,22 +56,45 @@ export function Voortgangsbalk({
 
   const zichtbaar = segmenten.filter((s) => s.waarde > 0);
 
+  // De breedtes staan als SVG-presentatieattribuut en niet als inline style.
+  // Dat is geen cosmetisch verschil: `width` op een <rect> is een XML-attribuut
+  // en valt buiten de CSP, waardoor `style-src 'unsafe-inline'` kan vervallen
+  // (bevinding A-04). De proporties blijven daarbij exact — bij afronden naar
+  // vaste klassen zouden ze over de segmenten opstapelen.
+  const rechthoeken = zichtbaar.reduce<{ segment: Segment; x: number; breedte: number }[]>(
+    (verzameld, segment) => {
+      const vorige = verzameld[verzameld.length - 1];
+      const start = vorige ? vorige.x + vorige.breedte : 0;
+      const breedte = Math.max(MINIMUM_BREEDTE, (segment.waarde / noemer) * 100);
+      return [...verzameld, { segment, x: start, breedte }];
+    },
+    [],
+  );
+
   return (
     <div>
       <div
-        className="flex h-4 w-full overflow-hidden rounded-pill bg-bone"
+        className="h-4 w-full overflow-hidden rounded-pill bg-bone"
         role="img"
         aria-label={zichtbaar.map((s) => `${s.label}: ${toon(s.waarde)}`).join(", ")}
       >
-        {zichtbaar.map((segment) => (
-          <div
-            key={segment.label}
-            className={segment.kleur}
-            style={{
-              width: `${String(Math.max(MINIMUM_BREEDTE, (segment.waarde / noemer) * 100))}%`,
-            }}
-          />
-        ))}
+        <svg
+          className="block h-full w-full"
+          viewBox="0 0 100 1"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          {rechthoeken.map(({ segment, x: start, breedte }) => (
+            <rect
+              key={segment.label}
+              x={start}
+              y={0}
+              width={breedte}
+              height={1}
+              className={segment.kleur.replace(/\bbg-/g, "fill-")}
+            />
+          ))}
+        </svg>
       </div>
 
       <dl className="mt-s2 flex flex-col gap-1">

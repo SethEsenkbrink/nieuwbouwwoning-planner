@@ -101,6 +101,20 @@ if (!csp) {
     );
   }
 
+
+  // Géén enkele directive mag 'unsafe-inline' bevatten (bevinding A-04).
+  //
+  // Dit stond er eerder alleen voor script-src, waardoor style-src jarenlang
+  // 'unsafe-inline' kon houden zonder dat de gate iets zei. De voortgangsbalken
+  // gebruiken nu SVG-presentatieattributen in plaats van inline styles, dus er
+  // is geen reden meer om ergens een uitzondering te maken.
+  const metUnsafeInline = directives.filter((d) => d.includes("'unsafe-inline'"));
+  if (metUnsafeInline.length > 0) {
+    problemen.push(
+      `CSP bevat 'unsafe-inline' in: ${metUnsafeInline.join(", ")}.\n` +
+        `  Inline styles en scripts horen in een bestand. Zie bevinding A-04.`,
+    );
+  }
   const frameSrc = directives.find((d) => d.startsWith("frame-src")) ?? "";
   if (frameSrc !== "frame-src 'none'") {
     problemen.push(`CSP frame-src moet 'none' zijn.`);

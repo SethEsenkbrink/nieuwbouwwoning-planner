@@ -209,3 +209,21 @@
     box-shadow: var(--shadow-e1);
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Regels die eerder als inline style in index.html stonden.
+
+   Ze staan hier zodat de CSP zonder `style-src 'unsafe-inline'` kan
+   (bevinding A-04). Deze stylesheet wordt als render-blocking <link> in de
+   head geladen, dus de achtergrond staat nog steeds vóór de eerste paint —
+   waar het inline blok oorspronkelijk voor bedoeld was.
+   ───────────────────────────────────────────────────────────────────────── */
+html {
+  background-color: #f5f1e8;
+}
+
+.geen-javascript {
+  font-family: system-ui;
+  padding: 24px;
+  color: #26251f;
+}

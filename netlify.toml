@@ -56,7 +56,7 @@ frame-ancestors 'none'; \
 form-action 'self'; \
 img-src 'self' data: blob:; \
 font-src 'self' data:; \
-style-src 'self' 'unsafe-inline'; \
+style-src 'self'; \
 script-src 'self'; \
 connect-src 'none'; \
 frame-src 'none'; \
