@@ -5,7 +5,7 @@
 
 ## Context
 
-Blok E7 uit `docs/2026-07-31-bouwplan-en-backlog.md` is één regel lang: *"handmatige opnames met
+Blok E7 uit `docs/archief/2026-07-31-bouwplan-en-backlog.md` is één regel lang: *"handmatige opnames met
 een verbruikstrend. Bewust simpel: geen koppeling met slimme meters."* Dat zegt wat het niet
 wordt, maar niet hoe het model eruitziet — en juist daar zit de keuze.
 

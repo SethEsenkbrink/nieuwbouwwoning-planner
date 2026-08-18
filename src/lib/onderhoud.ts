@@ -6,7 +6,7 @@ import { opDag, verschilInDagen, voegDagenToe } from "@/lib/planning";
  * ═══════════════════════════════════════════════════════════════════════════
  * Onderhoud — terugkerend werk aan de woning (ADR-0014)
  *
- * Puur TypeScript: geen Firestore, geen React, geen `new Date()` die niet als
+ * Puur TypeScript: geen opslaglaag, geen React, geen `new Date()` die niet als
  * parameter binnenkomt. Daardoor zonder emulator te testen.
  *
  * DE VOLGENDE BEURT WORDT NOOIT OPGESLAGEN (ADR-0008). Hij volgt uit

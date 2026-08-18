@@ -12,7 +12,7 @@ constraints die het project bij elkaar houden.
 2. **`docs/STATE.md`** — waar we nu staan en wat de direct volgende stap is
 3. **`docs/WORKFLOW.md`** — spelregels, inclusief je bijwerkplicht aan het eind
 4. **`docs/decisions/`** — de ADR's die raken aan waar je mee bezig gaat
-5. **`docs/sessions/`** — het laatste sessielog
+5. **`docs/archief/sessions/`** — het laatste sessielog
 6. **`../AGENTS.md`** — de onwrikbare huisstijlregels van de werkruimte
 
 **Ga je zelf commando's uitvoeren? Lees dan eerst `CLAUDE.md` in deze map.** Daar staat welke
@@ -23,7 +23,7 @@ commando's in een AI-sandbox wél werken en welke alleen op de machine van Seth 
 
 ## De vijf dingen die het vaakst misgaan
 
-1. **Firebase Storage of Cloud Functions toevoegen.** Beide zijn verboden (ADR-0005).
+1. **Een server of netwerkaanroep toevoegen.** De app is 100% lokaal (ADR-0020); `connect-src 'none'` blokkeert het.
    Storage breekt de privacybelofte, Cloud Functions vereisen het betaalde Blaze-plan.
    Alle serverside logica hoort in `netlify/functions/`.
 2. **Importeren uit `react-router-dom`.** Dat pakket is EOL. Importeer uit `react-router`
@@ -56,7 +56,7 @@ npm run verify       # typecheck + lint + tokenpariteit + build — vóór elke 
 
 ## Geheimen
 
-Alles met `VITE_`-prefix belandt in de browserbundle. De Firebase web-config hoort daar thuis
-(publiek by design, beveiliging zit in de Firestore-rules). Een LLM- of mailkey hoort daar
+Alles met `VITE_`-prefix belandt in de browserbundle. Deze app heeft geen enkele sleutel
+nodig — er is geen server. Een LLM- of mailkey hoort daar
 nooit — die gaan in Netlify environment variables zónder prefix en worden alleen in
 `netlify/functions/` gelezen via `Netlify.env.get()`.

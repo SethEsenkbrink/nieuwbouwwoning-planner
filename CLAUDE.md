@@ -57,8 +57,9 @@ kost hij per sessie ~10 minuten voor iets dat lokaal in ~900 ms klaar is.
 | --- | --- | --- |
 | `npx tsc --build --force` | ~40 s | **De echte typecheck.** Zie de waarschuwing hieronder |
 | `node scripts/verify-tokens.mjs` | < 1 s | Huisstijl-pariteit met `brink-ui/tokens.js` |
-| `node scripts/verify-headers.mjs` | < 1 s | CSP en security headers uit `netlify.toml` |
-| `node scripts/verify-rules.mjs` | < 1 s | Model ↔ Firestore-rules pariteit |
+| `node scripts/verify-offline.mjs` | < 1 s | Nul externe verbindingen in `dist/` |
+| `node scripts/verify-crypto.mjs` | ~2 s | Sleutelhiërarchie én de broncode in `src/crypto/` |
+| `node scripts/verify-backup.mjs` | ~2 s | Golden fixture, checksums, herstel met beide sleutels |
 | `git`, `rg`, `jq`, `make`, `curl` | — | Aanwezig in het PATH |
 
 > ### ⚠️ Gebruik NOOIT `tsc --noEmit`
@@ -80,16 +81,7 @@ kost hij per sessie ~10 minuten voor iets dat lokaal in ~900 ms klaar is.
 | `npm run lint` (`eslint .`) | Duurt >40 s en heeft de lokale install nodig |
 | `npm run test` (vitest) | Windows-binaries van rolldown |
 | `npm run build` (vite) | Idem |
-| `npm run rules:test` | Firestore-emulator vereist JDK 21+; de emulator-JAR staat niet op de proxy-allowlist |
 | `npm run verify` | Bevat alle bovenstaande |
-| `firebase deploy --only firestore:rules` | Vereist een geldig CLI-token; interactieve login kan niet in de sandbox |
-
-> **Groene rules-tests betekenen NIET dat de rules gedeployed zijn.** De emulator draait
-> tegen `firebase/firestore.rules` op schijf. Op 1 augustus bleek de console nog op de versie
-> van 30 juli te staan, vier commits achter. Wijzig je de rules, deploy dan in dezelfde
-> sessie — en verloopt het token (`Authentication Error`), dan is `firebase login --reauth`
-> de juiste fix, níét `firebase login:ci` (dat is voor headless servers en levert een
-> langlevend geheim op).
 
 ## 3. De regel die hieruit volgt
 
@@ -116,8 +108,6 @@ commando > /tmp/log 2>&1; echo "EXIT=$?" >> /tmp/log
 | --- | --- | --- |
 | Node | **>= 24** | `package.json` → `engines`, en `.nvmrc` |
 | TypeScript | **6.x — bewust niet 7** | ADR-0003; `typescript-eslint` ondersteunt de native compiler niet, waardoor `no-floating-promises` zou vervallen |
-| JDK | **21+** voor `npm run rules:test` | Firestore-emulator |
-| Firebase CLI | recent genoeg voor `emulators:exec` | — |
 
 ### Wat er op de machine van Seth staat
 
@@ -127,7 +117,6 @@ commando > /tmp/log 2>&1; echo "EXIT=$?" >> /tmp/log
 node --version; npm --version
 java -version
 $env:JAVA_HOME
-firebase --version
 ```
 
 | Onderdeel | Versie | Status |
@@ -136,7 +125,6 @@ firebase --version
 | npm | 11.6.2 | ✅ |
 | Java | **Temurin 21.0.12 LTS** | ✅ voldoet aan de emulator-eis van 21+ |
 | `JAVA_HOME` | `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.8-hotspot` | ✅ correct gezet |
-| Firebase CLI | 15.24.0 | ✅ ondersteunt `emulators:exec` |
 | Git | 2.52.0.windows.1 | ✅ |
 
 **Er is geen enkel versieconflict.** De `engines`-eis in `package.json`, `.nvmrc` en de
@@ -153,11 +141,11 @@ anders faalt `npm run rules:test` met een emulator die geen JDK vindt.
 | Wat | Waar |
 | --- | --- |
 | Broncode | `src/` — routes, components, lib, data, types |
-| Rekenkern | `src/lib/planning.ts` — puur TypeScript, géén Firestore, géén React |
+| Rekenkern | `src/lib/planning.ts` — puur TypeScript, géén opslag, géén React |
 | Datamodel | `src/types/model.ts` — **leidend** |
-| Datalaag | `src/lib/projecten.ts` — het enige bestand dat Firestore aanroept |
-| Firestore-rules | `firebase/firestore.rules` + `firebase/rules.test.ts` |
-| Verify-scripts | `scripts/verify-{tokens,headers,rules}.mjs` |
+| Datalaag | `src/lib/projecten.ts` → `src/db/kluisopslag.ts` — de enige route naar IndexedDB |
+| Cryptografie | `src/crypto/` + `src/db/kluisopslag.ts` — versleuteling at rest |
+| Verify-scripts | `scripts/verify-{tokens,headers,offline,crypto,backup}.mjs` |
 | Documentatie | `docs/` — zie `AGENTS.md` voor de leesvolgorde |
 | Huisstijl (kopie) | `brink-ui/` — **nooit rechtstreeks wijzigen**, wordt overschreven |
 
@@ -176,7 +164,7 @@ De mount blokkeert `rm` standaard. Twee gevolgen:
 Uit `WORKFLOW.md` §2 en §8, hier herhaald omdat het de enige regel is die nooit mag sneuvelen:
 
 1. `docs/STATE.md` bijwerken — actuele stand, volgende stap, nieuwe valkuilen
-2. Sessielog schrijven in `docs/sessions/YYYY-MM-DD-sessie-NN.md`
+2. Sessielog schrijven in `docs/archief/sessions/YYYY-MM-DD-sessie-NN.md`
 3. Vinkje in `docs/PROJECT.md` §6 bij een afgeronde feature
 4. ADR schrijven bij elke keuze die je later zou moeten uitleggen
 5. Seth `npm run verify` én `npm run rules:test` laten draaien, en de **werkelijke** uitkomst

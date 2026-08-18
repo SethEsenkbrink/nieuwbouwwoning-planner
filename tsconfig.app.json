@@ -21,8 +21,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    /* Firestore-documenten kunnen velden missen; dit dwingt af dat je dat
-       afvangt in plaats van blind te indexeren. */
+    /* Ontsleutelde records en geïmporteerde backups kunnen velden missen; dit
+       dwingt af dat je dat afvangt in plaats van blind te indexeren. */
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
 

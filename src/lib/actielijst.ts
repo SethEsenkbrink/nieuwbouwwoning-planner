@@ -10,21 +10,21 @@ import {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * De brug tussen Firestore-documenten en de rekenmotor
+ * De brug tussen opslagdocumenten en de rekenmotor
  *
  * `planning.ts` is puur en kent alleen zijn eigen lichte invoertypes. De
- * datalaag levert documenten met id's, optionele velden en Firestore-eigenaardig-
+ * datalaag levert documenten met id's, optionele velden en opslag-eigenaardig-
  * heden. Dit bestand vertaalt het één naar het ander — en niets meer.
  *
  * WAAROM DIT NIET IN HET DASHBOARD STAAT
  * De vertaling bevat twee beslissingen die fout kunnen gaan zonder dat je het
  * ziet: wanneer telt de opleverband mee, en wat doe je met een anker zonder
  * datum. In een component zijn die niet te testen zonder de hele React-boom en
- * de Firebase-SDK op te tuigen. Hier wel, met gewone objecten in en een lijst
+ * een volledige opslaglaag op te tuigen. Hier wel, met gewone objecten in en een lijst
  * uit.
  *
  * Dit bestand importeert bewust alléén types uit `converters.ts` — die import
- * verdwijnt bij het compileren, dus de Firebase-SDK wordt hier nooit geladen en
+ * verdwijnt bij het compileren, dus de opslaglaag wordt hier nooit aangesproken en
  * de tests draaien zonder emulator.
  * ═══════════════════════════════════════════════════════════════════════════
  */

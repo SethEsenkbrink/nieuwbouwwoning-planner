@@ -5,7 +5,7 @@ import type { TaakMetId } from "@/lib/converters";
  * ═══════════════════════════════════════════════════════════════════════════
  * Taken sorteren en op urgentie zetten
  *
- * Puur, net als `planning.ts`: geen Firestore, geen React, en `vandaag` komt
+ * Puur, net als `planning.ts`: geen opslaglaag, geen React, en `vandaag` komt
  * als parameter binnen zodat de tests niet van de klok afhangen.
  *
  * De sorteervolgorde is een keuze, geen toeval. Een takenlijst die op

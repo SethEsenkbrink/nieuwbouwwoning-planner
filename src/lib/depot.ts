@@ -15,7 +15,7 @@ import type { TermijnMetId } from "@/lib/converters";
  * bank. Een depotoverzicht dat alleen "totaal betaald" toont, laat precies dat
  * ene actiepunt weg.
  *
- * Puur, zonder Firestore: `vandaag` en de bedragen komen als parameter binnen.
+ * Puur, zonder opslaglaag: `vandaag` en de bedragen komen als parameter binnen.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 

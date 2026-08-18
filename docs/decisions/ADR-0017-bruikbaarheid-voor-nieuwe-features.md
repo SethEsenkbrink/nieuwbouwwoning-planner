@@ -7,7 +7,7 @@
 
 Op 1 augustus 2026 is blok E afgerond en heeft gebruiker #1 de app voor het eerst met echte
 gegevens gebruikt in plaats van hem te bouwen. De vastgestelde volgorde uit
-`docs/2026-07-31-bouwplan-en-backlog.md` zette daarna **ronde 8** klaar: C5 (documentparser),
+`docs/archief/2026-07-31-bouwplan-en-backlog.md` zette daarna **ronde 8** klaar: C5 (documentparser),
 blok F (live gaan, export, toegankelijkheid, mobiel) en de `improvements/`-wachtrij.
 
 Die live test leverde iets op wat acht verificatiepasses niet hadden gevonden. Letterlijk:
@@ -19,7 +19,7 @@ Die live test leverde iets op wat acht verificatiepasses niet hadden gevonden. L
 > vooral niet helemaal duidelijk voor een leek. Daarnaast werken sommige onderdelen niet
 > waaronder het bouwdepot."*
 
-De volledige bevindingenlijst staat in `docs/2026-08-01-bevindingen-live-test.md`.
+De volledige bevindingenlijst staat in `docs/archief/2026-08-01-bevindingen-live-test.md`.
 
 ### Waarom dit niet eerder is opgevallen
 

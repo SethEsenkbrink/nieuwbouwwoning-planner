@@ -48,17 +48,17 @@ import type {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * Firestore-converters — de rand van het systeem
+ * Opslagconverters — de rand van het systeem
  *
  * Dit bestand is de enige plek waar `Timestamp` en `Date` elkaar raken.
  *
  * WAAROM DIT BESTAAT
- * `src/types/model.ts` beschrijft wat er in Firestore staat, en dat is
- * `Timestamp`. `src/lib/planning.ts` rekent met `Date` en mag de Firebase-SDK
+ * `src/types/model.ts` beschrijft wat er in de opslag staat, en dat is
+ * `Timestamp`. `src/lib/planning.ts` rekent met `Date` en mag de opslaglaag
  * niet kennen (anders zijn de tests niet meer zonder emulator te draaien).
  * Ergens moet die vertaling gebeuren. Hier dus, en nergens anders.
  *
- * TWEE DINGEN DIE FIRESTORE NIET PIKT
+ * TWEE DINGEN DIE DE OPSLAGVORM NIET PIKT
  *
  * 1. `undefined` als waarde. Een veld dat niet is ingevuld moet je WEGLATEN,
  *    niet op undefined zetten. `zonderLegeVelden()` doet dat.
@@ -116,8 +116,8 @@ export type OnderdeelData = Omit<MetDatums<Onderdeel>, "registratieplicht"> & {
  * `Partial<T>` is dat NIET onder `exactOptionalPropertyTypes` (ADR-0003): daar
  * betekent `veld?: string` dat het veld weg mag, maar niet dat je er
  * `undefined` in mag zetten. Een leeggemaakt invoerveld levert precies dat op,
- * dus de `*NaarFirestore`-functies nemen dit type in plaats van `Partial`.
- * `zonderLegeVelden()` haalt de `undefined`s er alsnog uit vóór Firestore.
+ * dus de `*NaarOpslag`-functies nemen dit type in plaats van `Partial`.
+ * `zonderLegeVelden()` haalt de `undefined`s er alsnog uit vóór het opslaan.
  */
 export type Invoer<T> = { [K in keyof T]?: T[K] | undefined };
 
@@ -127,7 +127,7 @@ export type OnderhoudLogregelData = MetDatums<OnderhoudLogregel>;
 export type MeterData = MetDatums<Meter>;
 export type MeterstandData = MetDatums<Meterstand>;
 
-/** Zoals hierboven, plus het Firestore-id dat pas bij het lezen bekend is. */
+/** Zoals hierboven, plus het opslag-id dat pas bij het lezen bekend is. */
 export type ProjectMetId = ProjectData & { id: string };
 export type AnkerMetId = AnkerData & { id: string };
 export type BetrokkeneMetId = BetrokkeneData & { id: string };
@@ -147,7 +147,7 @@ export type MeterstandMetId = MeterstandData & { id: string };
 // ── Hulpjes ────────────────────────────────────────────────────────────────
 
 /**
- * Verwijdert velden met waarde `undefined`. Firestore weigert die namelijk —
+ * Verwijdert velden met waarde `undefined`. Ze horen niet in een opgeslagen record —
  * een leeg veld hoort afwezig te zijn, niet aanwezig-maar-leeg.
  */
 export function zonderLegeVelden(data: DocumentData): DocumentData {
@@ -165,7 +165,7 @@ function naarTimestamp(datum: Date | undefined): Timestamp | undefined {
 }
 
 /**
- * Leest een datumveld uit een Firestore-document.
+ * Leest een datumveld uit een opslagdocument.
  *
  * Accepteert ook een kale `Date`, want zo komt het terug uit een lokale
  * schrijfactie voordat de server hem heeft bevestigd (latency compensation).
@@ -352,9 +352,8 @@ const METEREENHEDEN = ["kWh", "m3", "GJ"] as const satisfies readonly Metereenhe
 
 /**
  * De acht ankertypes, ook bruikbaar in de UI voor een keuzelijst.
- * Dezelfde lijst staat in `firebase/firestore.rules` (`ankerTypes()`) en in
- * `docs/2026-07-29-betrokkenen-standaardlijst.md`. Wijzig je er één, wijzig
- * dan alle drie.
+ * Dezelfde lijst staat in `docs/archief/2026-07-29-betrokkenen-standaardlijst.md`.
+ * Wijzig je er één, wijzig dan allebei.
  */
 export const ALLE_ANKERTYPES = ANKERTYPES;
 export const ALLE_CATEGORIEEN = CATEGORIEEN;
@@ -365,10 +364,10 @@ export const ALLE_ENERGIELABELS = ENERGIELABELS;
 
 /**
  * Het paspoort is een geneste map. Is er niets ingevuld, dan komt `undefined`
- * terug in plaats van een lege map: een leeg object zou in Firestore een veld
+ * terug in plaats van een lege map: een leeg object zou in de opslag een veld
  * bezetten en in de UI als "ingevuld" tellen.
  */
-function paspoortNaarFirestore(
+function paspoortNaarOpslag(
   paspoort: Invoer<WoningpaspoortData> | undefined,
 ): DocumentData | undefined {
   if (!paspoort) return undefined;
@@ -392,7 +391,7 @@ function paspoortNaarFirestore(
   return Object.keys(inhoud).length === 0 ? undefined : inhoud;
 }
 
-function paspoortUitFirestore(waarde: unknown): WoningpaspoortData | undefined {
+function paspoortUitOpslag(waarde: unknown): WoningpaspoortData | undefined {
   if (typeof waarde !== "object" || waarde === null || Array.isArray(waarde)) return undefined;
   const data = waarde as DocumentData;
 
@@ -417,7 +416,7 @@ function paspoortUitFirestore(waarde: unknown): WoningpaspoortData | undefined {
 
 // ── Project ────────────────────────────────────────────────────────────────
 
-export function projectNaarFirestore(project: Invoer<ProjectData>): DocumentData {
+export function projectNaarOpslag(project: Invoer<ProjectData>): DocumentData {
   return zonderLegeVelden({
     naam: project.naam,
     bouwnummer: project.bouwnummer,
@@ -436,13 +435,13 @@ export function projectNaarFirestore(project: Invoer<ProjectData>): DocumentData
     opschortingBedrag: project.opschortingBedrag,
     opschortingNotitie: project.opschortingNotitie,
     woningStatus: project.woningStatus,
-    woningpaspoort: paspoortNaarFirestore(project.woningpaspoort),
+    woningpaspoort: paspoortNaarOpslag(project.woningpaspoort),
     aangemaaktOp: naarTimestamp(project.aangemaaktOp),
     bijgewerktOp: naarTimestamp(project.bijgewerktOp),
   });
 }
 
-export function projectUitFirestore(id: string, data: DocumentData): ProjectMetId {
+export function projectUitOpslag(id: string, data: DocumentData): ProjectMetId {
   return {
     id,
     naam: leesString(data.naam) ?? "Naamloos project",
@@ -465,7 +464,7 @@ export function projectUitFirestore(id: string, data: DocumentData): ProjectMetI
     // project als `in_aanbouw` — zie `isOpgeleverd()` in `lib/woning.ts`.
     // Projecten van vóór blok E hoeven dus niet gemigreerd te worden.
     ...optioneel("woningStatus", leesEnum(data.woningStatus, WONINGSTATUSSEN)),
-    ...optioneel("woningpaspoort", paspoortUitFirestore(data.woningpaspoort)),
+    ...optioneel("woningpaspoort", paspoortUitOpslag(data.woningpaspoort)),
     aangemaaktOp: leesDatum(data.aangemaaktOp) ?? new Date(0),
     ...optioneel("bijgewerktOp", leesDatum(data.bijgewerktOp)),
   };
@@ -484,7 +483,7 @@ function optioneel<K extends string, T>(sleutel: K, waarde: T | undefined) {
 
 // ── Anker ──────────────────────────────────────────────────────────────────
 
-export function ankerNaarFirestore(anker: Partial<AnkerData>): DocumentData {
+export function ankerNaarOpslag(anker: Partial<AnkerData>): DocumentData {
   return zonderLegeVelden({
     type: anker.type,
     titel: anker.titel,
@@ -494,7 +493,7 @@ export function ankerNaarFirestore(anker: Partial<AnkerData>): DocumentData {
   });
 }
 
-export function ankerUitFirestore(id: string, data: DocumentData): AnkerMetId {
+export function ankerUitOpslag(id: string, data: DocumentData): AnkerMetId {
   return {
     id,
     type: leesEnum(data.type, ANKERTYPES) ?? "oplevering",
@@ -507,7 +506,7 @@ export function ankerUitFirestore(id: string, data: DocumentData): AnkerMetId {
 
 // ── Betrokkene ─────────────────────────────────────────────────────────────
 
-export function betrokkeneNaarFirestore(betrokkene: Partial<BetrokkeneData>): DocumentData {
+export function betrokkeneNaarOpslag(betrokkene: Partial<BetrokkeneData>): DocumentData {
   return zonderLegeVelden({
     naam: betrokkene.naam,
     contactpersoon: betrokkene.contactpersoon,
@@ -522,7 +521,7 @@ export function betrokkeneNaarFirestore(betrokkene: Partial<BetrokkeneData>): Do
   });
 }
 
-export function betrokkeneUitFirestore(id: string, data: DocumentData): BetrokkeneMetId {
+export function betrokkeneUitOpslag(id: string, data: DocumentData): BetrokkeneMetId {
   return {
     id,
     naam: leesString(data.naam) ?? "Onbekende partij",
@@ -542,7 +541,7 @@ export function betrokkeneUitFirestore(id: string, data: DocumentData): Betrokke
 
 // ── Afspraak ───────────────────────────────────────────────────────────────
 
-export function afspraakNaarFirestore(afspraak: Partial<AfspraakData>): DocumentData {
+export function afspraakNaarOpslag(afspraak: Partial<AfspraakData>): DocumentData {
   return zonderLegeVelden({
     betrokkeneId: afspraak.betrokkeneId,
     omschrijving: afspraak.omschrijving,
@@ -557,7 +556,7 @@ export function afspraakNaarFirestore(afspraak: Partial<AfspraakData>): Document
   });
 }
 
-export function afspraakUitFirestore(id: string, data: DocumentData): AfspraakMetId {
+export function afspraakUitOpslag(id: string, data: DocumentData): AfspraakMetId {
   return {
     id,
     betrokkeneId: leesString(data.betrokkeneId) ?? "",
@@ -575,7 +574,7 @@ export function afspraakUitFirestore(id: string, data: DocumentData): AfspraakMe
 
 // ── Fase ───────────────────────────────────────────────────────────────────
 
-export function faseNaarFirestore(fase: Partial<FaseData>): DocumentData {
+export function faseNaarOpslag(fase: Partial<FaseData>): DocumentData {
   return zonderLegeVelden({
     type: fase.type,
     titel: fase.titel,
@@ -585,7 +584,7 @@ export function faseNaarFirestore(fase: Partial<FaseData>): DocumentData {
   });
 }
 
-export function faseUitFirestore(id: string, data: DocumentData): FaseMetId {
+export function faseUitOpslag(id: string, data: DocumentData): FaseMetId {
   return {
     id,
     type: leesEnum(data.type, FASETYPES) ?? "bouw",
@@ -598,7 +597,7 @@ export function faseUitFirestore(id: string, data: DocumentData): FaseMetId {
 
 // ── Taak ───────────────────────────────────────────────────────────────────
 
-export function taakNaarFirestore(taak: Partial<TaakData>): DocumentData {
+export function taakNaarOpslag(taak: Partial<TaakData>): DocumentData {
   return zonderLegeVelden({
     titel: taak.titel,
     deadline: naarTimestamp(taak.deadline),
@@ -609,7 +608,7 @@ export function taakNaarFirestore(taak: Partial<TaakData>): DocumentData {
   });
 }
 
-export function taakUitFirestore(id: string, data: DocumentData): TaakMetId {
+export function taakUitOpslag(id: string, data: DocumentData): TaakMetId {
   return {
     id,
     titel: leesString(data.titel) ?? "Naamloze taak",
@@ -626,7 +625,7 @@ export function taakUitFirestore(id: string, data: DocumentData): TaakMetId {
 
 // ── Meerwerk ───────────────────────────────────────────────────────────────
 
-export function meerwerkNaarFirestore(item: Partial<MeerwerkData>): DocumentData {
+export function meerwerkNaarOpslag(item: Partial<MeerwerkData>): DocumentData {
   return zonderLegeVelden({
     omschrijving: item.omschrijving,
     bedrag: item.bedrag,
@@ -640,7 +639,7 @@ export function meerwerkNaarFirestore(item: Partial<MeerwerkData>): DocumentData
   });
 }
 
-export function meerwerkUitFirestore(id: string, data: DocumentData): MeerwerkMetId {
+export function meerwerkUitOpslag(id: string, data: DocumentData): MeerwerkMetId {
   return {
     id,
     omschrijving: leesString(data.omschrijving) ?? "Naamloos meerwerk",
@@ -659,7 +658,7 @@ export function meerwerkUitFirestore(id: string, data: DocumentData): MeerwerkMe
 
 // ── Termijn (bouwdepot) ────────────────────────────────────────────────────
 
-export function termijnNaarFirestore(termijn: Partial<TermijnData>): DocumentData {
+export function termijnNaarOpslag(termijn: Partial<TermijnData>): DocumentData {
   return zonderLegeVelden({
     omschrijving: termijn.omschrijving,
     bedrag: termijn.bedrag,
@@ -672,7 +671,7 @@ export function termijnNaarFirestore(termijn: Partial<TermijnData>): DocumentDat
   });
 }
 
-export function termijnUitFirestore(id: string, data: DocumentData): TermijnMetId {
+export function termijnUitOpslag(id: string, data: DocumentData): TermijnMetId {
   return {
     id,
     omschrijving: leesString(data.omschrijving) ?? "Naamloze termijn",
@@ -690,7 +689,7 @@ export function termijnUitFirestore(id: string, data: DocumentData): TermijnMetI
 
 // ── Gebrek (opleverpunt) ───────────────────────────────────────────────────
 
-export function gebrekNaarFirestore(gebrek: Partial<GebrekData>): DocumentData {
+export function gebrekNaarOpslag(gebrek: Partial<GebrekData>): DocumentData {
   return zonderLegeVelden({
     omschrijving: gebrek.omschrijving,
     locatie: gebrek.locatie,
@@ -700,7 +699,7 @@ export function gebrekNaarFirestore(gebrek: Partial<GebrekData>): DocumentData {
   });
 }
 
-export function gebrekUitFirestore(id: string, data: DocumentData): GebrekMetId {
+export function gebrekUitOpslag(id: string, data: DocumentData): GebrekMetId {
   return {
     id,
     omschrijving: leesString(data.omschrijving) ?? "Naamloos opleverpunt",
@@ -715,7 +714,7 @@ export function gebrekUitFirestore(id: string, data: DocumentData): GebrekMetId 
 
 // ── Nabudget (posten ná de oplevering) ─────────────────────────────────────
 
-export function nabudgetNaarFirestore(post: Partial<NabudgetData>): DocumentData {
+export function nabudgetNaarOpslag(post: Partial<NabudgetData>): DocumentData {
   return zonderLegeVelden({
     omschrijving: post.omschrijving,
     geraamd: post.geraamd,
@@ -725,7 +724,7 @@ export function nabudgetNaarFirestore(post: Partial<NabudgetData>): DocumentData
   });
 }
 
-export function nabudgetUitFirestore(id: string, data: DocumentData): NabudgetMetId {
+export function nabudgetUitOpslag(id: string, data: DocumentData): NabudgetMetId {
   return {
     id,
     omschrijving: leesString(data.omschrijving) ?? "Naamloze post",
@@ -782,7 +781,7 @@ function schoonSpecs(specs: Record<string, string> | undefined): Record<string, 
   return Object.keys(schoon).length === 0 ? undefined : schoon;
 }
 
-function registratieNaarFirestore(
+function registratieNaarOpslag(
   plicht: RegistratieplichtData | undefined,
 ): DocumentData | undefined {
   if (!plicht?.instantie) return undefined;
@@ -794,7 +793,7 @@ function registratieNaarFirestore(
   });
 }
 
-function registratieUitFirestore(waarde: unknown): RegistratieplichtData | undefined {
+function registratieUitOpslag(waarde: unknown): RegistratieplichtData | undefined {
   if (typeof waarde !== "object" || waarde === null || Array.isArray(waarde)) return undefined;
   const data = waarde as DocumentData;
 
@@ -811,7 +810,7 @@ function registratieUitFirestore(waarde: unknown): RegistratieplichtData | undef
   };
 }
 
-export function onderdeelNaarFirestore(onderdeel: Partial<OnderdeelData>): DocumentData {
+export function onderdeelNaarOpslag(onderdeel: Partial<OnderdeelData>): DocumentData {
   return zonderLegeVelden({
     naam: onderdeel.naam,
     categorie: onderdeel.categorie,
@@ -824,13 +823,13 @@ export function onderdeelNaarFirestore(onderdeel: Partial<OnderdeelData>): Docum
     installatieDatum: naarTimestamp(onderdeel.installatieDatum),
     installateurBetrokkeneId: onderdeel.installateurBetrokkeneId,
     garantieMaanden: onderdeel.garantieMaanden,
-    registratieplicht: registratieNaarFirestore(onderdeel.registratieplicht),
+    registratieplicht: registratieNaarOpslag(onderdeel.registratieplicht),
     documentUrl: onderdeel.documentUrl,
     notitie: onderdeel.notitie,
   });
 }
 
-export function onderdeelUitFirestore(id: string, data: DocumentData): OnderdeelMetId {
+export function onderdeelUitOpslag(id: string, data: DocumentData): OnderdeelMetId {
   return {
     id,
     naam: leesString(data.naam) ?? "Naamloos onderdeel",
@@ -849,7 +848,7 @@ export function onderdeelUitFirestore(id: string, data: DocumentData): Onderdeel
     ...optioneel("installatieDatum", leesDatum(data.installatieDatum)),
     ...optioneel("installateurBetrokkeneId", leesString(data.installateurBetrokkeneId)),
     ...optioneel("garantieMaanden", leesGetal(data.garantieMaanden)),
-    ...optioneel("registratieplicht", registratieUitFirestore(data.registratieplicht)),
+    ...optioneel("registratieplicht", registratieUitOpslag(data.registratieplicht)),
     ...optioneel("documentUrl", leesString(data.documentUrl)),
     ...optioneel("notitie", leesString(data.notitie)),
   };
@@ -857,7 +856,7 @@ export function onderdeelUitFirestore(id: string, data: DocumentData): Onderdeel
 
 // ── Onderhoud (ADR-0014) ───────────────────────────────────────────────────
 
-export function onderhoudTaakNaarFirestore(taak: Invoer<OnderhoudTaakData>): DocumentData {
+export function onderhoudTaakNaarOpslag(taak: Invoer<OnderhoudTaakData>): DocumentData {
   return zonderLegeVelden({
     titel: taak.titel,
     omschrijving: taak.omschrijving,
@@ -870,7 +869,7 @@ export function onderhoudTaakNaarFirestore(taak: Invoer<OnderhoudTaakData>): Doc
   });
 }
 
-export function onderhoudTaakUitFirestore(id: string, data: DocumentData): OnderhoudTaakMetId {
+export function onderhoudTaakUitOpslag(id: string, data: DocumentData): OnderhoudTaakMetId {
   const maand = leesGetal(data.voorkeursmaand);
 
   return {
@@ -899,7 +898,7 @@ export function onderhoudTaakUitFirestore(id: string, data: DocumentData): Onder
   };
 }
 
-export function onderhoudLogregelNaarFirestore(
+export function onderhoudLogregelNaarOpslag(
   regel: Invoer<OnderhoudLogregelData>,
 ): DocumentData {
   return zonderLegeVelden({
@@ -912,7 +911,7 @@ export function onderhoudLogregelNaarFirestore(
   });
 }
 
-export function onderhoudLogregelUitFirestore(
+export function onderhoudLogregelUitOpslag(
   id: string,
   data: DocumentData,
 ): OnderhoudLogregelMetId {
@@ -931,7 +930,7 @@ export function onderhoudLogregelUitFirestore(
 
 // ── Meters en meterstanden (ADR-0015) ──────────────────────────────────────
 
-export function meterNaarFirestore(meter: Invoer<MeterData>): DocumentData {
+export function meterNaarOpslag(meter: Invoer<MeterData>): DocumentData {
   return zonderLegeVelden({
     soort: meter.soort,
     naam: meter.naam,
@@ -942,7 +941,7 @@ export function meterNaarFirestore(meter: Invoer<MeterData>): DocumentData {
   });
 }
 
-export function meterUitFirestore(id: string, data: DocumentData): MeterMetId {
+export function meterUitOpslag(id: string, data: DocumentData): MeterMetId {
   // Terugval op "overig": een onbekende soort mag geen meter laten verdwijnen
   // uit het overzicht. Bij `overig` toont de UI de eigen naam, en die staat er
   // dan meestal wél.
@@ -964,7 +963,7 @@ export function meterUitFirestore(id: string, data: DocumentData): MeterMetId {
   };
 }
 
-export function meterstandNaarFirestore(stand: Invoer<MeterstandData>): DocumentData {
+export function meterstandNaarOpslag(stand: Invoer<MeterstandData>): DocumentData {
   return zonderLegeVelden({
     meterId: stand.meterId,
     opgenomenOp: naarTimestamp(stand.opgenomenOp),
@@ -977,7 +976,7 @@ export function meterstandNaarFirestore(stand: Invoer<MeterstandData>): Document
   // collectie heeft een `keys().hasOnly(...)` die zo'n veld hard weigert.
 }
 
-export function meterstandUitFirestore(id: string, data: DocumentData): MeterstandMetId {
+export function meterstandUitOpslag(id: string, data: DocumentData): MeterstandMetId {
   return {
     id,
     meterId: leesString(data.meterId) ?? "",

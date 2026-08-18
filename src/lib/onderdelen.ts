@@ -6,7 +6,7 @@ import { verschilInDagen } from "@/lib/planning";
  * ═══════════════════════════════════════════════════════════════════════════
  * Onderdelen — rekenen over het register (ADR-0013)
  *
- * Puur TypeScript: geen Firestore, geen React, geen `new Date()` die niet als
+ * Puur TypeScript: geen opslaglaag, geen React, geen `new Date()` die niet als
  * parameter binnenkomt.
  *
  * TWEE DINGEN WORDEN HIER AFGELEID EN NOOIT OPGESLAGEN (ADR-0008):

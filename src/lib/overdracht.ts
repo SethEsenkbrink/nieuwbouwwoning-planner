@@ -18,7 +18,7 @@ import type { Garantieklok } from "@/lib/onderdelen";
  * ═══════════════════════════════════════════════════════════════════════════
  * Het overdrachtsdossier — samenstellen (ADR-0016, blok E8)
  *
- * Puur TypeScript: geen Firestore, geen React, geen `new Date()` die niet als
+ * Puur TypeScript: geen opslaglaag, geen React, geen `new Date()` die niet als
  * parameter binnenkomt. Dit bestand weet ook níéts van HTML.
  *
  * DAT IS BEWUST. De weergave is een printweergave en geen gegenereerde PDF
@@ -115,7 +115,7 @@ export interface Dossiermeterstand {
   opgenomenOp?: Date;
   /**
    * Er staan twee of meer opnames op deze dag, en welke daarvan hier getoond
-   * wordt hangt af van het Firestore-document-id — dat is willekeurig.
+   * wordt hangt af van het opslagdocument-id — dat is willekeurig.
    *
    * Dit is dezelfde valkuil als in `lib/meterstanden.ts`, maar hij weegt hier
    * zwaarder: dit getal is de basis voor de eindafrekening met de
@@ -362,7 +362,7 @@ function maakMeterstanden(
     .sort((a, b) => {
       // Dezelfde volgorde als op `/meterstanden`: stroom vóór gas vóór water,
       // eigen meters achteraan. Zonder deze sortering staat het dossier in
-      // Firestore-document-id-volgorde, en dat is willekeurig.
+      // opslagdocument-id-volgorde, en dat is willekeurig.
       const opSoort = soortVolgorde(a.soort) - soortVolgorde(b.soort);
       if (opSoort !== 0) return opSoort;
       return meternaamVan(a).localeCompare(meternaamVan(b), "nl");

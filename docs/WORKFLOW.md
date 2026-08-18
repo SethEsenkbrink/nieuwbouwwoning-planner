@@ -12,7 +12,7 @@ Verplicht, in deze volgorde, vóórdat er ook maar één regel code wordt geschr
 1. `docs/PROJECT.md` — wat bouwen we en onder welke constraints
 2. `docs/STATE.md` — waar staan we nu en wat is de volgende stap
 3. `docs/decisions/` — alleen de ADR's die raken aan wat je gaat doen
-4. `docs/sessions/` — alleen de laatste 1–2 sessielogs
+4. `docs/archief/sessions/` — alleen de laatste 1–2 sessielogs
 
 `docs/CONTEXT.md` bevat een kant-en-klare startprompt die dit afdwingt. Plak die als eerste
 bericht in een nieuwe chat.
@@ -22,7 +22,7 @@ bericht in een nieuwe chat.
 | Gebeurtenis | Werk dit bij | Wanneer |
 |---|---|---|
 | Sessie afgerond | `STATE.md` | **Altijd**, aan het eind |
-| Sessie afgerond | `docs/sessions/YYYY-MM-DD-sessie-NN.md` | **Altijd**, aan het eind |
+| Sessie afgerond | `docs/archief/sessions/YYYY-MM-DD-sessie-NN.md` | **Altijd**, aan het eind |
 | Architectuur- of stackkeuze gemaakt | nieuwe ADR in `docs/decisions/` | Direct |
 | Scope, constraint of datamodel gewijzigd | `PROJECT.md` **én** een ADR | Direct |
 | Feature afgerond | vinkje in `PROJECT.md` §6 + `STATE.md` | Direct |
@@ -71,7 +71,7 @@ Een ADR wordt **nooit verwijderd of herschreven**. Achterhaald? Zet de status op
 
 - **TypeScript overal.** Geen `any` zonder `// eslint-disable-next-line` mét reden erbij.
 - **Datamodel-types staan in `src/types/model.ts` en zijn leidend.** Wijzig je een type,
-  loop dan expliciet na: Firestore-rules, `PROJECT.md` §5, en de converters.
+  loop dan expliciet na: `src/db/db.ts`, `src/migrations/`, `PROJECT.md` §5, en de converters.
 - **Nooit losse hex-kleuren in componenten.** Alles via de Tailwind-classes uit de huisstijl
   (`bg-clay`, `text-ink`, `rounded-card`, …). Zie `AGENTS.md` in de werkruimte-root.
 - **Nooit rechtstreeks in `brink-ui/` werken** — dat is een kopie die bij de volgende
@@ -79,7 +79,7 @@ Een ADR wordt **nooit verwijderd of herschreven**. Achterhaald? Zet de status op
   `../Huisstijl/brink-ui/`.
 - **Geen geheimen in code.** Alles met `VITE_`-prefix belandt in de browserbundle. Zit er een
   geheim in, dan is het per definitie fout geplaatst.
-- Firestore-toegang loopt via `src/lib/` — componenten praten niet rechtstreeks met de SDK.
+- Opslagtoegang loopt via `src/lib/projecten.ts` → `src/db/kluisopslag.ts` — componenten praten nooit rechtstreeks met Dexie.
 
 ## 7. Werktempo & validatie
 
@@ -93,7 +93,7 @@ Een ADR wordt **nooit verwijderd of herschreven**. Achterhaald? Zet de status op
 
 1. Code werkt lokaal (`npm run dev`)
 2. `npm run verify` is groen
-3. Firestore-rules gecontroleerd als er een nieuwe collectie of veld bij kwam
+3. Migratiestap toegevoegd als het opslagformaat wijzigde
 4. `PROJECT.md` §6 bijgewerkt (vinkje)
 5. `STATE.md` bijgewerkt
 6. Sessielog geschreven

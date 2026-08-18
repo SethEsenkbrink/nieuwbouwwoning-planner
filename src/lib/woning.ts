@@ -7,7 +7,7 @@ import type { WoningStatus } from "@/types/model";
  * ═══════════════════════════════════════════════════════════════════════════
  * Woning — de tweede fase van de app (ADR-0010, ADR-0013)
  *
- * Puur TypeScript, net als `planning.ts`: geen Firestore, geen React, geen
+ * Puur TypeScript, net als `planning.ts`: geen opslaglaag, geen React, geen
  * `new Date()` die niet als parameter binnenkomt. Daardoor zonder emulator te
  * testen.
  *

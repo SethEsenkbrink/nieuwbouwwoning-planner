@@ -38,11 +38,11 @@ export class Timestamp {
  * Canoniek datamodel — Nieuwbouwplanner
  *
  * DIT BESTAND IS LEIDEND. Wijk je hier vanaf, dan moet je meenemen:
- *   1. firebase/firestore.rules   — validatie van dezelfde velden
+ *   1. src/db/db.ts               — de Dexie-tabellen en hun indexen
  *   2. docs/PROJECT.md §5         — het schema in de documentatie
- *   3. firebase/firestore.indexes.json  — als je op een nieuw veld gaat sorteren
+ *   3. src/migrations/index.ts    — een migratiestap als het opslagformaat wijzigt
  *
- * Structuur in Firestore (alles onder de user, zodat de rules simpel blijven):
+ * Structuur in de opslag (IndexedDB, alles versleuteld op `id` en `projectId` na):
  *
  *   users/{uid}/projects/{projectId}
  *     ├── ankers/{ankerId}
@@ -69,7 +69,7 @@ export class Timestamp {
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-/** Elk document krijgt zijn Firestore-id mee zodra het gelezen is. */
+/** Elk document krijgt zijn opslag-id mee zodra het gelezen is. */
 export interface MetId {
   id: string;
 }

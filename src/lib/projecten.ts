@@ -10,36 +10,36 @@ import {
 } from "@/db/kluisopslag";
 import { Timestamp } from "@/types/model";
 import {
-  afspraakNaarFirestore,
-  afspraakUitFirestore,
-  ankerNaarFirestore,
-  ankerUitFirestore,
-  betrokkeneNaarFirestore,
-  betrokkeneUitFirestore,
-  faseNaarFirestore,
-  faseUitFirestore,
-  gebrekNaarFirestore,
-  gebrekUitFirestore,
-  meerwerkNaarFirestore,
-  meerwerkUitFirestore,
-  meterNaarFirestore,
-  meterUitFirestore,
-  meterstandNaarFirestore,
-  meterstandUitFirestore,
-  nabudgetNaarFirestore,
-  nabudgetUitFirestore,
-  onderdeelNaarFirestore,
-  onderdeelUitFirestore,
-  onderhoudLogregelNaarFirestore,
-  onderhoudLogregelUitFirestore,
-  onderhoudTaakNaarFirestore,
-  onderhoudTaakUitFirestore,
-  projectNaarFirestore,
-  projectUitFirestore,
-  taakNaarFirestore,
-  taakUitFirestore,
-  termijnNaarFirestore,
-  termijnUitFirestore,
+  afspraakNaarOpslag,
+  afspraakUitOpslag,
+  ankerNaarOpslag,
+  ankerUitOpslag,
+  betrokkeneNaarOpslag,
+  betrokkeneUitOpslag,
+  faseNaarOpslag,
+  faseUitOpslag,
+  gebrekNaarOpslag,
+  gebrekUitOpslag,
+  meerwerkNaarOpslag,
+  meerwerkUitOpslag,
+  meterNaarOpslag,
+  meterUitOpslag,
+  meterstandNaarOpslag,
+  meterstandUitOpslag,
+  nabudgetNaarOpslag,
+  nabudgetUitOpslag,
+  onderdeelNaarOpslag,
+  onderdeelUitOpslag,
+  onderhoudLogregelNaarOpslag,
+  onderhoudLogregelUitOpslag,
+  onderhoudTaakNaarOpslag,
+  onderhoudTaakUitOpslag,
+  projectNaarOpslag,
+  projectUitOpslag,
+  taakNaarOpslag,
+  taakUitOpslag,
+  termijnNaarOpslag,
+  termijnUitOpslag,
   type AfspraakData,
   type AfspraakMetId,
   type AnkerData,
@@ -99,7 +99,7 @@ export async function maakProject(
   const id = crypto.randomUUID();
   const nu = Timestamp.now();
   const data = {
-    ...projectNaarFirestore(gegevens),
+    ...projectNaarOpslag(gegevens),
     id,
     aangemaaktOp: nu,
     bijgewerktOp: nu,
@@ -121,13 +121,13 @@ export async function haalActiefProject(_uid: string): Promise<ProjectMetId | nu
   });
   const eerste = alle[0];
   if (!eerste) return null;
-  return projectUitFirestore(eerste.id, eerste);
+  return projectUitOpslag(eerste.id, eerste);
 }
 
 export async function haalProject(_uid: string, projectId: string): Promise<ProjectMetId | null> {
   const record = await haal(db.projecten, projectId);
   if (!record) return null;
-  return projectUitFirestore(record.id, record);
+  return projectUitOpslag(record.id, record);
 }
 
 export async function werkProjectBij(
@@ -137,7 +137,7 @@ export async function werkProjectBij(
 ): Promise<void> {
   const bestaand = await haal(db.projecten, projectId);
   if (!bestaand) return;
-  const conversie = projectNaarFirestore(wijzigingen);
+  const conversie = projectNaarOpslag(wijzigingen);
   const bijgewerkt = {
     ...bestaand,
     ...conversie,
@@ -190,7 +190,7 @@ export async function haalAnkers(_uid: string, projectId: string): Promise<Anker
   const ankers: AnkerMetId[] = [];
 
   for (const d of records) {
-    const anker = ankerUitFirestore(d.id, d);
+    const anker = ankerUitOpslag(d.id, d);
     if (gezien.has(anker.type)) continue;
     gezien.add(anker.type);
     ankers.push(anker);
@@ -208,7 +208,7 @@ export async function zetAnker(
   const doel = ankerId ?? (await vindAnkerIdVanType(uid, projectId, anker.type));
   const id = doel ?? crypto.randomUUID();
   await bewaar(db.ankers, {
-    ...ankerNaarFirestore(anker),
+    ...ankerNaarOpslag(anker),
     id,
     projectId,
   });
@@ -238,7 +238,7 @@ export async function verwijderAnker(
 export async function haalBetrokkenen(_uid: string, projectId: string): Promise<BetrokkeneMetId[]> {
   const records = await haalVanProject(db.betrokkenen, projectId);
   return records
-    .map((d) => betrokkeneUitFirestore(d.id, d))
+    .map((d) => betrokkeneUitOpslag(d.id, d))
     .sort((a, b) => a.naam.localeCompare(b.naam, "nl"));
 }
 
@@ -250,7 +250,7 @@ export async function zetBetrokkene(
 ): Promise<string> {
   const id = bestaand?.id ?? crypto.randomUUID();
   await bewaar(db.betrokkenen, {
-    ...betrokkeneNaarFirestore(gegevens),
+    ...betrokkeneNaarOpslag(gegevens),
     waardenBron: bestaand === null ? "eigen" : bepaalWaardenBron(bestaand, gegevens),
     id,
     projectId,
@@ -276,7 +276,7 @@ export async function verwijderBetrokkene(
 
 export async function haalAfspraken(_uid: string, projectId: string): Promise<AfspraakMetId[]> {
   const records = await haalVanProject(db.afspraken, projectId);
-  return records.map((d) => afspraakUitFirestore(d.id, d));
+  return records.map((d) => afspraakUitOpslag(d.id, d));
 }
 
 export async function werkAfspraakBij(
@@ -289,7 +289,7 @@ export async function werkAfspraakBij(
   if (!bestaand) return;
   await bewaar(db.afspraken, {
     ...bestaand,
-    ...afspraakNaarFirestore(wijzigingen),
+    ...afspraakNaarOpslag(wijzigingen),
   });
 }
 
@@ -301,7 +301,7 @@ export async function zetAfspraak(
 ): Promise<string> {
   const id = afspraakId ?? crypto.randomUUID();
   await bewaar(db.afspraken, {
-    ...afspraakNaarFirestore(afspraak),
+    ...afspraakNaarOpslag(afspraak),
     id,
     projectId,
   });
@@ -319,7 +319,7 @@ export async function verwijderAfspraak(
 // ── De standaardbibliotheek uitrollen ──────────────────────────────────────
 
 function uitBibliotheek(standaard: StandaardBetrokkene): Record<string, unknown> {
-  return betrokkeneNaarFirestore({
+  return betrokkeneNaarOpslag({
     naam: standaard.naam,
     categorie: standaard.categorie,
     aanlooptijdDagen: standaard.aanlooptijdDagen,
@@ -349,7 +349,7 @@ export async function voegStandaardBetrokkenenToe(
       for (const afspraak of standaard.afspraken) {
         const afspraakId = crypto.randomUUID();
         await bewaar(db.afspraken, {
-          ...afspraakNaarFirestore({
+          ...afspraakNaarOpslag({
             betrokkeneId,
             omschrijving: afspraak.omschrijving,
             ankerType: afspraak.ankerType,
@@ -372,7 +372,7 @@ export async function voegStandaardBetrokkenenToe(
 export async function haalFases(_uid: string, projectId: string): Promise<FaseMetId[]> {
   const records = await haalVanProject(db.phases, projectId);
   return records
-    .map((d) => faseUitFirestore(d.id, d))
+    .map((d) => faseUitOpslag(d.id, d))
     .sort((a, b) => (a.volgorde ?? 99) - (b.volgorde ?? 99));
 }
 
@@ -384,7 +384,7 @@ export async function zetFase(
 ): Promise<string> {
   const id = faseId ?? crypto.randomUUID();
   await bewaar(db.phases, {
-    ...faseNaarFirestore(fase),
+    ...faseNaarOpslag(fase),
     id,
     projectId,
   });
@@ -402,7 +402,7 @@ export async function zorgVoorFases(
   await db.transaction("rw", db.phases, async () => {
     for (const fase of fases) {
       await bewaar(db.phases, {
-        ...faseNaarFirestore(fase),
+        ...faseNaarOpslag(fase),
         id: crypto.randomUUID(),
         projectId,
       });
@@ -415,7 +415,7 @@ export async function zorgVoorFases(
 
 export async function haalTaken(_uid: string, projectId: string): Promise<TaakMetId[]> {
   const records = await haalVanProject(db.tasks, projectId);
-  return records.map((d) => taakUitFirestore(d.id, d));
+  return records.map((d) => taakUitOpslag(d.id, d));
 }
 
 export async function zetTaak(
@@ -426,7 +426,7 @@ export async function zetTaak(
 ): Promise<string> {
   const id = taakId ?? crypto.randomUUID();
   await bewaar(db.tasks, {
-    ...taakNaarFirestore(taak),
+    ...taakNaarOpslag(taak),
     id,
     projectId,
   });
@@ -445,7 +445,7 @@ export async function verwijderTaak(
 
 export async function haalMeerwerk(_uid: string, projectId: string): Promise<MeerwerkMetId[]> {
   const records = await haalVanProject(db.meerwerk, projectId);
-  return records.map((d) => meerwerkUitFirestore(d.id, d));
+  return records.map((d) => meerwerkUitOpslag(d.id, d));
 }
 
 export async function zetMeerwerk(
@@ -456,7 +456,7 @@ export async function zetMeerwerk(
 ): Promise<string> {
   const id = itemId ?? crypto.randomUUID();
   await bewaar(db.meerwerk, {
-    ...meerwerkNaarFirestore(item),
+    ...meerwerkNaarOpslag(item),
     id,
     projectId,
   });
@@ -475,7 +475,7 @@ export async function verwijderMeerwerk(
 
 export async function haalTermijnen(_uid: string, projectId: string): Promise<TermijnMetId[]> {
   const records = await haalVanProject(db.termijnen, projectId);
-  return records.map((d) => termijnUitFirestore(d.id, d));
+  return records.map((d) => termijnUitOpslag(d.id, d));
 }
 
 export async function zetTermijn(
@@ -486,7 +486,7 @@ export async function zetTermijn(
 ): Promise<string> {
   const id = termijnId ?? crypto.randomUUID();
   await bewaar(db.termijnen, {
-    ...termijnNaarFirestore(termijn),
+    ...termijnNaarOpslag(termijn),
     id,
     projectId,
   });
@@ -505,7 +505,7 @@ export async function verwijderTermijn(
 
 export async function haalGebreken(_uid: string, projectId: string): Promise<GebrekMetId[]> {
   const records = await haalVanProject(db.gebreken, projectId);
-  return records.map((d) => gebrekUitFirestore(d.id, d));
+  return records.map((d) => gebrekUitOpslag(d.id, d));
 }
 
 export async function zetGebrek(
@@ -516,7 +516,7 @@ export async function zetGebrek(
 ): Promise<string> {
   const id = gebrekId ?? crypto.randomUUID();
   await bewaar(db.gebreken, {
-    ...gebrekNaarFirestore(gebrek),
+    ...gebrekNaarOpslag(gebrek),
     id,
     projectId,
   });
@@ -535,7 +535,7 @@ export async function verwijderGebrek(
 
 export async function haalNabudget(_uid: string, projectId: string): Promise<NabudgetMetId[]> {
   const records = await haalVanProject(db.nabudget, projectId);
-  return records.map((d) => nabudgetUitFirestore(d.id, d));
+  return records.map((d) => nabudgetUitOpslag(d.id, d));
 }
 
 export async function zetNabudget(
@@ -546,7 +546,7 @@ export async function zetNabudget(
 ): Promise<string> {
   const id = postId ?? crypto.randomUUID();
   await bewaar(db.nabudget, {
-    ...nabudgetNaarFirestore(post),
+    ...nabudgetNaarOpslag(post),
     id,
     projectId,
   });
@@ -571,7 +571,7 @@ export async function voegStandaardNabudgetToe(
   await db.transaction("rw", db.nabudget, async () => {
     for (const omschrijving of omschrijvingen) {
       await bewaar(db.nabudget, {
-        ...nabudgetNaarFirestore({ omschrijving, status: "geraamd" }),
+        ...nabudgetNaarOpslag({ omschrijving, status: "geraamd" }),
         id: crypto.randomUUID(),
         projectId,
       });
@@ -584,7 +584,7 @@ export async function voegStandaardNabudgetToe(
 
 export async function haalOnderdelen(_uid: string, projectId: string): Promise<OnderdeelMetId[]> {
   const records = await haalVanProject(db.onderdelen, projectId);
-  return records.map((d) => onderdeelUitFirestore(d.id, d));
+  return records.map((d) => onderdeelUitOpslag(d.id, d));
 }
 
 export async function zetOnderdeel(
@@ -595,7 +595,7 @@ export async function zetOnderdeel(
 ): Promise<string> {
   const id = onderdeelId ?? crypto.randomUUID();
   await bewaar(db.onderdelen, {
-    ...onderdeelNaarFirestore(onderdeel),
+    ...onderdeelNaarOpslag(onderdeel),
     id,
     projectId,
   });
@@ -637,7 +637,7 @@ export async function haalOnderhoudstaken(
   projectId: string,
 ): Promise<OnderhoudTaakMetId[]> {
   const records = await haalVanProject(db.onderhoudstaken, projectId);
-  return records.map((d) => onderhoudTaakUitFirestore(d.id, d));
+  return records.map((d) => onderhoudTaakUitOpslag(d.id, d));
 }
 
 export async function zetOnderhoudstaak(
@@ -648,7 +648,7 @@ export async function zetOnderhoudstaak(
 ): Promise<string> {
   const id = taakId ?? crypto.randomUUID();
   await bewaar(db.onderhoudstaken, {
-    ...onderhoudTaakNaarFirestore(taak),
+    ...onderhoudTaakNaarOpslag(taak),
     id,
     projectId,
   });
@@ -673,13 +673,13 @@ export async function vinkOnderhoudAf(
   const { id, ...rest } = taak;
   await db.transaction("rw", [db.onderhoudstaken, db.onderhoudslogboek], async () => {
     await bewaar(db.onderhoudstaken, {
-      ...onderhoudTaakNaarFirestore({ ...rest, laatstUitgevoerdOp: uitgevoerdOp }),
+      ...onderhoudTaakNaarOpslag({ ...rest, laatstUitgevoerdOp: uitgevoerdOp }),
       id,
       projectId,
     });
 
     await bewaar(db.onderhoudslogboek, {
-      ...onderhoudLogregelNaarFirestore({
+      ...onderhoudLogregelNaarOpslag({
         taakId: id,
         ...(taak.onderdeelId ? { onderdeelId: taak.onderdeelId } : {}),
         uitgevoerdOp,
@@ -699,7 +699,7 @@ export async function haalOnderhoudslogboek(
 ): Promise<OnderhoudLogregelMetId[]> {
   const records = await haalVanProject(db.onderhoudslogboek, projectId);
   return records
-    .map((d) => onderhoudLogregelUitFirestore(d.id, d))
+    .map((d) => onderhoudLogregelUitOpslag(d.id, d))
     .sort((a, b) => b.uitgevoerdOp.getTime() - a.uitgevoerdOp.getTime());
 }
 
@@ -728,7 +728,7 @@ export async function voegStandaardOnderhoudToe(
   await db.transaction("rw", db.onderhoudstaken, async () => {
     for (const taak of taken) {
       await bewaar(db.onderhoudstaken, {
-        ...onderhoudTaakNaarFirestore({ ...taak, waardenBron: "voorstel" }),
+        ...onderhoudTaakNaarOpslag({ ...taak, waardenBron: "voorstel" }),
         id: crypto.randomUUID(),
         projectId,
       });
@@ -759,7 +759,7 @@ export async function maakGarantiecontrole(
 
 export async function haalMeters(_uid: string, projectId: string): Promise<MeterMetId[]> {
   const records = await haalVanProject(db.meters, projectId);
-  return records.map((d) => meterUitFirestore(d.id, d));
+  return records.map((d) => meterUitOpslag(d.id, d));
 }
 
 export async function zetMeter(
@@ -770,7 +770,7 @@ export async function zetMeter(
 ): Promise<string> {
   const id = meterId ?? crypto.randomUUID();
   await bewaar(db.meters, {
-    ...meterNaarFirestore(meter),
+    ...meterNaarOpslag(meter),
     id,
     projectId,
   });
@@ -783,7 +783,7 @@ export async function verwijderMeter(
   meterId: string,
 ): Promise<number> {
   const standRecords = await haalVanProject(db.meterstanden, projectId);
-  const vanDezeMeter = standRecords.filter((d) => meterstandUitFirestore(d.id, d).meterId === meterId);
+  const vanDezeMeter = standRecords.filter((d) => meterstandUitOpslag(d.id, d).meterId === meterId);
 
   await db.transaction("rw", [db.meters, db.meterstanden], async () => {
     for (const s of vanDezeMeter) {
@@ -801,7 +801,7 @@ export async function haalMeterstanden(
 ): Promise<MeterstandMetId[]> {
   const records = await haalVanProject(db.meterstanden, projectId);
   return records
-    .map((d) => meterstandUitFirestore(d.id, d))
+    .map((d) => meterstandUitOpslag(d.id, d))
     .sort((a, b) => a.opgenomenOp.getTime() - b.opgenomenOp.getTime());
 }
 
@@ -813,7 +813,7 @@ export async function zetMeterstand(
 ): Promise<string> {
   const id = opnameId ?? crypto.randomUUID();
   await bewaar(db.meterstanden, {
-    ...meterstandNaarFirestore(stand),
+    ...meterstandNaarOpslag(stand),
     id,
     projectId,
   });

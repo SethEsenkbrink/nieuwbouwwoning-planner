@@ -11,7 +11,7 @@ import {
  * ═══════════════════════════════════════════════════════════════════════════
  * Meterstanden — rekenen over het verbruik (ADR-0015)
  *
- * Puur TypeScript: geen Firestore, geen React, geen `new Date()` die niet als
+ * Puur TypeScript: geen opslaglaag, geen React, geen `new Date()` die niet als
  * parameter binnenkomt.
  *
  * WAT HIER WORDT AFGELEID EN NOOIT OPGESLAGEN (ADR-0008, ADR-0015 §3):
@@ -179,7 +179,7 @@ export function berekenPeriodes(opnames: readonly MeterstandMetId[]): Verbruiksp
 
     // Het beginpunt is één van twee opnames van dezelfde dag. Welke van de
     // twee dat is, hangt af van de sorteervolgorde — en die valt bij een
-    // gelijke datum terug op het Firestore-id, dat willekeurig is.
+    // gelijke datum terug op het opslag-id, dat willekeurig is.
     //
     // Zonder deze check zou alleen de nul-dagen-periode zelf gemarkeerd zijn
     // en zou déze periode gewoon doorrekenen vanaf een willekeurige van de

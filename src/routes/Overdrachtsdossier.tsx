@@ -82,7 +82,7 @@ export default function OverdrachtsdossierScherm() {
   const [fout, setFout] = useState<string | null>(null);
 
   // De overdrachtsdatum is een parameter van dít document en gaat NIET naar
-  // Firestore (ADR-0016 §6). Een woning kan meerdere keren overgedragen worden,
+  // de opslag (ADR-0016 §6). Een woning kan meerdere keren overgedragen worden,
   // en een concept-dossier hoort de projectgegevens niet te veranderen.
   const [overdrachtOp, setOverdrachtOp] = useState<Date | undefined>(undefined);
 

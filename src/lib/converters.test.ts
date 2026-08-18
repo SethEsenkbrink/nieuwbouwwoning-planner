@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { Timestamp } from "@/types/model";
 import {
-  afspraakNaarFirestore,
-  afspraakUitFirestore,
-  ankerNaarFirestore,
-  ankerUitFirestore,
-  betrokkeneNaarFirestore,
-  betrokkeneUitFirestore,
-  meterNaarFirestore,
-  meterUitFirestore,
-  meterstandNaarFirestore,
-  meterstandUitFirestore,
-  onderdeelNaarFirestore,
-  onderdeelUitFirestore,
-  projectNaarFirestore,
-  projectUitFirestore,
+  afspraakNaarOpslag,
+  afspraakUitOpslag,
+  ankerNaarOpslag,
+  ankerUitOpslag,
+  betrokkeneNaarOpslag,
+  betrokkeneUitOpslag,
+  meterNaarOpslag,
+  meterUitOpslag,
+  meterstandNaarOpslag,
+  meterstandUitOpslag,
+  onderdeelNaarOpslag,
+  onderdeelUitOpslag,
+  projectNaarOpslag,
+  projectUitOpslag,
   zonderLegeVelden,
   type BetrokkeneData,
   type MeterData,
@@ -27,7 +27,7 @@ import {
  * Tests voor de rand van het systeem.
  *
  * Twee dingen die hier misgaan als niemand oplet:
- *   1. Een `undefined` die naar Firestore lekt — die weigert het document.
+ *   1. Een `undefined` die naar de opslag lekt — die weigert het document.
  *   2. Een `Timestamp` die als `Date` behandeld wordt (of andersom). Dat valt
  *      pas om ver van de oorzaak, meestal in een rekenfunctie.
  *
@@ -64,26 +64,26 @@ describe("project", () => {
     aangemaaktOp: d("2026-07-30"),
   };
 
-  it("overleeft een rondje Firestore en terug", () => {
-    const opgeslagen = projectNaarFirestore(project);
-    const terug = projectUitFirestore("p1", opgeslagen);
+  it("overleeft een rondje opslag en terug", () => {
+    const opgeslagen = projectNaarOpslag(project);
+    const terug = projectUitOpslag("p1", opgeslagen);
     expect(terug).toEqual({ ...project, id: "p1" });
   });
 
   it("zet datums om naar Timestamp bij het schrijven", () => {
-    const opgeslagen = projectNaarFirestore(project);
+    const opgeslagen = projectNaarOpslag(project);
     expect(opgeslagen.opleverVerwacht).toBeInstanceOf(Timestamp);
     expect((opgeslagen.opleverVerwacht as Timestamp).toDate()).toEqual(d("2026-11-16"));
   });
 
   it("schrijft geen undefined-velden weg", () => {
-    const opgeslagen = projectNaarFirestore({ naam: "Kaal", aangemaaktOp: d("2026-07-30") });
+    const opgeslagen = projectNaarOpslag({ naam: "Kaal", aangemaaktOp: d("2026-07-30") });
     expect(Object.keys(opgeslagen).sort()).toEqual(["aangemaaktOp", "naam"]);
     expect("opleverVerwacht" in opgeslagen).toBe(false);
   });
 
   it("leest een document zonder opleverdatum zonder te struikelen", () => {
-    const terug = projectUitFirestore("p1", {
+    const terug = projectUitOpslag("p1", {
       naam: "Kaal",
       aangemaaktOp: Timestamp.fromDate(d("2026-07-30")),
     });
@@ -94,19 +94,19 @@ describe("project", () => {
   it("weigert een onbekende opleverStatus in plaats van hem door te laten", () => {
     // Zulke data komt niet door de rules, maar kan wel uit een oudere
     // modelversie stammen. Dan liever leeg dan een waarde die nergens past.
-    const terug = projectUitFirestore("p1", { naam: "X", opleverStatus: "ooit-eens" });
+    const terug = projectUitOpslag("p1", { naam: "X", opleverStatus: "ooit-eens" });
     expect(terug.opleverStatus).toBeUndefined();
   });
 
   it("accepteert een kale Date bij het lezen", () => {
     // Zo komt een net geschreven document terug vóór serverbevestiging.
-    const terug = projectUitFirestore("p1", { naam: "X", opleverVerwacht: d("2026-11-16") });
+    const terug = projectUitOpslag("p1", { naam: "X", opleverVerwacht: d("2026-11-16") });
     expect(terug.opleverVerwacht).toEqual(d("2026-11-16"));
   });
 });
 
 describe("anker", () => {
-  it("overleeft een rondje Firestore en terug", () => {
+  it("overleeft een rondje opslag en terug", () => {
     const anker = {
       type: "dekvloer_gestort",
       titel: "Dekvloer begane grond",
@@ -114,14 +114,14 @@ describe("anker", () => {
       verwachtOp: d("2026-09-08"),
       bron: "bouwvergadering 03-09",
     } as const;
-    const terug = ankerUitFirestore("a1", ankerNaarFirestore(anker));
+    const terug = ankerUitOpslag("a1", ankerNaarOpslag(anker));
     expect(terug).toEqual({ ...anker, id: "a1" });
   });
 
   it("behoudt een anker zonder datum", () => {
-    const terug = ankerUitFirestore(
+    const terug = ankerUitOpslag(
       "a1",
-      ankerNaarFirestore({ type: "ruwbouw_gereed", titel: "Ruwbouw", status: "verwacht" }),
+      ankerNaarOpslag({ type: "ruwbouw_gereed", titel: "Ruwbouw", status: "verwacht" }),
     );
     expect(terug.verwachtOp).toBeUndefined();
     expect(terug.type).toBe("ruwbouw_gereed");
@@ -138,34 +138,34 @@ describe("betrokkene", () => {
     waardenBron: "voorstel",
   };
 
-  it("overleeft een rondje Firestore en terug", () => {
-    const terug = betrokkeneUitFirestore("b1", betrokkeneNaarFirestore(betrokkene));
+  it("overleeft een rondje opslag en terug", () => {
+    const terug = betrokkeneUitOpslag("b1", betrokkeneNaarOpslag(betrokkene));
     expect(terug).toEqual({ ...betrokkene, id: "b1" });
   });
 
   it("behoudt annuleertermijn 0 als echte waarde", () => {
     // Nul betekent "niet van toepassing" (notaris, gemeente) en mag niet
     // wegvallen als leeg veld.
-    const opgeslagen = betrokkeneNaarFirestore({ ...betrokkene, annuleertermijnDagen: 0 });
+    const opgeslagen = betrokkeneNaarOpslag({ ...betrokkene, annuleertermijnDagen: 0 });
     expect(opgeslagen.annuleertermijnDagen).toBe(0);
-    expect(betrokkeneUitFirestore("b1", opgeslagen).annuleertermijnDagen).toBe(0);
+    expect(betrokkeneUitOpslag("b1", opgeslagen).annuleertermijnDagen).toBe(0);
   });
 
   it("valt terug op handmatig bij een onbekende communicatieregel", () => {
     // De veiligste terugval: niets automatisch voorstellen.
-    const terug = betrokkeneUitFirestore("b1", { naam: "X", communicatieregel: "soms" });
+    const terug = betrokkeneUitOpslag("b1", { naam: "X", communicatieregel: "soms" });
     expect(terug.communicatieregel).toBe("handmatig");
   });
 
   it("valt terug op voorstel bij een ontbrekende waardenBron", () => {
     // Liever onterecht een disclaimer tonen dan een gok als feit presenteren.
-    const terug = betrokkeneUitFirestore("b1", { naam: "X" });
+    const terug = betrokkeneUitOpslag("b1", { naam: "X" });
     expect(terug.waardenBron).toBe("voorstel");
   });
 });
 
 describe("afspraak", () => {
-  it("overleeft een rondje Firestore en terug", () => {
+  it("overleeft een rondje opslag en terug", () => {
     const afspraak = {
       betrokkeneId: "b1",
       omschrijving: "Vloer leggen",
@@ -175,26 +175,26 @@ describe("afspraak", () => {
       gecommuniceerdeDatum: d("2026-11-20"),
       waarschuwing: "Let op de droogtijd.",
     } as const;
-    const terug = afspraakUitFirestore("af1", afspraakNaarFirestore(afspraak));
+    const terug = afspraakUitOpslag("af1", afspraakNaarOpslag(afspraak));
     expect(terug).toEqual({ ...afspraak, id: "af1" });
   });
 
   it("behoudt een negatieve offset", () => {
     // Huur opzeggen: sleuteloverdracht −45.
-    const opgeslagen = afspraakNaarFirestore({
+    const opgeslagen = afspraakNaarOpslag({
       betrokkeneId: "b1",
       omschrijving: "Huur opzeggen",
       ankerType: "sleuteloverdracht",
       offsetDagen: -45,
       status: "concept",
     });
-    expect(afspraakUitFirestore("af1", opgeslagen).offsetDagen).toBe(-45);
+    expect(afspraakUitOpslag("af1", opgeslagen).offsetDagen).toBe(-45);
   });
 
   it("slaat geen afspraakdatum op", () => {
     // De kern van ADR-0008. Deze test faalt zodra iemand een datumveld aan
     // Afspraak toevoegt dat geen `gecommuniceerde` datum is.
-    const opgeslagen = afspraakNaarFirestore({
+    const opgeslagen = afspraakNaarOpslag({
       betrokkeneId: "b1",
       omschrijving: "Vloer leggen",
       ankerType: "dekvloer_gestort",
@@ -215,7 +215,7 @@ describe("afspraak", () => {
  * Twee dingen die hier stil fout kunnen gaan:
  *   1. `MetDatums` is niet recursief, dus `energielabelOpnameDatum` zou als
  *      `Timestamp` blijven staan als de omzetting hier niet expliciet is.
- *   2. Een lege map moet `undefined` worden. Een leeg object zou in Firestore
+ *   2. Een lege map moet `undefined` worden. Een leeg object zou in de opslag
  *      een veld bezetten en in de UI als "ingevuld" tellen.
  * ═══════════════════════════════════════════════════════════════════════════
  */
@@ -233,14 +233,14 @@ describe("woningpaspoort", () => {
   };
 
   it("schrijft de opnamedatum als Timestamp weg", () => {
-    const data = projectNaarFirestore({ naam: "Ons huis", woningpaspoort: paspoort });
+    const data = projectNaarOpslag({ naam: "Ons huis", woningpaspoort: paspoort });
     const geschreven = data.woningpaspoort as Record<string, unknown>;
     expect(geschreven.energielabelOpnameDatum).toBeInstanceOf(Timestamp);
     expect(geschreven.adres).toBe("Dorpsstraat 1");
   });
 
   it("leest de opnamedatum terug als Date", () => {
-    const gelezen = projectUitFirestore("p1", {
+    const gelezen = projectUitOpslag("p1", {
       naam: "Ons huis",
       aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
       woningpaspoort: {
@@ -255,16 +255,16 @@ describe("woningpaspoort", () => {
   /**
    * Zo bouwt `Woning.tsx` de map: lege velden worden weggelaten in plaats van
    * op `undefined` gezet. Blijft er niets over, dan mag er geen lege map naar
-   * Firestore — die zou als "ingevuld" tellen.
+   * de opslag — die zou als "ingevuld" tellen.
    */
   it("laat een paspoort zonder enig gevuld veld weg", () => {
-    const data = projectNaarFirestore({ naam: "Ons huis", woningpaspoort: {} });
+    const data = projectNaarOpslag({ naam: "Ons huis", woningpaspoort: {} });
     expect("woningpaspoort" in data).toBe(false);
     expect(Object.keys(data).sort()).toEqual(["naam"]);
   });
 
   it("geeft undefined terug als het paspoort geen map is", () => {
-    const gelezen = projectUitFirestore("p1", {
+    const gelezen = projectUitOpslag("p1", {
       naam: "Ons huis",
       aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
       woningpaspoort: "Dorpsstraat 1, Almere",
@@ -273,7 +273,7 @@ describe("woningpaspoort", () => {
   });
 
   it("negeert een onbekend woningtype in plaats van het door te geven", () => {
-    const gelezen = projectUitFirestore("p1", {
+    const gelezen = projectUitOpslag("p1", {
       naam: "Ons huis",
       aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
       woningpaspoort: { adres: "Dorpsstraat 1", woningtype: "woonboot" },
@@ -283,7 +283,7 @@ describe("woningpaspoort", () => {
   });
 
   it("valt terug op afwezig bij een onbekende woningStatus", () => {
-    const gelezen = projectUitFirestore("p1", {
+    const gelezen = projectUitOpslag("p1", {
       naam: "Ons huis",
       aangemaaktOp: Timestamp.fromDate(d("2026-01-01")),
       woningStatus: "bijna_klaar",
@@ -314,10 +314,10 @@ describe("onderdelen", () => {
   };
 
   it("schrijft en leest een onderdeel heen en weer", () => {
-    const data = onderdeelNaarFirestore(onderdeel);
+    const data = onderdeelNaarOpslag(onderdeel);
     expect(data.installatieDatum).toBeInstanceOf(Timestamp);
 
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       ...data,
       installatieDatum: Timestamp.fromDate(d("2026-09-15")),
     });
@@ -327,7 +327,7 @@ describe("onderdelen", () => {
   });
 
   it("laat lege specwaarden weg bij het schrijven", () => {
-    const data = onderdeelNaarFirestore({
+    const data = onderdeelNaarOpslag({
       ...onderdeel,
       specs: { vermogen: "8 kW", scop: "", koudemiddel: "  " },
     });
@@ -335,12 +335,12 @@ describe("onderdelen", () => {
   });
 
   it("laat een volledig lege specs-map weg", () => {
-    const data = onderdeelNaarFirestore({ ...onderdeel, specs: { leeg: "" } });
+    const data = onderdeelNaarOpslag({ ...onderdeel, specs: { leeg: "" } });
     expect("specs" in data).toBe(false);
   });
 
   it("negeert specwaarden die geen string zijn", () => {
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Warmtepomp",
       categorie: "verwarming",
       montage: "vast_geinstalleerd",
@@ -355,7 +355,7 @@ describe("onderdelen", () => {
     const veel: Record<string, string> = {};
     for (let i = 0; i < 50; i += 1) veel[`spec${i}`] = "waarde";
 
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Warmtepomp",
       categorie: "verwarming",
       montage: "vast_geinstalleerd",
@@ -370,7 +370,7 @@ describe("onderdelen", () => {
    * onbekende waarde mag geen installatiegarantie suggereren die er niet is.
    */
   it("valt bij een onbekende montagevorm terug op nvt", () => {
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Warmtepomp",
       categorie: "verwarming",
       montage: "een_beetje_vast",
@@ -384,7 +384,7 @@ describe("onderdelen", () => {
    * een onderdeel stilzwijgend uit het overdrachtsdossier laten vallen.
    */
   it("valt bij een ontbrekende blijftBijWoning terug op true", () => {
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Warmtepomp",
       categorie: "verwarming",
       montage: "vast_geinstalleerd",
@@ -393,7 +393,7 @@ describe("onderdelen", () => {
   });
 
   it("respecteert blijftBijWoning false", () => {
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Thuisbatterij",
       categorie: "opslag",
       montage: "plug_and_play",
@@ -403,7 +403,7 @@ describe("onderdelen", () => {
   });
 
   it("valt bij een onbekende categorie terug op overig", () => {
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Iets",
       categorie: "tuinkabouter",
       montage: "nvt",
@@ -413,7 +413,7 @@ describe("onderdelen", () => {
   });
 
   it("negeert een registratieplicht zonder instantie", () => {
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Thuisbatterij",
       categorie: "opslag",
       montage: "plug_and_play",
@@ -424,7 +424,7 @@ describe("onderdelen", () => {
   });
 
   it("leest de aanmelddatum van een registratieplicht als Date", () => {
-    const gelezen = onderdeelUitFirestore("o1", {
+    const gelezen = onderdeelUitOpslag("o1", {
       naam: "Thuisbatterij",
       categorie: "opslag",
       montage: "plug_and_play",
@@ -438,7 +438,7 @@ describe("onderdelen", () => {
   });
 
   it("schrijft geen registratieplicht weg zonder instantie", () => {
-    const data = onderdeelNaarFirestore({
+    const data = onderdeelNaarOpslag({
       ...onderdeel,
       registratieplicht: { instantie: "", referentie: "x" },
     });
@@ -456,14 +456,14 @@ describe("meterconverters", () => {
   };
 
   it("schrijft een minimale meter weg zonder lege velden", () => {
-    const data = meterNaarFirestore(meter);
+    const data = meterNaarOpslag(meter);
     expect(data).toEqual({ soort: "stroom_normaal", eenheid: "kWh", waardenBron: "voorstel" });
     expect("naam" in data).toBe(false);
     expect("meternummer" in data).toBe(false);
   });
 
   it("neemt alle optionele velden mee als ze gevuld zijn", () => {
-    const data = meterNaarFirestore({
+    const data = meterNaarOpslag({
       ...meter,
       naam: "Tussenmeter warmtepomp",
       meternummer: "E0043007000123456",
@@ -475,7 +475,7 @@ describe("meterconverters", () => {
   });
 
   it("leest een volledige meter terug", () => {
-    const gelezen = meterUitFirestore("m1", {
+    const gelezen = meterUitOpslag("m1", {
       soort: "gas",
       naam: "Gasmeter garage",
       eenheid: "m3",
@@ -495,7 +495,7 @@ describe("meterconverters", () => {
   });
 
   it("valt bij een onbekende soort terug op overig", () => {
-    const gelezen = meterUitFirestore("m1", {
+    const gelezen = meterUitOpslag("m1", {
       soort: "kernreactor",
       eenheid: "kWh",
       waardenBron: "eigen",
@@ -504,7 +504,7 @@ describe("meterconverters", () => {
   });
 
   it("valt bij een onbekende eenheid terug op kWh", () => {
-    const gelezen = meterUitFirestore("m1", {
+    const gelezen = meterUitOpslag("m1", {
       soort: "water",
       eenheid: "emmers",
       waardenBron: "eigen",
@@ -514,12 +514,12 @@ describe("meterconverters", () => {
 
   /** ADR-0009: liever onterecht een disclaimer dan een schatting als eigen cijfer. */
   it("valt bij een ontbrekende waardenBron terug op voorstel", () => {
-    const gelezen = meterUitFirestore("m1", { soort: "water", eenheid: "m3" });
+    const gelezen = meterUitOpslag("m1", { soort: "water", eenheid: "m3" });
     expect(gelezen.waardenBron).toBe("voorstel");
   });
 
   it("negeert een lege naam in plaats van hem als naam te bewaren", () => {
-    const gelezen = meterUitFirestore("m1", {
+    const gelezen = meterUitOpslag("m1", {
       soort: "water",
       naam: "",
       eenheid: "m3",
@@ -537,13 +537,13 @@ describe("meterstandconverters", () => {
   };
 
   it("schrijft de datum weg als Timestamp", () => {
-    const data = meterstandNaarFirestore(stand);
+    const data = meterstandNaarOpslag(stand);
     expect(data.opgenomenOp).toBeInstanceOf(Timestamp);
     expect(data.stand).toBe(12345);
   });
 
   it("leest de datum terug als Date", () => {
-    const gelezen = meterstandUitFirestore("s1", {
+    const gelezen = meterstandUitOpslag("s1", {
       meterId: "m1",
       opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
       stand: 12345,
@@ -553,7 +553,7 @@ describe("meterstandconverters", () => {
   });
 
   it("bewaart decimalen, voor gas en water", () => {
-    const gelezen = meterstandUitFirestore("s1", {
+    const gelezen = meterstandUitOpslag("s1", {
       meterId: "m1",
       opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
       stand: 1234.567,
@@ -562,7 +562,7 @@ describe("meterstandconverters", () => {
   });
 
   it("accepteert een stand van nul — een vervangen meter begint daar", () => {
-    const gelezen = meterstandUitFirestore("s1", {
+    const gelezen = meterstandUitOpslag("s1", {
       meterId: "m1",
       opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
       stand: 0,
@@ -576,7 +576,7 @@ describe("meterstandconverters", () => {
    * eromheen vanzelf als onbetrouwbaar.
    */
   it("weigert een negatieve stand en valt terug op nul", () => {
-    const gelezen = meterstandUitFirestore("s1", {
+    const gelezen = meterstandUitOpslag("s1", {
       meterId: "m1",
       opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
       stand: -500,
@@ -585,7 +585,7 @@ describe("meterstandconverters", () => {
   });
 
   it("valt bij een stand die geen getal is terug op nul", () => {
-    const gelezen = meterstandUitFirestore("s1", {
+    const gelezen = meterstandUitOpslag("s1", {
       meterId: "m1",
       opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
       stand: "12345",
@@ -594,7 +594,7 @@ describe("meterstandconverters", () => {
   });
 
   it("valt bij een ontbrekende datum terug op epoch in plaats van te crashen", () => {
-    const gelezen = meterstandUitFirestore("s1", { meterId: "m1", stand: 100 });
+    const gelezen = meterstandUitOpslag("s1", { meterId: "m1", stand: 100 });
     expect(gelezen.opgenomenOp).toEqual(new Date(0));
   });
 
@@ -604,7 +604,7 @@ describe("meterstandconverters", () => {
    * veld uit.
    */
   it("laat een opgeslagen verbruik niet doorlekken naar het model", () => {
-    const gelezen = meterstandUitFirestore("s1", {
+    const gelezen = meterstandUitOpslag("s1", {
       meterId: "m1",
       opgenomenOp: Timestamp.fromDate(d("2026-07-01")),
       stand: 12345,
@@ -620,7 +620,7 @@ describe("meterstandconverters", () => {
    * moet ook `keys().hasOnly(...)` in de rules mee (en `verify:rules` zegt dat).
    */
   it("schrijft precies de vier velden weg die het model kent", () => {
-    const data = meterstandNaarFirestore({
+    const data = meterstandNaarOpslag({
       ...stand,
       notitie: "Samen met de jaarafrekening",
     });

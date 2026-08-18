@@ -36,7 +36,7 @@ export const LEGE_OPLEVERBAND: Opleverbandwaarden = {
   bron: "",
 };
 
-/** Wat er naar Firestore gaat. Alleen de opleververwante velden. */
+/** Wat er naar de opslag gaat. Alleen de opleververwante velden. */
 export interface OpleverbandOpslag {
   opleverStatus: OpleverStatus;
   opleverVerwacht: Date;

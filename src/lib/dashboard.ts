@@ -11,7 +11,7 @@ import type { AnkerStatus, AnkerType } from "@/types/model";
  * Daar valt niets aan te testen zonder de hele component te monteren, en dus
  * is er acht sessies lang niets aan getest.
  *
- * DIT BESTAND IS PUUR, net als `planning.ts`. Geen Firestore, geen React, en
+ * DIT BESTAND IS PUUR, net als `planning.ts`. Geen opslaglaag, geen React, en
  * geen `new Date()` die niet als parameter binnenkomt.
  *
  * HET ONDERSCHEID DAT HIER HET ZWAARST WEEGT: "niets ingevuld" is niet

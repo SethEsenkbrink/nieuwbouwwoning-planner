@@ -8,7 +8,7 @@ import {
 import type { AfspraakMetId, AnkerMetId, BetrokkeneMetId, ProjectData } from "@/lib/converters";
 
 /**
- * De vertaling van Firestore-documenten naar de rekenmotor.
+ * De vertaling van opslagdocumenten naar de rekenmotor.
  *
  * De rekenmotor zelf is al getest in `planning.test.ts`. Wat hier getest wordt
  * is de laag ertussen — en die heeft precies twee manieren om stil fout te

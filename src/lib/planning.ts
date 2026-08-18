@@ -16,14 +16,14 @@ import type {
  *
  * DRIE REGELS VOOR DIT BESTAND:
  *
- * 1. PUUR. Geen Firestore, geen React, geen `new Date()` zonder dat het als
+ * 1. PUUR. Geen opslaglaag, geen React, geen `new Date()` zonder dat het als
  *    parameter binnenkomt. Alles wat hier gebeurt is te testen met gewone
  *    invoer en uitvoer, en dat is precies waarom het hier staat en niet in een
  *    component.
  *
- * 2. WERKT MET `Date`, NIET MET `Timestamp`. De conversie vanaf Firestore
- *    gebeurt aan de rand, in de datalaag. Zo blijft deze module vrij van de
- *    Firebase-SDK en draaien de tests zonder emulator.
+ * 2. WERKT MET `Date`, NIET MET `Timestamp`. De conversie vanaf de opslagvorm
+ *    gebeurt aan de rand, in de datalaag. Zo blijft deze module vrij van opslag
+ *    en draaien de tests zonder database.
  *
  * 3. REKENT IN HELE DAGEN OP UTC-MIDDERNACHT. Zomertijd maakt sommige dagen
  *    23 of 25 uur lang; wie in lokale tijd rekent, komt bij een offset van 42
@@ -50,7 +50,7 @@ export function verschilInDagen(a: Date, b: Date): number {
 }
 
 // ── Invoertypes ────────────────────────────────────────────────────────────
-// Bewust lichter dan de Firestore-modellen: alleen wat de motor nodig heeft.
+// Bewust lichter dan de opslagmodellen: alleen wat de motor nodig heeft.
 // Zo kan een test een scenario in drie regels opzetten.
 
 export interface AnkerInvoer {

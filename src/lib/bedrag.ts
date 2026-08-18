@@ -12,7 +12,7 @@
  * getal moet invullen — terwijl hij dat net deed. Bij een depottermijn of een
  * meerwerkpost is een bedrag met centen de normaalste zaak, dus dit trof
  * precies de velden waar het het meest opviel. Zie BUG-01 in
- * `docs/2026-08-01-bevindingen-live-test.md`.
+ * `docs/archief/2026-08-01-bevindingen-live-test.md`.
  *
  * DEZELFDE FOUTKLASSE ALS `leesStandInvoer()` IN E7, en om dezelfde reden
  * opgelost: één functie met tests, in plaats van zes kopieën die uit elkaar

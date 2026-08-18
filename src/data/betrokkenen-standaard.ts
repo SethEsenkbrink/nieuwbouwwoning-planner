@@ -4,7 +4,7 @@ import type { AnkerType, Betrokkene, BetrokkeneCategorie, Communicatieregel } fr
  * ═══════════════════════════════════════════════════════════════════════════
  * Standaardbibliotheek betrokkenen
  *
- * Typed versie van docs/2026-07-29-betrokkenen-standaardlijst.md. Bij het
+ * Typed versie van docs/archief/2026-07-29-betrokkenen-standaardlijst.md. Bij het
  * aanmaken van een project vinkt de gebruiker hieruit aan wat van toepassing
  * is; de app maakt de betrokkenen aan met deze startwaarden.
  *

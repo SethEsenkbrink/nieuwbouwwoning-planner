@@ -253,7 +253,7 @@ describe("berekenPeriodes", () => {
 
   /**
    * De vervolgperiode begint bij één van twee opnames van dezelfde dag, en
-   * welke dat is hangt af van het Firestore-document-id — dat is willekeurig.
+   * welke dat is hangt af van het opslagdocument-id — dat is willekeurig.
    * Zou alleen de nul-dagen-periode gemarkeerd zijn, dan koos de app hier stil
    * een van beide waarden. Precies wat ADR-0015 §4 elders afwijst.
    */

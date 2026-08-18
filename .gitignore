@@ -19,20 +19,9 @@ build/
 *.key
 service-account*.json
 serviceAccountKey*.json
-*-firebase-adminsdk-*.json
 
 # ── Netlify ────────────────────────────────────────────────────────────────
 .netlify/
-
-# ── Firebase ───────────────────────────────────────────────────────────────
-.firebase/
-firebase-debug.log
-firebase-debug.*.log
-firestore-debug.log
-ui-debug.log
-database-debug.log
-pubsub-debug.log
-.firebaserc
 
 # ── Caches & tooling ───────────────────────────────────────────────────────
 .vite/

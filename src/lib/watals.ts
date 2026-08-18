@@ -26,7 +26,7 @@ import {
  * - **Binnen de aanlooptijd.** De nieuwe datum ligt zo dichtbij dat deze partij
  *   het meteen moet weten om het nog te halen. Geen geld, wel haast.
  *
- * Deze module is puur en kent geen Firestore: hij krijgt twee contexten — hoe
+ * Deze module is puur en kent geen opslaglaag: hij krijgt twee contexten — hoe
  * het nu staat en hoe het zou worden — en vergelijkt ze. Dat maakt hem
  * bruikbaar op elk scherm waar iets verschuift, en testbaar zonder emulator.
  * ═══════════════════════════════════════════════════════════════════════════

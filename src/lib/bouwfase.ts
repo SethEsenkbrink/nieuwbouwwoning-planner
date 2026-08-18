@@ -27,7 +27,7 @@ import type { AnkerType } from "@/types/model";
  * dus veilig, en dat scheelt zeven datumvelden in een wizard waarvan de klacht
  * juist was dat er te veel ingevuld moest worden.
  *
- * DIT BESTAND IS PUUR. Geen Firestore, geen React.
+ * DIT BESTAND IS PUUR. Geen opslaglaag, geen React.
  * ═══════════════════════════════════════════════════════════════════════════
  */
 

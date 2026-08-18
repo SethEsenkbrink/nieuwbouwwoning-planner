@@ -244,7 +244,7 @@ export default function Onderdelen() {
     }
 
     // Geheel getal, want de rules eisen `is int` (optionalInt). Zonder deze
-    // check komt "60.5" door de UI en wordt hij pas door Firestore geweigerd —
+    // check komt "60.5" door de UI en wordt hij pas door de opslag geweigerd —
     // met een permissiefout die niets zegt over de oorzaak.
     const maanden = formulier.garantieMaanden.trim();
     const garantieMaanden = maanden === "" ? undefined : Number(maanden.replace(",", "."));

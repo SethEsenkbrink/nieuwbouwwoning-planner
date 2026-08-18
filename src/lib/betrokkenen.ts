@@ -3,7 +3,7 @@ import type { BetrokkeneData } from "@/lib/converters";
 /**
  * Regels rond betrokkenen die niets met opslag te maken hebben.
  *
- * Staat los van `projecten.ts` omdat dat bestand de Firebase-SDK laadt, en die
+ * Staat los van `projecten.ts` omdat dat bestand de opslaglaag aanspreekt, en die
  * eist bij het importeren al een geldige configuratie. Alles wat hier staat is
  * te testen met gewone invoer en uitvoer — geen emulator, geen mocks.
  */

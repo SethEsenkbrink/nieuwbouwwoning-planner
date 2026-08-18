@@ -24,10 +24,10 @@ volgorde, voordat je iets voorstelt of bouwt:**
 5. `docs/WORKFLOW.md` — de spelregels, inclusief jouw bijwerkplicht aan het eind
 6. `docs/decisions/` — de ADR's die raken aan waar we mee bezig zijn (lees in elk geval de
    index in `decisions/README.md`)
-7. `docs/sessions/` — het laatste sessielog
+7. `docs/archief/sessions/` — het laatste sessielog
 8. `../AGENTS.md` — de onwrikbare huisstijlregels van de werkruimte
 
-**Werk je aan ronde 9?** Lees dan óók `docs/2026-08-01-bevindingen-live-test.md` en
+**Werk je aan ronde 9?** Lees dan óók `docs/archief/2026-08-01-bevindingen-live-test.md` en
 **ADR-0017**. De volgorde uit het bouwplan is herzien: eerst bruikbaarheid en bugs, daarna pas
 blok F en de documentparser.
 
@@ -42,10 +42,10 @@ Ga pas daarna bouwen. Bij een taak van meerdere stappen: eerst een kort plan, wa
 akkoord, dán uitvoeren.
 
 Aan het eind van de sessie werk je verplicht `STATE.md` bij en schrijf je een sessielog in
-`docs/sessions/`, conform `WORKFLOW.md` §2. Sluit af met een verificatiepass — die heeft in
+`docs/archief/sessions/`, conform `WORKFLOW.md` §2. Sluit af met een verificatiepass — die heeft in
 sessie 06 en 07 elke keer echte bugs gevonden die bij het bouwen niet opvielen.
 
-Wijzig je de Firestore-rules, zeg dan aan het eind expliciet dat ik moet deployen. Groene
+Wijzig je het opslagformaat, voeg dan een migratiestap toe in `src/migrations/`. Groene
 `rules:test` betekent níét dat de rules in productie staan.
 
 ---

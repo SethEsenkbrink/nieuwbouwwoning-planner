@@ -133,7 +133,7 @@ Deze horen in de standaardbibliotheek, niet in de hoofden van gebruikers:
 - **Plan afbouw nooit op de opleverdatum zelf.** Er zijn opleverpunten en restwerk. Een
   buffer van minimaal een week is realistisch.
 
-De concrete waarden staan in `docs/2026-07-29-betrokkenen-standaardlijst.md`. Dat zijn
+De concrete waarden staan in `docs/archief/2026-07-29-betrokkenen-standaardlijst.md`. Dat zijn
 **startwaarden**, geen wetten — de gebruiker overschrijft ze per leverancier.
 
 ## Alternatieven

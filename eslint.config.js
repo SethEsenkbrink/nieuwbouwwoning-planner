@@ -9,13 +9,13 @@ import prettier from "eslint-config-prettier";
  * ESLint flat config — Nieuwbouwplanner
  *
  * De type-aware regels (recommendedTypeChecked) zijn hier het belangrijkst:
- * no-floating-promises en no-misused-promises vangen vergeten await's op
- * Firestore- en Auth-calls. Dat is de meest voorkomende stille bug in een
- * Firebase-app. Zet die niet uit.
+ * no-floating-promises en no-misused-promises vangen vergeten await's op de
+ * opslag- en cryptolaag. Beide zijn volledig async, dus een vergeten await is
+ * hier de meest voorkomende stille bug. Zet die niet uit.
  */
 export default tseslint.config(
   {
-    ignores: ["dist/**", "brink-ui/**", "node_modules/**", ".netlify/**", "coverage/**"],
+    ignores: ["dist/**", "brink-ui/**", "node_modules/**", "coverage/**"],
   },
 
   // ── Applicatiecode ────────────────────────────────────────────────────────
@@ -60,7 +60,8 @@ export default tseslint.config(
       "@typescript-eslint/await-thenable": "error",
       "@typescript-eslint/require-await": "error",
 
-      // Externe data (LLM-response, Firestore-doc) mag niet blind gecast worden.
+      // Externe data (een geïmporteerde backup, een ontsleuteld record) mag niet
+      // blind gecast worden.
       "@typescript-eslint/no-unsafe-assignment": "error",
       "@typescript-eslint/no-unsafe-member-access": "error",
       "@typescript-eslint/no-unsafe-return": "error",
@@ -68,16 +69,18 @@ export default tseslint.config(
       // console.log vergeten in productie is slordig; warn/error mogen wel.
       "no-console": ["warn", { allow: ["warn", "error"] }],
 
-      // Harde vangnetten tegen de projectconstraints (PROJECT.md §3, ADR-0005).
+      // Harde vangnetten tegen de projectconstraints (PROJECT.md §3, ADR-0020).
       "no-restricted-imports": [
         "error",
         {
-          paths: [
+          patterns: [
             {
-              name: "firebase/storage",
+              group: ["firebase", "firebase/*", "@firebase/*"],
               message:
-                "Firebase Storage is in dit project verboden — documenten worden nooit opgeslagen. Zie docs/decisions/ADR-0005.",
+                "Firebase is uit dit project verwijderd (ADR-0020). De app is 100% lokaal en mag geen enkele netwerkafhankelijkheid terugkrijgen.",
             },
+          ],
+          paths: [
             {
               name: "react-router-dom",
               message:
