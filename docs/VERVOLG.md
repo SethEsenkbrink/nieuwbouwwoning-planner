@@ -4,8 +4,8 @@
 > erop volgde, samengevat tot iets waarmee een volgende sessie direct verder kan.
 > Plak de prompt onderaan in een nieuwe sessie.
 >
-> **Peildatum:** 2026-08-16 · **Branch:** `main` · **HEAD:** `959eb4a` · working tree schoon
-> **Gates:** `npm run verify` groen — **652 tests in 38 bestanden**, build groen
+> **Peildatum:** 2026-08-16 · **Branch:** `main` · working tree schoon
+> **Gates:** `npm run verify` groen — **686 tests in 42 bestanden**, build groen, `npm audit` nul kwetsbaarheden
 
 ---
 
@@ -25,7 +25,7 @@ gate* — het script bouwde de crypto zelf na en toetste zijn eigen kopie, waard
 
 ---
 
-## 2. Wat er AF is (13 van 21 bevindingen)
+## 2. Wat er AF is (20 van 21 bevindingen)
 
 Elke reparatie heeft een test die de fout in het vervolg afvangt.
 
@@ -43,9 +43,16 @@ Elke reparatie heeft een test die de fout in het vervolg afvangt.
 | **A-18** | 14 `.fuse_hidden`-restanten | `42b3e69` | Verwijderd na controle dat het geen originelen waren |
 | **A-19** | `.gitignore` miste backups | `aa3e28b` | `*.woningdossier` genegeerd, fixtures uitgezonderd |
 | **A-20** | `console.error` in `src/` | `8d80167` | Uit VaultContext; `main.tsx` bewust behouden als laatste vangnet |
+| **A-17** | Firestore-restanten in code en docs | `f23a490` | Converters heten xNaarOpslag/xUitOpslag; eslint blokkeert elke firebase-import |
+| **A-06** | Vijf modules zonder importeur | `833f902` | Routes /energie, /mjop en /snel; woningpaspoort in het dossier |
+| **A-13** | Geen mobiele modus | `833f902` | Zichtbare modus; buiten quick-capture staat de inhoud op `inert` |
+| **A-09** | Signalen zonder status of hash | `0048f56` | Versie, status, snooze, invoerhash, max drie, schakelaar per categorie |
+| **A-10** | Geen herkomst per veld | `925aae7` | `bron` per veld; handmatige invoer wordt nooit overschreven |
+| **A-04** | `unsafe-inline` in de CSP | `6e2d1db` | Balken tekenen met SVG-attributen; CSP is nu volledig schoon |
+| **A-15** | Niet-afgetoetste punten | `9aaab3e` | Hexkleuren weg, ongebruikte dependency weg, financiële drieslag toegevoegd |
+| **A-16** | Eén fixture zonder versiecontrole | `9aaab3e` | verify-backup eist een fixture voor élke schemaversie |
 
-**Fase 1 (kluis) en fase 2 (backup) staan daarmee op afgerond in `docs/STATE.md`** — voor het
-eerst terecht, met bewijs.
+**Alle fasen staan daarmee op afgerond in `docs/STATE.md`** — voor het eerst terecht, met bewijs.
 
 ### Nieuwe modules die hieruit ontstaan zijn
 
@@ -57,80 +64,37 @@ src/lib/backup/rotatie.ts     roulerend schema, pure logica
 src/lib/backup/doel.ts        backupmap + permissie (File System Access API)
 src/lib/backup/roulerend.ts   brengt schema, doel en export samen
 src/lib/paniek.ts             alles lokaal wissen
+src/lib/signalen.ts           signaalstatus, snooze en categorieschakelaars
+src/lib/bron.ts               herkomst per veld en de grendel op handmatige invoer
+src/context/useModus.ts       desktop- of mobiele modus
+scripts/verify-bereikbaarheid.mjs  vangt dode modules en dode routes af
 ```
 
-### Twee dingen om te weten voor je verder bouwt
+### Drie dingen om te weten voor je verder bouwt
 
 1. **`enc` is base64, geen `Uint8Array`.** Een `Uint8Array` overleeft `JSON.stringify` niet
    (hij wordt `{"0":12,...}`) en de backup serialiseert hele tabellen naar JSON. Met ruwe
    bytes kwam een hersteld record er corrupt uit. Verander dit niet terug.
 2. **Schrijf nooit rechtstreeks via `db.<tabel>.put()`.** Gebruik `bewaar`/`haal`/
    `haalVanProject` uit `src/db/kluisopslag.ts`, anders staat de data weer plat op schijf.
+3. **Elk signaal in `src/rules/` moet `invoerwaarden` meeleveren.** Er is een test die faalt
+   als een regel dat vergeet — zonder die waarden is er geen uitleg en geen betrouwbare hash.
 
 ---
 
-## 3. Wat er NIET af is (8 bevindingen)
+## 3. Wat er NIET af is
 
-Geen van deze raakt de vertrouwelijkheid of herstelbaarheid van opgeslagen data. Het is
-ontbrekende functionaliteit en opruimwerk.
+**Eén punt, bewust.**
 
-### HOOG — ontbrekende functionaliteit
+**B4.6 — de zip wordt niet streaming gebouwd.** `fflate` biedt een streaming-API, maar het
+archief wordt hoe dan ook in één keer weggeschreven en direct teruggelezen ter controle
+(A-07). Streaming zou het geheugengebruik verlagen bij dossiers van honderden megabytes,
+maar zou die terugleescontrole — die aantoonbaar dataverlies voorkomt — complexer maken.
+Voor een huishoudensdossier is dat een slechte ruil. Herzien zodra bijlagen in de honderden
+megabytes lopen.
 
-**A-06 — Vijf modules zijn gebouwd maar nergens aangesloten.**
-`src/lib/energie.ts`, `mjop.ts`, `p1.ts`, `inbox/delta.ts` en `woningpaspoort/overdracht.ts`
-hebben alle vijf tests die groen draaien, maar **geen enkele route importeert ze**. De
-bijbehorende specificatiepunten zijn dus feitelijk niet uitgevoerd, terwijl de testsuite de
-indruk wekt van wel. Vraagt per module een route, navigatie-ingang en UI. Ruim boven de
-200-regelgrens; verdient een eigen ronde per module.
-
-**A-09 — Signalen kennen geen status, snooze of invoerhash.**
-`src/rules/types.ts` → `RegelResultaat` heeft geen `versie`, geen status
-(`nieuw|geaccepteerd|genegeerd|gesnoozed`), geen `snoozeTot` en geen hash van de
-invoerwaarden. Een weggeklikt signaal komt daardoor bij elke herberekening terug. Ook
-ontbreekt de begrenzing op maximaal drie zichtbare signalen (`engine.ts` sorteert wel, maar
-begrenst niet) en de schakelaar per categorie in de instellingen.
-
-**A-10 — `bron` ontbreekt op datapunten.**
-De enum `'ingevoerd' | 'afgeleid' | 'geïmporteerd' | 'voorstel'` bestaat niet in
-`src/types/model.ts`. Daarmee ontbreekt ook de code die voorkomt dat een herberekening een
-handmatig ingevoerde waarde overschrijft. Raakt het datamodel, alle schrijfroutes en de
-golden fixture — die dan een migratiestap nodig heeft. **Gebruik de migratieketen die er nu
-ligt.** Ruim boven de 200-regelgrens.
-
-**A-13 — Mobiele modus bestaat niet in de UI.**
-Geen zichtbare modus-indicator, geen beperking van bewerkknoppen op mobiel. B8.1 en B8.2 zijn
-niet uitgevoerd. Hangt deels samen met A-06 (`inbox/delta` is de quick-capture-module).
-
-### MIDDEL / LAAG — opruimwerk
-
-**A-04 — `unsafe-inline` in de CSP.** `netlify.toml`, `style-src 'self' 'unsafe-inline'`.
-Drie plekken hebben hem nodig: twee inline styles in `index.html` (risicoloos te verplaatsen)
-en `src/components/Voortgangsbalk.tsx` — een gestapelde balk met continue segmentbreedtes.
-Volledige verwijdering vraagt óf discretisering (afrondingen stapelen op, balk verandert
-zichtbaar) óf een SVG-herschrijving die Tailwind-achtergrondklassen naar `fill` moet
-vertalen. **Dit is een productkeuze, geen mechanische fix.** Meegewogen: met
-`script-src 'self'` en `connect-src 'none'` kan CSS hier niets naar buiten sturen.
-
-**A-15 — Zes conformiteitspunten niet afgetoetst.** B2.2 (losse hex-kleuren), B2.6
-(ongebruikte dependencies per stuk), B5.1 (traject nieuwbouw/bestaande bouw), B5.4
-(begroot/werkelijk/nog verplicht), B5.5 (juridische ankers: depot 3 mnd, brief 2e maand,
-onderhoud 6 mnd, garantie 6 en 10 jaar), B6.3 (uitleg per signaal), B6.7 (testdekking per
-regel), B9.3 (README-inhoud). Tellen volgens de opdracht als GEFAALD tot het tegendeel is
-aangetoond.
-
-**A-16 — Eén golden fixture, geen snapshot per schemaversie.** Er is
-`tests/fixtures/golden-v1.woningdossier`. Zodra `HUIDIGE_SCHEMA_VERSIE` naar 2 gaat, hoort er
-een fixture voor v1 én een verwachte snapshot bij. Volgt uit A-03.
-
-**A-17 — Firestore-restanten in levende code.** `src/lib/converters.ts` exporteert
-`afspraakNaarFirestore`, `ankerUitFirestore` en soortgelijke. De functies zijn in gebruik,
-maar de naamgeving verwijst naar een datalaag die niet meer bestaat. Ook toelichtende
-Firestore-teksten in `actielijst.ts`, `bouwfase.ts` en `betrokkenen.ts`.
-
-**A-21 — `docs/PROJECT.md` nog niet nagelopen.** `STATE.md` is bijgewerkt, `PROJECT.md` niet
-volledig.
-
----
+Alle overige 20 bevindingen zijn afgewerkt, elk met een test en waar mogelijk een gate die
+negatief bewezen is.
 
 ## 4. Werkafspraken die golden en die je wilt aanhouden
 
@@ -156,51 +120,31 @@ volledig.
 
 ---
 
-Ik wil verder met het Woningdossier-project in deze map. De context staat in
-`docs/VERVOLG.md` — lees dat eerst, samen met `docs/AUDIT.md` (het volledige auditrapport
-met 21 bevindingen) en `docs/STATE.md` (de actuele stand). Lees ook `AGENTS.md` en
-`CLAUDE.md` voor de werkwijze en de uitvoeringsomgeving.
+Ik wil verder met het Woningdossier-project in deze map. Lees eerst `docs/VERVOLG.md`,
+`docs/AUDIT.md` en `docs/STATE.md`, plus `AGENTS.md` en `CLAUDE.md` voor de werkwijze.
 
-Korte samenvatting: een eerdere agent bouwde deze app om naar 100% lokaal. Die oplevering is
-geauditeerd en gedeeltelijk gerepareerd. 13 van de 21 bevindingen zijn af, inclusief alle
-blokkerende: versleuteling at rest, bijlagen in de backup, de migratieketen, chunked
-encryptie van documenten, het roulerende backupschema en de paniekknop. `npm run verify` is
-groen met 652 tests in 38 bestanden.
+De audit van augustus 2026 is afgewerkt: 20 van de 21 bevindingen zijn gerepareerd, elk met
+test. Alleen B4.6 (streaming zip) staat bewust open, met motivering in AUDIT.md.
+`npm run verify` is groen met 686 tests in 42 bestanden en `npm audit` meldt nul
+kwetsbaarheden.
 
-Wat nog openstaat, in volgorde van belang:
+Werk op een branch, niet op `main`. Eén wijziging = één commit met een Nederlandse
+commitmessage. Elke reparatie krijgt een test die de fout afvangt — een reparatie zonder test
+is niet af. Repareer nooit een falende test door hem te versoepelen. Verwijder nooit een
+migratie, een golden fixture of een verify-script, en verlaag nooit de Argon2id-parameters of
+een CSP-directive. Draai `npm run verify` na elke wijziging en meld de werkelijke uitkomst.
 
-1. **A-06** — vijf modules (`energie`, `mjop`, `p1`, `inbox/delta`,
-   `woningpaspoort/overdracht`) hebben tests maar geen enkele route die ze importeert. Sluit
-   ze aan met route, navigatie-ingang en UI. Doe dit **module voor module**, elk met een
-   eigen commit; samen is dit ruim boven de 200-regelgrens.
-2. **A-09** — signaalsysteem: `versie` per regel, status
-   `nieuw|geaccepteerd|genegeerd|gesnoozed`, `snoozeTot`, een hash van de invoerwaarden zodat
-   een weggeklikt signaal wegblijft, begrenzing op maximaal drie zichtbare signalen, en een
-   schakelaar per regelcategorie in de instellingen.
-3. **A-10** — `bron: 'ingevoerd' | 'afgeleid' | 'geïmporteerd' | 'voorstel'` op elk datapunt,
-   plus de guard die voorkomt dat een herberekening een handmatig ingevoerde waarde
-   overschrijft. Gebruik de migratieketen in `src/migrations/` voor de schemawijziging.
-4. **A-13** — mobiele modus: zichtbare modus-indicator en geen bewerkknoppen buiten
-   quick-capture.
-5. **A-15 t/m A-17, A-04, A-21** — opruimwerk en de niet-afgetoetste conformiteitspunten.
+Drie dingen die je moet weten voordat je code schrijft:
 
-Werk op een branch, niet op `main`. Eén fix = één commit met het bevindingsnummer in een
-Nederlandse commitmessage. Elke reparatie krijgt een test die de fout afvangt — een reparatie
-zonder test is niet af. Repareer nooit een falende test door hem te versoepelen. Verwijder
-nooit een migratie, een golden fixture of een verify-script, en verlaag nooit de
-Argon2id-parameters of een CSP-directive. Draai `npm run verify` na elke fix en meld de
-werkelijke uitkomst, niet de verwachte.
-
-Twee valkuilen die je moet kennen voordat je code schrijft:
 - Schrijf nooit rechtstreeks via `db.<tabel>.put()`. Gebruik `bewaar`, `haal` en
-  `haalVanProject` uit `src/db/kluisopslag.ts`, anders staat de data weer onversleuteld op
-  schijf.
+  `haalVanProject` uit `src/db/kluisopslag.ts`, anders staat de data onversleuteld op schijf.
 - Het veld `enc` is bewust base64 en geen `Uint8Array`, omdat een `Uint8Array`
-  `JSON.stringify` niet overleeft en de backup hele tabellen naar JSON serialiseert. Verander
-  dat niet terug.
+  `JSON.stringify` niet overleeft en de backup hele tabellen naar JSON serialiseert.
+- Elk signaal in `src/rules/` moet `invoerwaarden` meeleveren. Er is een test die faalt als een
+  regel dat vergeet, want zonder die waarden is er geen uitleg en geen betrouwbare hash.
 
-Begin met A-06, en vraag me eerst welke van de vijf modules je als eerste moet aansluiten.
+Zeg me wat je wilt bouwen, dan begin ik daar.
 
 ---
 
-*Laatst bijgewerkt: 2026-08-16 · HEAD `959eb4a`*
+*Laatst bijgewerkt: 2026-08-16*

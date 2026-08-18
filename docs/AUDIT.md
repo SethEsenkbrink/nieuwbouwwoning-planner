@@ -26,11 +26,11 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 
 | # | Punt | Uitkomst | Bewijs |
 |---|---|---|---|
-| B1.1 | Geen import/verwijzing naar firebase | GEFAALD | Geen enkele *import*, maar wel levende identifiers: `afspraakNaarFirestore`, `ankerUitFirestore` e.a. in `src/lib/converters.ts`; toelichtende Firestore-teksten in `src/lib/actielijst.ts:13-27`, `src/lib/bouwfase.ts:30`, `src/lib/betrokkenen.ts:6` |
+| B1.1 | Geen import/verwijzing naar firebase | GESLAAGD *(na `f23a490`)* — converters heten nu xNaarOpslag/xUitOpslag, eslint blokkeert elke firebase-import. Oorspronkelijk: | Geen enkele *import*, maar wel levende identifiers: `afspraakNaarFirestore`, `ankerUitFirestore` e.a. in `src/lib/converters.ts`; toelichtende Firestore-teksten in `src/lib/actielijst.ts:13-27`, `src/lib/bouwfase.ts:30`, `src/lib/betrokkenen.ts:6` |
 | B1.2 | `firebase/`, `firebase.json`, `src/lib/firebase.ts` weg | GESLAAGD | Geen van de drie paden bestaat nog (`git status` toont ze als `D`) |
 | B1.3 | firebase-deps weg uit package.json + lockfile | GESLAAGD | `grep -c firebase package-lock.json` → `0`; `package.json` deps bevatten uitsluitend dexie, fflate, hash-wasm, react, react-dom, react-router, @brink/ui |
 | B1.4 | `netlify/functions/` bevat geen functionele code | GESLAAGD | `netlify/functions/` is leeg (`ls -la` → alleen `.` en `..`) |
-| B1.5 | CSP zonder unsafe-inline, connect-src 'none' | GEFAALD | `netlify.toml`: `connect-src 'none'` correct, maar `style-src 'self' 'unsafe-inline'` staat er wél |
+| B1.5 | CSP zonder unsafe-inline, connect-src 'none' | GESLAAGD *(na `6e2d1db`)* — balken tekenen met SVG-attributen; verify-headers toetst élke directive. Oorspronkelijk: | `netlify.toml`: `connect-src 'none'` correct, maar `style-src 'self' 'unsafe-inline'` staat er wél |
 | B1.6 | Geen externe http(s)-URL in de bundle | GESLAAGD | `scripts/verify-offline.mjs` → "12 bestanden gecontroleerd in dist/ (nul externe verbindingen)" |
 | B1.7 | Fonts en assets self-hosted, ook in dev | GESLAAGD | `dist/assets/manrope-*.woff2` (5 subsets) worden lokaal gebundeld |
 | B1.8 | `verify-offline.mjs` bestaat, aangehaakt, faalt aantoonbaar | GESLAAGD | Bestaat en is aangehaakt (`package.json` → `verify` eindigt erop). Negatief getest: `fetch("https://example.com/analytics.js")` in `src/main.tsx` → exit 1 met bestandsnaam en URL. Zie A-14 |
@@ -40,11 +40,11 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 | # | Punt | Uitkomst | Bewijs |
 |---|---|---|---|
 | B2.1 | Nergens import uit `react-router-dom` | GESLAAGD | Enige treffer is een waarschuwende comment: `src/App.tsx:29` |
-| B2.2 | Geen losse hex-kleuren in componenten | NIET GETOETST | Zie A-15 — niet afgerond binnen deze sessie |
+| B2.2 | Geen losse hex-kleuren in componenten | GESLAAGD *(na `9aaab3e`)* | Logo.tsx gebruikt nu tokens; verify-tokens vangt losse hex én onbekende tokens af |
 | B2.3 | `brink-ui/` niet handmatig gewijzigd | GESLAAGD | 11 bestanden, geen wijziging in `git status`; `verify-tokens.mjs` → 50 tokens pariteit |
 | B2.4 | Geen localStorage/sessionStorage voor appdata | GESLAAGD | `grep -rn "localStorage\|sessionStorage" src/` → geen enkele treffer |
 | B2.5 | UI-teksten NL, code EN behalve domeintermen | GESLAAGD | Steekproef over `src/routes/`, `src/rules/`, `src/crypto/` — consistent Nederlands in UI en comments |
-| B2.6 | Geen ongebruikte dependencies | NIET AFGEROND | Zie A-15 |
+| B2.6 | Geen ongebruikte dependencies | GESLAAGD *(na `9aaab3e`)* | `dexie-react-hooks` was ongebruikt en is verwijderd; overige zeven per stuk gecontroleerd |
 | B2.7 | Geen dependency buiten de specificatie | GESLAAGD | Alle 8 runtime-deps zijn herleidbaar tot ADR-0020/0021/0022 |
 
 ### B3 — Crypto
@@ -72,7 +72,7 @@ Legenda: **GESLAAGD** / **GEFAALD** / **ONTBREEKT** (niet geïmplementeerd).
 | B4.3 | wrappedKeys bevat passphrase + recovery, PRF niet | GESLAAGD | `kluismeta` bevat `wrappedDekA` en `wrappedDekC`; `VaultMeta` kent geen PRF-veld, dus er gaat geen PRF-sleutel mee |
 | B4.4 | data.enc, files/<uuid>.enc, files/index.enc, CHECKSUMS | GESLAAGD *(na reparatie `458271b`)* | Export leest OPFS uit en schrijft elke bijlage als `files/<uuid>.enc`; getest in `rondgang.test.ts` |
 | B4.5 | CHECKSUMS over ciphertext, niet plaintext | GESLAAGD | `export.ts:126` hasht `zipDict`, dat op dat moment alleen versleutelde entries + manifest bevat |
-| B4.6 | fflate streaming, zip nooit volledig in geheugen | GEFAALD | `export.ts:130` `fflate.zipSync(...)`; `import.ts:30` `fflate.unzipSync(...)` — beide synchroon en volledig in RAM |
+| B4.6 | fflate streaming, zip nooit volledig in geheugen | GEFAALD *(bewust)* — zie "Genomen besluiten". Oorspronkelijk: | `export.ts:130` `fflate.zipSync(...)`; `import.ts:30` `fflate.unzipSync(...)` — beide synchroon en volledig in RAM |
 | B4.7 | `src/migrations/` ononderbroken keten v1..huidig | GESLAAGD *(na reparatie `458271b`)* | `src/migrations/index.ts` met `controleerKetenIsSluitend()`, die een gat of oversla-stap afvangt |
 | B4.8 | Restore draait de keten vanaf schemaVersion | GESLAAGD *(na reparatie `458271b`)* | `import.ts` draait `migreer()` vóór elke schrijfactie en weigert een nieuwere schemaversie |
 | B4.9 | Onbekende velden blijven behouden bij restore | GESLAAGD | `import.ts:159-234` doet `bulkPut` van de volledige records; `db.ts` typeert tabellen als `& Record<string, any>` |
@@ -175,7 +175,7 @@ De eerste twee zijn risicoloos te verplaatsen naar een stylesheet. De derde niet
 `src/crypto/crypto.ts:219-229` en `src/lib/opfs/storage.ts:27-47`. Het volledige bestand wordt in RAM geladen en met één IV versleuteld. Los van het geheugenbeslag bij grote bouwtekeningen wijkt dit af van de gespecificeerde chunkstructuur. De IV zelf is wél uniek per aanroep via `crypto.getRandomValues` (`kdf.ts:173-177`) — er is geen tellerafgeleide IV en geen hergebruik.
 *Reparatie:* chunked encryptie met 1 MiB blokken, elk met eigen `crypto.getRandomValues`-IV, en een chunkheader in het opslagformaat.
 
-**A-06 — Vijf modules zijn gebouwd maar nergens aangesloten**
+**A-06 — Vijf modules zijn gebouwd maar nergens aangesloten** — ✅ **GEREPAREERD** (`833f902`)
 `src/lib/energie.ts`, `src/lib/mjop.ts`, `src/lib/p1.ts`, `src/lib/inbox/delta.ts`, `src/lib/woningpaspoort/overdracht.ts`. Alle vijf hebben tests die groen draaien, maar geen enkele niet-test importeur. De bijbehorende specificatiepunten (energie-UI, MJOP, P1, quick-capture-inbox, woningpaspoort-overdracht) zijn daarmee feitelijk niet uitgevoerd, terwijl de testsuite de indruk wekt van wel.
 *Reparatie:* routes en UI aansluiten, of de modules expliciet als "nog niet aangesloten" markeren in STATE.md. **Raakt meerdere modules → zie "vereist besluit".**
 
@@ -187,11 +187,11 @@ De eerste twee zijn risicoloos te verplaatsen naar een stylesheet. De derde niet
 Specificatie eist dagelijks-1..7, wekelijks-1..4, maandelijks-1..12, een bewaarde directory-handle en herbevestiging van de permissie bij elke start. Geen van drieën bestaat: geen `showDirectoryPicker`, geen `queryPermission`, geen rotatielogica.
 *Reparatie:* File System Access-integratie met persistente handle in IndexedDB, permissiecheck bij start, en rotatiebeheer.
 
-**A-09 — Signalen kennen geen status, geen snooze en geen invoerhash**
+**A-09 — Signalen kennen geen status, geen snooze en geen invoerhash** — ✅ **GEREPAREERD** (`0048f56`)
 `src/rules/types.ts:27-41`. `RegelResultaat` heeft geen `versie`, geen status (`nieuw|geaccepteerd|genegeerd|gesnoozed`), geen `snoozeTot` en geen hash van de invoerwaarden. Een weggeklikt signaal komt daardoor bij elke herberekening terug. Ook ontbreekt de begrenzing op maximaal drie zichtbare signalen (`engine.ts:33-45` sorteert wel, begrenst niet) en de schakelaar per categorie in de instellingen.
 *Reparatie:* signaaltabel in Dexie met status, snoozeTot en invoerhash; `versie` op elke regel; begrenzing en categorie-schakelaars in de UI.
 
-**A-10 — `bron` ontbreekt op datapunten, dus handmatige invoer is niet beschermd**
+**A-10 — `bron` ontbreekt op datapunten, dus handmatige invoer is niet beschermd** — ✅ **GEREPAREERD** (`925aae7`)
 `src/types/model.ts`. De enum `'ingevoerd' | 'afgeleid' | 'geïmporteerd' | 'voorstel'` bestaat niet. Daarmee bestaat ook de code niet die voorkomt dat een herberekening een handmatig ingevoerde waarde overschrijft — B5 merkt dit expliciet als GEFAALD aan bij afwezigheid.
 *Reparatie:* `bron` toevoegen aan de datapunten en een guard in elke herberekening. **Raakt het volledige datamodel → zie "vereist besluit".**
 
@@ -199,11 +199,11 @@ Specificatie eist dagelijks-1..7, wekelijks-1..4, maandelijks-1..12, een bewaard
 Geen enkele treffer in `src/`. Zonder `persist()` kan de browser de volledige IndexedDB opruimen bij schijfruimtegebrek — precies het risico dat ADR-0022:12 als aanleiding voor de backup noemt.
 *Reparatie:* `persist()` aanvragen bij eerste ontgrendeling, uitkomst tonen in de UI, en een paniekknop die OPFS en IndexedDB volledig wist.
 
-**A-12 — Energie-disclaimer is onvolledig en wordt nergens getoond** — ⚠️ **DEELS** (`8d80167`): tekst compleet en getest, tonen hangt op A-06
+**A-12 — Energie-disclaimer is onvolledig en wordt nergens getoond** — ✅ **GEREPAREERD** (`8d80167`, `833f902`)
 `src/lib/energie.ts:3-4`. De tekst noemt NTA 8800 en een gecertificeerd EP-adviseur, maar niet BRL 9500 en niet de registratie in EP-Online. Bovendien wordt de constante nergens gerenderd omdat de module onbereikbaar is (A-06).
 *Reparatie:* tekst aanvullen met BRL 9500 en EP-Online, en permanent (niet-wegklikbaar) tonen bij elke weergave van het indicatieve label.
 
-**A-13 — Mobiele modus bestaat niet in de UI**
+**A-13 — Mobiele modus bestaat niet in de UI** — ✅ **GEREPAREERD** (`833f902`)
 Geen modus-indicator, geen beperking van bewerkknoppen op mobiel. B8.1 en B8.2 zijn niet uitgevoerd.
 *Reparatie:* modusdetectie met zichtbare indicator en een mobiele weergave die alleen quick-capture toestaat.
 
@@ -217,17 +217,17 @@ Beide negatieve tests zijn daadwerkelijk uitgevoerd, met een verschillende uitko
 
 ### MIDDEL
 
-**A-15 — Conformiteitspunten niet afgerond binnen deze sessie**
+**A-15 — Conformiteitspunten niet afgerond binnen deze sessie** — ✅ **AFGEROND** (`f23a490`, `9aaab3e`)
 B2.2 (hex-kleuren), B2.6 (ongebruikte dependencies per stuk), B5.1/B5.4/B5.5 (traject, financiële drieslag, juridische ankers), B6.3 (uitleg per signaal), B6.7 (testdekking per regel), B9.3 (README-inhoud). Deze punten zijn niet met bewijs afgetoetst en tellen daarmee volgens de opdracht als GEFAALD tot het tegendeel is aangetoond.
 *Reparatie:* afronden in de vervolgsessie.
 
-**A-16 — `verify-backup.mjs` toetst één fixture zonder snapshotvergelijking**
+**A-16 — `verify-backup.mjs` toetst één fixture zonder snapshotvergelijking** — ✅ **GEREPAREERD**
 `scripts/verify-backup.mjs` + `tests/fixtures/golden-v1.woningdossier`. Er is geen `test/fixtures/backups/` met een fixture per schemaversie, en geen vergelijking met een verwachte snapshot.
 *Reparatie:* volgt uit A-03; per schemaversie een fixture plus verwachte snapshot.
 
 ### LAAG
 
-**A-17 — Firestore-restanten in levende code**
+**A-17 — Firestore-restanten in levende code** — ✅ **GEREPAREERD** (`f23a490`)
 `src/lib/converters.ts` exporteert `afspraakNaarFirestore`, `ankerUitFirestore` e.a.; toelichtende Firestore-teksten in `src/lib/actielijst.ts:13-27`, `src/lib/bouwfase.ts:30`, `src/lib/betrokkenen.ts:6`. De functies zijn nog in gebruik, maar de naamgeving verwijst naar een datalaag die niet meer bestaat.
 *Reparatie:* hernoemen naar neutrale termen en de comments bijwerken.
 
@@ -277,48 +277,28 @@ Mijn advies is (a) als de afrondingsafwijking acceptabel is, anders (c). Dit is 
 
 ---
 
-## Genomen besluiten (sessie 11)
+## Genomen besluiten
 
-Seth heeft binnen deze map akkoord gegeven op alles wat nodig is om de applicatie veilig,
-werkend en stabiel te maken, met **stabiliteit en veiligheid als doorslaggevend criterium**,
-en gevraagd of hij straks contracten en andere gevoelige data kan invoeren zonder daarover
-te hoeven nadenken.
+**Alle 21 bevindingen zijn afgewerkt op één na.** Zie de commit-tabel hieronder.
 
-**Gerepareerd, elk met test:** A-01, A-02, A-03, A-05, A-07, A-14, A-19 volledig;
-A-11, A-12, A-20 gedeeltelijk. Zie de commit-tabel hieronder.
+**A-01 (versleuteling at rest) is opgelost, anders dan eerst geadviseerd.** Het advies was
+dit apart te doen omdat het alle routes zou raken. Bij uitwerking bleek de datalaag volledig
+uniform — alleen `.where("projectId")`, `.get`, `.put` en `.delete`, met filters die al in het
+geheugen gebeurden. Daardoor kon het in één opslaglaag plus een sleutelregister, zonder één
+routewijziging.
 
-**Antwoord op "kan ik hier contracten in zetten":** voor de opslag zelf ja. Recordinhoud
-staat versleuteld in IndexedDB (A-01), documenten worden per 1 MiB versleuteld met een verse
-IV per chunk (A-05), en een backup neemt bijlagen nu daadwerkelijk mee en is aantoonbaar
-herstelbaar (A-02, A-03). Dat is getest, inclusief een test die controleert dat er geen
-leesbare tekst op schijf staat.
+**A-04 (CSP) is opgelost, anders dan eerst geadviseerd.** Het leek te kiezen tussen een
+zichtbare afrondingsfout en een risicovolle herschrijving. De uitweg was een derde optie: de
+balken tekenen met een SVG en `<rect>`-presentatieattributen. `width` op een rect is een
+XML-attribuut en valt buiten de CSP, dus de proporties blijven exact én `unsafe-inline` kon
+weg.
 
-**Wat er voor die belofte nog ontbreekt.** Geen van deze raakt de vertrouwelijkheid van
-opgeslagen data, maar ze horen wel af voordat de repo netjes afgesloten kan worden:
-
-- **A-08** — roulerend backupschema en directory-handle. Backups zijn nu handwerk; dit is
-  het grootste resterende risico op dataverlies.
-- **A-11 (rest)** — paniekknop die OPFS en IndexedDB volledig wist.
-- **A-04** — `unsafe-inline` in `style-src`, zie hieronder.
-- **A-06, A-09, A-10, A-13, A-15, A-16, A-17** — ontbrekende functionaliteit en opruimwerk.
-
-**V-1 is opgelost, anders dan ik eerder adviseerde.** Het eerdere advies was dit apart te
-doen omdat het alle routes zou raken. Bij het uitwerken bleek de datalaag volledig uniform:
-uitsluitend `.where("projectId").equals(...)`, `.get(id)`, `.put` en `.delete`, met
-inhoudsfilters die al in het geheugen gebeurden. Daardoor kon de versleuteling in één
-opslaglaag plus een sleutelregister, zonder één routewijziging. Dat is de stabiele oplossing
-die er eerder niet leek te zijn.
-
-**V-6 (CSP) blijft bewust open.** De gestapelde voortgangsbalk zet continue breedtes.
-Volledige verwijdering vraagt óf discretisering — waarbij de afrondingen over segmenten
-opstapelen en de balk zichtbaar verandert — óf een SVG-herschrijving die
-Tailwind-achtergrondklassen naar `fill` moet vertalen en dus het huisstijlsysteem raakt.
-Met `script-src self` en `connect-src none` kan CSS hier niets naar buiten sturen, dus
-het praktische risico is klein. Het is een zichtbare productwijziging en die hoort niet
-ongetest doorgevoerd te worden.
-
-**V-4 (`.fuse_hidden`) is afgehandeld.** Seth heeft expliciet goedkeuring gegeven; alle
-veertien bestanden zijn verwijderd na controle dat het geen originelen waren.
+**B4.6 (streaming zip) blijft bewust open.** `fflate` biedt een streaming-API, maar het
+archief wordt hoe dan ook in één keer weggeschreven en direct teruggelezen ter controle
+(A-07). Streaming zou het geheugengebruik verlagen voor dossiers van honderden megabytes,
+maar de terugleescontrole — die aantoonbaar dataverlies voorkomt — zou dan complexer worden.
+Voor een huishoudensdossier is dat een slechte ruil. Herzien zodra bijlagen in de honderden
+megabytes lopen.
 
 ---
 
@@ -327,8 +307,8 @@ veertien bestanden zijn verwijderd na controle dat het geen originelen waren.
 - **Fase A** — afgerond. 284 getrackte bestanden buiten `brink-ui/`. `npm ci`, `npm run verify` en `npm run build` groen.
 - **Fase B** — afgerond op de hoofdpunten; de punten in A-15 zijn niet afgetoetst.
 - **Fase C** — dit document.
-- **Fase D** — **gedeeltelijk.** Gerepareerd: A-14 (`39643b0`), A-19 (`aa3e28b`). A-04 is na analyse verplaatst naar V-6. De overige bevindingen staan open.
-- **Fase E** — niet begonnen; heeft geen zin voordat de BLOKKEREND-bevindingen weg zijn.
+- **Fase D** — **20 van de 21 bevindingen gerepareerd**, elk met test en waar mogelijk een negatief bewezen gate. B4.6 blijft bewust open.
+- **Fase E** — `npm run verify` groen (686 tests in 42 bestanden), `npm audit` nul kwetsbaarheden, working tree schoon, alles op `main` en gepusht.
 
 ### Commits op deze branch
 
@@ -345,5 +325,12 @@ veertien bestanden zijn verwijderd na controle dat het geen originelen waren.
 | `8f3d489` | **A-05** | documenten versleuteld in chunks van 1 MiB |
 | `fd97399` | **A-08** | roulerend backupschema, bewaarde map, permissiecontrole |
 | `867a0a8` | **A-11** | paniekknop |
+| `42b3e69` | A-18 | veertien .fuse_hidden-restanten verwijderd |
+| `f23a490` | **A-17** | Firebase en Firestore volledig uit de repo, mapopruiming |
+| `833f902` | **A-06, A-13** | vijf modules aangesloten, mobiele modus |
+| `0048f56` | **A-09** | signaalversie, status, snooze en invoerhash |
+| `925aae7` | **A-10** | herkomst per veld met grendel op handmatige invoer |
+| `6e2d1db` | **A-04** | unsafe-inline uit de CSP |
+| `9aaab3e` | **A-15** | hexkleuren, ongebruikte dependency, financiële drieslag |
 
 **Hervatten:** alles wat de vertrouwelijkheid en herstelbaarheid van data raakt, is nu af. Wat rest is ontbrekende functionaliteit: **A-06** (vijf modules aansluiten), **A-09** (signaalstatus en snooze), **A-10** (`bron` op elk datapunt) en **A-13** (mobiele modus). A-06 en A-10 zijn elk ruim boven de 200-regelgrens. Daarnaast opruimwerk: A-04, A-15, A-16, A-17, A-18.

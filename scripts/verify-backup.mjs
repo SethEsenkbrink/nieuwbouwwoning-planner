@@ -290,7 +290,44 @@ async function verifyFixture() {
     throw new Error("Ontsleutelen met fout wachtwoord had moeten falen.");
   }
 
-  console.log("✓ Backup & Restore OK — golden fixture v1, CHECKSUMS integriteit en AES-256-GCM validatie geslaagd.");
+  // ── Fixture per schemaversie (bevinding A-16) ────────────────────────────
+  //
+  // Voor élke schemaversie die ooit heeft bestaan moet er een golden fixture
+  // zijn, anders kun je niet aantonen dat een backup uit die versie nog
+  // hersteld kan worden. Nu is er één versie en één fixture; deze controle
+  // bestaat om dat zo te houden. Zodra HUIDIGE_SCHEMA_VERSIE naar 2 gaat en
+  // er geen fixture voor v1 meer bijkomt, wordt dit rood.
+  const migratieBron = readFileSync(join(ROOT, "src", "migrations", "index.ts"), "utf8");
+  const huidig = Number(/HUIDIGE_SCHEMA_VERSIE = (\d+)/.exec(migratieBron)?.[1] ?? "0");
+  const oudste = Number(
+    /OUDSTE_ONDERSTEUNDE_SCHEMA_VERSIE = (\d+)/.exec(migratieBron)?.[1] ?? "0",
+  );
+
+  if (!huidig || !oudste) {
+    console.error("\n✗ Kon de schemaversies niet uit src/migrations/index.ts lezen.\n");
+    process.exit(1);
+  }
+
+  const ontbrekend = [];
+  for (let versie = oudste; versie <= huidig; versie++) {
+    const pad = join(FIXTURES_DIR, `golden-v${String(versie)}.woningdossier`);
+    if (!existsSync(pad)) ontbrekend.push(`golden-v${String(versie)}.woningdossier`);
+  }
+
+  if (ontbrekend.length > 0) {
+    console.error(
+      `\n✗ Golden fixtures ontbreken voor schemaversie(s): ${ontbrekend.join(", ")}\n\n` +
+        `  Voor elke schemaversie die ooit bestond hoort er een fixture te zijn,\n` +
+        `  anders is niet aantoonbaar dat een backup uit die versie nog te\n` +
+        `  herstellen is. Zie bevinding A-16.\n`,
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `✓ Backup & Restore OK — fixtures v${String(oudste)} t/m v${String(huidig)}, CHECKSUMS ` +
+      `integriteit en AES-256-GCM validatie geslaagd.`,
+  );
 }
 
 verifyFixture().catch((err) => {
