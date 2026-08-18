@@ -1,14 +1,18 @@
 import { useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useVault } from "@/context/useVault";
 import { Logo } from "./Logo";
 import { Knop } from "./Knop";
 import { Hoofdnavigatie, Menuknop, Mobielmenu, Subnavigatie } from "./Hoofdnavigatie";
+import { magBewerken, useModus } from "@/context/useModus";
 
 /**
  * Header + container voor alle schermen in het Woningdossier.
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  const modus = useModus();
+  const { pathname } = useLocation();
+  const bewerkenToegestaan = magBewerken(modus, pathname);
   const { vergrendel } = useVault();
   const navigeer = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -62,7 +66,26 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-content px-s2 py-s4">{children}</main>
+      {/* ── Modusindicator ───────────────────────────────────────────────
+          De actieve modus moet onmiskenbaar zijn (B8.1): op mobiel ben je
+          aan het vastleggen, niet aan het beheren. */}
+      {modus === "mobiel" && (
+        <div className="niet-printen mx-auto max-w-content px-s2">
+          <p className="rounded-md bg-bone px-s2 py-1 text-sm text-slate">
+            <strong className="text-ink">Mobiele modus</strong> —
+            {bewerkenToegestaan
+              ? " snel vastleggen"
+              : " alleen lezen. Bewerken doe je op de desktop."}
+          </p>
+        </div>
+      )}
+
+      {/* Op mobiel buiten quick-capture is de inhoud niet te bedienen (B8.2).
+          `inert` zet alle controls in één keer uit; de navigatie hierboven
+          valt erbuiten en blijft dus gewoon werken. */}
+      <main className="mx-auto max-w-content px-s2 py-s4" inert={!bewerkenToegestaan}>
+        {children}
+      </main>
 
       <footer className="niet-printen mx-auto max-w-content px-s2 pb-s4">
         <p className="text-sm text-granite">

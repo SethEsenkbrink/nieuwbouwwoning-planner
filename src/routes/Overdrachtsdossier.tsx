@@ -13,6 +13,10 @@ import { toonBedrag } from "@/lib/bedrag";
 import { isOpgeleverd } from "@/lib/woning";
 import { toonStand } from "@/lib/meterstanden";
 import { stelDossierSamen, type Overdrachtsdossier } from "@/lib/overdracht";
+import {
+  genereerWoningpaspoortHtml,
+  stelOverdrachtsdossierSamen,
+} from "@/lib/woningpaspoort/overdracht";
 import { ONDERDEELCATEGORIEEN } from "@/data/onderdelen-standaard";
 import { WONINGTYPEOPTIES } from "@/data/woning-opties";
 import { WAARBORGOPTIES } from "@/data/project-opties";
@@ -161,6 +165,49 @@ export default function OverdrachtsdossierScherm() {
 
   const nu = vandaag();
   const datum = overdrachtOp ?? nu;
+  /**
+   * Bouwt het zelfstandige woningpaspoort en biedt het aan als HTML-bestand.
+   *
+   * Bewust een los bestand en geen printweergave: de koper krijgt hiermee iets
+   * dat op elk apparaat opent zonder deze app en zonder internet. Dat is waar
+   * `src/lib/woningpaspoort/overdracht.ts` voor gebouwd is — die module had tot
+   * nu toe geen enkele importeur (bevinding A-06).
+   */
+  function downloadWoningpaspoort() {
+    if (!project) return;
+
+    try {
+      const paspoort = stelOverdrachtsdossierSamen(
+        project as unknown as Parameters<typeof stelOverdrachtsdossierSamen>[0],
+        onderdelen as unknown as Parameters<typeof stelOverdrachtsdossierSamen>[1],
+        [],
+        [],
+        [],
+        logboek as unknown as Parameters<typeof stelOverdrachtsdossierSamen>[5],
+      );
+
+      const html = genereerWoningpaspoortHtml(paspoort);
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const veiligeNaam = (project.naam || "woning")
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "_");
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `woningpaspoort-${veiligeNaam}-${new Date().toISOString().slice(0, 10)}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (err) {
+      setFout(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   const dossier = stelDossierSamen(
     { project, onderdelen, logboek, meters, meterstanden, betrokkenen },
     datum,
@@ -231,6 +278,9 @@ export default function OverdrachtsdossierScherm() {
         )}
 
         <div className="mt-s4 flex flex-wrap items-center gap-s2">
+          <Knop variant="secundair" onClick={downloadWoningpaspoort}>
+            Woningpaspoort downloaden (HTML)
+          </Knop>
           <Knop
             onClick={() => {
               window.print();

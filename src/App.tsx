@@ -21,6 +21,9 @@ import Onderdelen from "@/routes/Onderdelen";
 import Onderhoud from "@/routes/Onderhoud";
 import Meterstanden from "@/routes/Meterstanden";
 import Overdrachtsdossier from "@/routes/Overdrachtsdossier";
+import Energie from "@/routes/Energie";
+import SnelVastleggen from "@/routes/SnelVastleggen";
+import Mjop from "@/routes/Mjop";
 import Diagnostiek from "@/routes/Diagnostiek";
 import NietGevonden from "@/routes/NietGevonden";
 
@@ -159,6 +162,30 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Onderhoud />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/snel"
+            element={
+              <ProtectedRoute>
+                <SnelVastleggen />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/energie"
+            element={
+              <ProtectedRoute>
+                <Energie />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mjop"
+            element={
+              <ProtectedRoute>
+                <Mjop />
               </ProtectedRoute>
             }
           />
