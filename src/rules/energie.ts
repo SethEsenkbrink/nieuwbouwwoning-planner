@@ -41,6 +41,10 @@ export function evalueerEnergieRegels(
           beschrijving: `De laatste meterstand dateert van ${naarDatumSleutel(nieuwste.opgenomenOp.toDate())}. Voer nieuwe standen in voor betrouwbare verbruiksinzichten.`,
           actieTekst: "Meterstanden invoeren",
           actieUrl: "/energie",
+          invoerwaarden: {
+            laatsteOpname: nieuwste.opgenomenOp.toDate().toISOString().slice(0, 10),
+            drempelDagen: 120,
+          },
         });
       } else if (dagenSindsLaatste > 60) {
         resultaten.push({
@@ -52,6 +56,10 @@ export function evalueerEnergieRegels(
           beschrijving: `Het is ${dagenSindsLaatste} dagen geleden sinds je laatste meterstandopname.`,
           actieTekst: "Meterstand toevoegen",
           actieUrl: "/energie",
+          invoerwaarden: {
+            laatsteOpname: nieuwste.opgenomenOp.toDate().toISOString().slice(0, 10),
+            drempelDagen: 60,
+          },
         });
       }
     }

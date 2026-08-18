@@ -79,6 +79,8 @@ export class WoningdossierDB extends Dexie {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   inboedel!: EntityTable<StoredRecord<InboedelItem> & Record<string, any>, "id">;
   backup_doel!: EntityTable<BackupDoel, "id">;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  signalen!: EntityTable<{ id: string; projectId: string } & Record<string, any>, "id">;
 
   constructor() {
     super("woningdossier");
@@ -158,6 +160,19 @@ export class WoningdossierDB extends Dexie {
     this.version(3).stores({
       backup_doel: "id",
     });
+
+    // ── Versie 4 — signaaltabel ───────────────────────────────────────────
+    //
+    // Wat de gebruiker met een signaal deed: geaccepteerd, genegeerd of
+    // gesnoozed, plus de invoerhash die op dat moment gold. Zonder die hash
+    // zou een weggeklikt signaal ofwel voorgoed weg zijn, ofwel bij elke
+    // herberekening terugkomen (bevinding A-09).
+    //
+    // Gaat door dezelfde versleutelde opslaglaag als de rest: welke signalen
+    // openstaan verraadt anders welke problemen er in het dossier spelen.
+    this.version(4).stores({
+      signalen: "id, projectId",
+    });
   }
 }
 
@@ -188,6 +203,7 @@ export function versleuteldeTabellen(database: WoningdossierDB) {
     database.garanties,
     database.verzekeringen,
     database.inboedel,
+    database.signalen,
   ];
 }
 

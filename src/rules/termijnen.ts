@@ -45,6 +45,11 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
         deadlineDatum: naarDatumSleutel(vervalDatum),
         actieTekst: "Bekijk opschortingsstatus",
         actieUrl: "/oplevering",
+        invoerwaarden: {
+          opleverdatum: naarDatumSleutel(oplevering),
+          vervaldatum: naarDatumSleutel(vervalDatum),
+          termijnDagen: 90,
+        },
       });
     } else if (resterendeDagen > 7 && resterendeDagen <= 30) {
       resultaten.push({
@@ -57,6 +62,11 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
         deadlineDatum: naarDatumSleutel(vervalDatum),
         actieTekst: "Controleer gebrekenlijst",
         actieUrl: "/oplevering",
+        invoerwaarden: {
+          opleverdatum: naarDatumSleutel(oplevering),
+          vervaldatum: naarDatumSleutel(vervalDatum),
+          termijnDagen: 90,
+        },
       });
     } else if (resterendeDagen < 0 && (context.project.opschortingStatus === "in_depot" || (context.project.opschortingBedrag ?? 0) > 0)) {
       resultaten.push({
@@ -70,6 +80,11 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
         deadlineDatum: naarDatumSleutel(vervalDatum),
         actieTekst: "Bekijk opleverstatus",
         actieUrl: "/oplevering",
+        invoerwaarden: {
+          opleverdatum: naarDatumSleutel(oplevering),
+          vervaldatum: naarDatumSleutel(vervalDatum),
+          termijnDagen: 90,
+        },
       });
     }
   }
@@ -92,6 +107,11 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
             referentieEntiteit: { type: "gebrek", id: gebrek.id ?? "" },
             actieTekst: "Bekijk gebrek",
             actieUrl: "/oplevering",
+            invoerwaarden: {
+              gebrekId: gebrek.id ?? "onbekend",
+              gemeldOp: naarDatumSleutel(gemeldDatum),
+              status: gebrek.status,
+            },
           });
         } else if (verstrekenDagen > 30) {
           resultaten.push({
@@ -104,6 +124,11 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
             referentieEntiteit: { type: "gebrek", id: gebrek.id ?? "" },
             actieTekst: "Herinnering sturen",
             actieUrl: "/oplevering",
+            invoerwaarden: {
+              gebrekId: gebrek.id ?? "onbekend",
+              gemeldOp: naarDatumSleutel(gemeldDatum),
+              status: gebrek.status,
+            },
           });
         }
       }
@@ -129,6 +154,10 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
             referentieEntiteit: { type: "meerwerk", id: item.id ?? "" },
             actieTekst: "Bekijk meerwerkoptie",
             actieUrl: "/meerwerk",
+            invoerwaarden: {
+              meerwerkId: item.id ?? "onbekend",
+              sluitingsdatum: naarDatumSleutel(sluiting),
+            },
           });
         } else if (dagenTotSluiting <= 3) {
           resultaten.push({
@@ -142,6 +171,10 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
             referentieEntiteit: { type: "meerwerk", id: item.id ?? "" },
             actieTekst: "Keuze doorgeven",
             actieUrl: "/meerwerk",
+            invoerwaarden: {
+              meerwerkId: item.id ?? "onbekend",
+              sluitingsdatum: naarDatumSleutel(sluiting),
+            },
           });
         } else if (dagenTotSluiting <= 14) {
           resultaten.push({
@@ -155,6 +188,10 @@ export function evalueerTermijnRegels(context: RegelContext): RegelResultaat[] {
             referentieEntiteit: { type: "meerwerk", id: item.id ?? "" },
             actieTekst: "Bekijk meerwerk",
             actieUrl: "/meerwerk",
+            invoerwaarden: {
+              meerwerkId: item.id ?? "onbekend",
+              sluitingsdatum: naarDatumSleutel(sluiting),
+            },
           });
         }
       }

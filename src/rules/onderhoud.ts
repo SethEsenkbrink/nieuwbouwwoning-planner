@@ -81,6 +81,11 @@ export function evalueerOnderhoudRegels(context: RegelContext): RegelResultaat[]
             referentieEntiteit: { type: "taak", id: taak.id ?? "" },
             actieTekst: "Afvinken in onderhoud",
             actieUrl: "/onderhoud",
+            invoerwaarden: {
+              taakId: taak.id ?? taak.titel,
+              intervalDagen: taak.intervalDagen,
+              volgendeOp: stand.volgendeOp.toISOString().slice(0, 10),
+            },
           });
         } else if (stand.urgentie === "nu" || stand.urgentie === "binnenkort") {
           resultaten.push({
@@ -94,6 +99,11 @@ export function evalueerOnderhoudRegels(context: RegelContext): RegelResultaat[]
             referentieEntiteit: { type: "taak", id: taak.id ?? "" },
             actieTekst: "Bekijk taak",
             actieUrl: "/onderhoud",
+            invoerwaarden: {
+              taakId: taak.id ?? taak.titel,
+              intervalDagen: taak.intervalDagen,
+              volgendeOp: stand.volgendeOp.toISOString().slice(0, 10),
+            },
           });
         }
       }

@@ -42,6 +42,11 @@ export function evalueerFinancieleRegels(context: RegelContext): RegelResultaat[
         deadlineDatum: naarDatumSleutel(vervalDatum),
         actieTekst: "Bekijk bouwdepot",
         actieUrl: "/bouwdepot",
+        invoerwaarden: {
+          passeerdatum: passeerdatum.toISOString().slice(0, 10),
+          vervaldatum: vervalDatum.toISOString().slice(0, 10),
+          looptijdMaanden: 24,
+        },
       });
     } else if (maandenResterend <= 1) {
       resultaten.push({
@@ -57,6 +62,11 @@ export function evalueerFinancieleRegels(context: RegelContext): RegelResultaat[
         deadlineDatum: naarDatumSleutel(vervalDatum),
         actieTekst: "Bekijk bouwdepot",
         actieUrl: "/bouwdepot",
+        invoerwaarden: {
+          passeerdatum: passeerdatum.toISOString().slice(0, 10),
+          vervaldatum: vervalDatum.toISOString().slice(0, 10),
+          looptijdMaanden: 24,
+        },
       });
     } else if (maandenResterend <= 6) {
       resultaten.push({
@@ -72,6 +82,11 @@ export function evalueerFinancieleRegels(context: RegelContext): RegelResultaat[
         deadlineDatum: naarDatumSleutel(vervalDatum),
         actieTekst: "Bekijk bouwdepot",
         actieUrl: "/bouwdepot",
+        invoerwaarden: {
+          passeerdatum: passeerdatum.toISOString().slice(0, 10),
+          vervaldatum: vervalDatum.toISOString().slice(0, 10),
+          looptijdMaanden: 24,
+        },
       });
     }
   }
@@ -92,12 +107,17 @@ export function evalueerFinancieleRegels(context: RegelContext): RegelResultaat[
       resultaten.push({
         id: "f-002-overschreden",
         regelId: "F-002",
-        categorie: "financieel",
         niveau: "waarschuwing",
+        categorie: "financieel",
         titel: `Meerwerk overschrijdt budget met € ${overschrijding.toLocaleString("nl-NL")}`,
         beschrijving: `Totale meerwerkkeuzes bedragen € ${totaalActief.toLocaleString("nl-NL")} tegenover een budget van € ${budget.toLocaleString("nl-NL")}.`,
         actieTekst: "Bekijk meerwerkoverzicht",
         actieUrl: "/meerwerk",
+        invoerwaarden: {
+          overschrijding,
+          meerwerkbudget: budget,
+          totaalActief,
+        },
       });
     } else if (totaalActief >= 0.9 * budget) {
       resultaten.push({
@@ -109,6 +129,10 @@ export function evalueerFinancieleRegels(context: RegelContext): RegelResultaat[
         beschrijving: `Er is € ${totaalActief.toLocaleString("nl-NL")} van het budget van € ${budget.toLocaleString("nl-NL")} vastgelegd.`,
         actieTekst: "Bekijk meerwerk",
         actieUrl: "/meerwerk",
+        invoerwaarden: {
+          meerwerkbudget: budget,
+          totaalActief,
+        },
       });
     }
   }
@@ -127,6 +151,12 @@ export function evalueerFinancieleRegels(context: RegelContext): RegelResultaat[
           referentieEntiteit: { type: "termijn", id: termijn.id ?? "" },
           actieTekst: "Declareer termijn",
           actieUrl: "/bouwdepot",
+          invoerwaarden: {
+            termijnId: termijn.id ?? termijn.omschrijving,
+            bedrag: termijn.bedrag ?? 0,
+            gefactureerd: true,
+            betaald: false,
+          },
         });
       }
     }

@@ -35,6 +35,11 @@ import {
 } from "@/lib/backup/doel";
 import { importeerDossier } from "@/lib/backup/import";
 import { wisAllesLokaal } from "@/lib/paniek";
+import { REGELCATEGORIEEN, type RegelCategorie } from "@/rules/types";
+import {
+  haalUitgeschakeldeCategorieen,
+  zetUitgeschakeldeCategorieen,
+} from "@/lib/signalen";
 
 import { berekenImpact } from "@/lib/watals";
 import {
@@ -111,6 +116,9 @@ export default function Projectinstellingen() {
   const [paniekBevestiging, setPaniekBevestiging] = useState("");
   const [bezigMetPaniek, setBezigMetPaniek] = useState(false);
 
+  // Welke signaalcategorieën uitstaan (B6.9).
+  const [uitCategorieen, setUitCategorieen] = useState<RegelCategorie[]>([]);
+
   const [herlaadTeller, setHerlaadTeller] = useState(0);
   const herlaad = useCallback(() => {
     setHerlaadTeller((n) => n + 1);
@@ -165,6 +173,21 @@ export default function Projectinstellingen() {
     const map = await haalBewaardeBackupmap();
     if (!map) return;
     setBackupToegang(await vraagToegangOpnieuw(map));
+  }
+
+  /** Zet één regelcategorie aan of uit en bewaart dat meteen. */
+  async function wisselCategorie(categorie: RegelCategorie) {
+    if (!project) return;
+    const nieuw = uitCategorieen.includes(categorie)
+      ? uitCategorieen.filter((c) => c !== categorie)
+      : [...uitCategorieen, categorie];
+
+    setUitCategorieen(nieuw);
+    try {
+      await zetUitgeschakeldeCategorieen(project.id, nieuw);
+    } catch (err) {
+      setFout(err instanceof Error ? err.message : String(err));
+    }
   }
 
   async function voerPaniekUit() {
@@ -239,6 +262,7 @@ export default function Projectinstellingen() {
         if (!actueel) return;
 
         setProject(gevonden);
+        setUitCategorieen(await haalUitgeschakeldeCategorieen(gevonden.id));
         setAfspraken(geladenAfspraken);
         setAnkers(geladenAnkers);
         setBetrokkenen(geladenBetrokkenen);
@@ -515,6 +539,36 @@ export default function Projectinstellingen() {
         </div>
       </section>
 
+
+      {/* ── Signaalcategorieën ───────────────────────────────────────────
+          Welke soorten signalen je wilt zien. Uitzetten onderdrukt ze
+          volledig; het is geen filter op de weergave maar op de motor, zodat
+          een uitgezette categorie ook niet meetelt voor de begrenzing op drie
+          zichtbare signalen (B6.9). */}
+      <section className="brink-card mt-s6 max-w-xl p-s3">
+        <h2 className="text-h3 text-ink">Welke signalen wil je zien?</h2>
+        <p className="mt-s2 text-body text-slate">
+          Zet je een categorie uit, dan berekent de app die signalen niet meer. Je kunt hem
+          later weer aanzetten; er gaat niets verloren.
+        </p>
+
+        <ul className="mt-s3 flex flex-col gap-s2">
+          {REGELCATEGORIEEN.map((categorie) => {
+            const uitgeschakeld = uitCategorieen.includes(categorie.waarde);
+            return (
+              <li key={categorie.waarde} className="flex items-center justify-between gap-s2">
+                <span className="text-body text-ink">{categorie.label}</span>
+                <Knop
+                  variant="secundair"
+                  onClick={() => void wisselCategorie(categorie.waarde)}
+                >
+                  {uitgeschakeld ? "Uit" : "Aan"}
+                </Knop>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
       {/* ── Backup & Herstel (.woningdossier) ─────────────────────────── */}
       <section className="brink-card mt-s6 max-w-xl p-s3">
         <h2 className="text-h3 text-ink">Backup &amp; Herstel</h2>

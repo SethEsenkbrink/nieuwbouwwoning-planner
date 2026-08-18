@@ -44,6 +44,12 @@ export function evalueerGarantieRegels(context: RegelContext): RegelResultaat[] 
             referentieEntiteit: { type: "onderdeel", id: garantie.id ?? "" },
             actieTekst: "Controleer onderdeel",
             actieUrl: "/woning",
+            invoerwaarden: {
+              garantieId: garantie.id ?? garantie.titel,
+              ingangsdatum: ingang.toISOString().slice(0, 10),
+              looptijdJaren: garantie.looptijdJaren,
+              vervaldatum: vervaldatum.toISOString().slice(0, 10),
+            },
           });
         } else if (resterendeDagen > 14 && resterendeDagen <= 60) {
           resultaten.push({
@@ -57,6 +63,12 @@ export function evalueerGarantieRegels(context: RegelContext): RegelResultaat[] 
             referentieEntiteit: { type: "onderdeel", id: garantie.id ?? "" },
             actieTekst: "Bekijk garantie",
             actieUrl: "/woning",
+            invoerwaarden: {
+              garantieId: garantie.id ?? garantie.titel,
+              ingangsdatum: ingang.toISOString().slice(0, 10),
+              looptijdJaren: garantie.looptijdJaren,
+              vervaldatum: vervaldatum.toISOString().slice(0, 10),
+            },
           });
         }
       }
@@ -84,6 +96,12 @@ export function evalueerGarantieRegels(context: RegelContext): RegelResultaat[] 
             referentieEntiteit: { type: "onderdeel", id: onderdeel.id ?? "" },
             actieTekst: "Bekijk onderdeel",
             actieUrl: "/onderdelen",
+            invoerwaarden: {
+              onderdeelId: onderdeel.id ?? onderdeel.naam,
+              installatiedatum: installatie.toISOString().slice(0, 10),
+              garantieMaanden: onderdeel.garantieMaanden,
+              vervaldatum: vervaldatum.toISOString().slice(0, 10),
+            },
           });
         }
       }
