@@ -107,6 +107,9 @@ negatief bewezen is.
 - **Verlaag nooit** de Argon2id-parameters, de sleutellengte of een CSP-directive.
 - Een reparatie zonder test die de fout afvangt is niet af. Bewijs waar mogelijk dát de test
   de fout vangt door hem tijdelijk terug te zetten.
+- **Draai `npm install` alleen in WSL (Linux), nooit op Windows** — anders prunet npm de
+  wasm-pakketten die Netlify nodig heeft en faalt de deploy terwijl lokaal alles groen is.
+  `npm ci` is op beide veilig. Zie CLAUDE.md §8.
 - Draai `npm run verify` na elke fix. Deze draait op Seths eigen machine (Node 24.12.0), dus
   lint, tests en build kunnen écht.
 - Blijkt een fix groter dan ~200 regels of raakt hij meerdere modules: stop, noteer hem onder

@@ -169,3 +169,47 @@ Uit `WORKFLOW.md` §2 en §8, hier herhaald omdat het de enige regel is die nooi
 4. ADR schrijven bij elke keuze die je later zou moeten uitleggen
 5. Seth `npm run verify` én `npm run rules:test` laten draaien, en de **werkelijke** uitkomst
    in `STATE.md` zetten — niet de verwachte
+
+## 8. WSL 2 — de Linux-build testen vóór een deploy
+
+Netlify bouwt op **Linux**, jouw machine is Windows. Dat verschil heeft op
+18 augustus 2026 een deploy-blokkerende fout opgeleverd die lokaal onzichtbaar was:
+
+```
+npm error Missing: @emnapi/runtime@2.0.0-alpha.4 from lock file
+```
+
+**De oorzaak.** `npm install` prunet de optionele platformafhankelijkheden die op de
+huidige machine niet nodig zijn. Een install op Windows gooit de wasm-pakketten weg die
+Linux nodig heeft. De lockfile blijft geldig op Windows en is stuk op de buildserver.
+
+**De regel die hieruit volgt:**
+
+> Draai `npm install` voor dit project **op Linux** (WSL), niet op Windows.
+> `npm ci` is op beide veilig — die laat de lockfile ongemoeid.
+
+`npm run verify` bevat sinds die dag `verify:lockfile`, dat rood loopt zodra de lockfile
+één van de platformgroepen mist. Je merkt het dus vóór de push in plaats van in de
+Netlify-log.
+
+### De WSL-omgeving
+
+Ubuntu 26.04 LTS, gebruiker `sethp`, Node via nvm (geen `sudo` nodig):
+
+| | |
+| --- | --- |
+| Node in WSL | 24.19.0 via `~/.nvm` |
+| Testkopie | `~/linuxtest` — verse clone vanaf GitHub, wegwerpbaar |
+
+**Gebruik nooit `/mnt/c/...` voor een install.** Dan overschrijft npm je Windows
+`node_modules` met Linux-binaries en werkt je lokale build niet meer tot je opnieuw
+installeert. De testkopie in `~` staat daar los van.
+
+De lockfile opnieuw genereren, als `verify:lockfile` rood staat:
+
+```bash
+wsl -e bash -lc 'export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"; cd ~/linuxtest && git pull -q && npm install && cp package-lock.json /mnt/c/Users/sethp/package-lock.linux.json'
+```
+
+Kopieer dat bestand daarna over `package-lock.json` heen, draai `npm ci` (niet
+`npm install`) en commit.
