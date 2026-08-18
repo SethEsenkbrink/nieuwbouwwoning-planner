@@ -27,7 +27,7 @@
     "verify": "npm run typecheck && npm run lint && npm run test && npm run verify:tokens && npm run verify:headers && npm run verify:crypto && npm run verify:backup && npm run verify:bereikbaarheid && npm run build && npm run verify:offline"
   },
   "overrides": {
-    "brace-expansion": "^5.0.8",
+    "brace-expansion": "^5.0.9",
     "sharp": "^0.35.3"
   },
   "dependencies": {
