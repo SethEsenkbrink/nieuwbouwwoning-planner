@@ -239,7 +239,7 @@ B2.2 (hex-kleuren), B2.6 (ongebruikte dependencies per stuk), B5.1/B5.4/B5.5 (tr
 `*.woningdossier` ontbrak. Een gebruiker die een backup in de projectmap zet, commit hem mee.
 *Reparatie (doorgevoerd):* `*.woningdossier` toegevoegd met uitzondering voor `tests/fixtures/` en `test/fixtures/backups/`. Beide kanten getest met `git check-ignore`: de golden fixture blijft getrackt, een losse backup wordt genegeerd.
 
-**A-20 — Twee `console.error`-aanroepen in `src/`** — ⚠️ **DEELS** (`8d80167`): VaultContext opgeruimd, main.tsx bewust behouden als laatste vangnet bij opstartfouten
+**A-20 — Twee `console.error`-aanroepen in `src/`** — ✅ **GEREPAREERD**
 `src/context/VaultContext.tsx:87`, `src/main.tsx:21`. Beide zijn legitieme foutafhandeling, maar B9 vraagt een schone `src/`.
 *Reparatie:* vervangen door de bestaande foutafhandeling (`OpstartFout`) of expliciet toestaan in de regel.
 
@@ -293,12 +293,18 @@ balken tekenen met een SVG en `<rect>`-presentatieattributen. `width` op een rec
 XML-attribuut en valt buiten de CSP, dus de proporties blijven exact én `unsafe-inline` kon
 weg.
 
-**B4.6 (streaming zip) blijft bewust open.** `fflate` biedt een streaming-API, maar het
+**B4.6 (streaming zip) blijft bewust zo — besloten door Seth op 2026-08-18.** `fflate` biedt een streaming-API, maar het
 archief wordt hoe dan ook in één keer weggeschreven en direct teruggelezen ter controle
 (A-07). Streaming zou het geheugengebruik verlagen voor dossiers van honderden megabytes,
 maar de terugleescontrole — die aantoonbaar dataverlies voorkomt — zou dan complexer worden.
-Voor een huishoudensdossier is dat een slechte ruil. Herzien zodra bijlagen in de honderden
-megabytes lopen.
+Voor een huishoudensdossier is dat een slechte ruil.
+
+Belangrijk om te weten waaróm dit geen veiligheidspunt is: streaming gaat over geheugengebruik,
+niet over vertrouwelijkheid. De inhoud is al versleuteld vóórdat hij het archief in gaat — of
+die bytes in één keer of in stukjes worden weggeschreven verandert daar niets aan. En loopt het
+geheugen bij een extreem groot dossier tóch vol, dan faalt de schrijfactie met een zichtbare
+fout; de terugleescontrole uit A-07 zorgt dat het nooit als "backup geslaagd" eindigt. De
+faalmodus is dus luidruchtig, niet stil. Herzien zodra bijlagen in de honderden megabytes lopen.
 
 ---
 

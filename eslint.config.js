@@ -67,7 +67,10 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-return": "error",
 
       // console.log vergeten in productie is slordig; warn/error mogen wel.
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+      // Geen enkele console-aanroep in src/. Een boodschap in een console die
+      // niemand opent is geen foutafhandeling; het hoort op het scherm of in de
+      // diagnostiek-logger (bevinding A-20).
+      "no-console": "error",
 
       // Harde vangnetten tegen de projectconstraints (PROJECT.md §3, ADR-0020).
       "no-restricted-imports": [
@@ -89,18 +92,6 @@ export default tseslint.config(
           ],
         },
       ],
-    },
-  },
-
-  // ── Netlify Functions draaien in Node, niet in de browser ─────────────────
-  {
-    files: ["netlify/**/*.mts"],
-    languageOptions: {
-      globals: { ...globals.node, Netlify: "readonly" },
-    },
-    rules: {
-      // Serverside logging is legitiem.
-      "no-console": "off",
     },
   },
 

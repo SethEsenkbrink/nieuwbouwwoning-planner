@@ -18,7 +18,9 @@ try {
     </StrictMode>,
   );
 } catch (fout) {
-  console.error("Opstarten mislukt:", fout);
+  // Geen console.error: OpstartFout toont de melding én de stacktrace op het
+  // scherm zelf. Dat is bruikbaarder dan een regel in een console die niemand
+  // opent, en het houdt src/ vrij van console-aanroepen (bevinding A-20).
   const { OpstartFout } = await import("./components/OpstartFout");
   root.render(<OpstartFout fout={fout} />);
 }

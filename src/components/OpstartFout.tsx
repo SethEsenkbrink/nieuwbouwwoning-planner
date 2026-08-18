@@ -6,6 +6,11 @@ import { Logo } from "./Logo";
 export function OpstartFout({ fout }: { fout: unknown }) {
   const melding = fout instanceof Error ? fout.message : String(fout);
 
+  // De stacktrace hoort hier en niet in de console. Bij een opstartfout is dit
+  // het enige scherm dat de gebruiker ziet; een console.error zou dezelfde
+  // informatie wegstoppen op een plek waar niemand kijkt (bevinding A-20).
+  const stack = fout instanceof Error && fout.stack ? fout.stack : null;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-s2 py-s6">
       <div className="w-full max-w-2xl">
@@ -29,7 +34,7 @@ export function OpstartFout({ fout }: { fout: unknown }) {
               Technische melding
             </summary>
             <pre className="mt-s1 overflow-x-auto rounded-xs bg-bone p-3 text-sm text-charcoal">
-              {melding}
+              {stack ?? melding}
             </pre>
           </details>
         </div>
