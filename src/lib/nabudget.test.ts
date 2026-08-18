@@ -75,6 +75,9 @@ describe("telNabudget", () => {
       besteld: 0,
       betaald: 0,
       afwijking: 0,
+      begroot: 0,
+      werkelijk: 0,
+      nogVerplicht: 0,
       zonderBedrag: 0,
     });
   });
@@ -112,5 +115,38 @@ describe("ontbrekendeStandaardposten", () => {
   it("geeft alles terug als er nog niets is", () => {
     const standaard = [{ omschrijving: "Vloerafwerking" }, { omschrijving: "Tuinaanleg" }];
     expect(ontbrekendeStandaardposten([], standaard)).toHaveLength(2);
+  });
+});
+
+describe("De financiële drieslag (B5.4)", () => {
+  /**
+   * Begroot, werkelijk en nog verplicht beantwoorden elk een andere vraag.
+   * Ze moeten los van elkaar kloppen, ook als een post nog geen raming heeft
+   * of juist duurder uitviel dan begroot.
+   */
+  const posten = [
+    { id: "1", omschrijving: "Tuin", geraamd: 5000, status: "geraamd" },
+    { id: "2", omschrijving: "Vloer", geraamd: 8000, werkelijk: 9500, status: "betaald" },
+    { id: "3", omschrijving: "Zonwering", geraamd: 3000, status: "besteld" },
+    { id: "4", omschrijving: "Nog onbekend", status: "geraamd" },
+  ] as unknown as Parameters<typeof telNabudget>[0];
+
+  it("telt begroot over alle ramingen, ongeacht status", () => {
+    expect(telNabudget(posten).begroot).toBe(16000);
+  });
+
+  it("telt werkelijk alleen over wat betaald is", () => {
+    expect(telNabudget(posten).werkelijk).toBe(9500);
+  });
+
+  it("telt nog verplicht alleen over wat besteld maar niet betaald is", () => {
+    expect(telNabudget(posten).nogVerplicht).toBe(3000);
+  });
+
+  it("houdt nog verplicht los van wat nog te begroten valt", () => {
+    // Post 1 is geraamd maar nog niet besteld: die ligt niet vast en hoort
+    // dus niet bij nogVerplicht.
+    const stand = telNabudget(posten);
+    expect(stand.nogVerplicht).not.toBe(stand.geraamd);
   });
 });

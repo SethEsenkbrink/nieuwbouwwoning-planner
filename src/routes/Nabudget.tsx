@@ -314,6 +314,25 @@ export default function Nabudget() {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-h3 text-ink">Totaal</h2>
             <span className="text-body text-ink">{toonBedrag(stand.totaal)}</span>
+
+          {/* ── Begroot / werkelijk / nog verplicht ──────────────────────
+              Drie getallen die elk een andere vraag beantwoorden (B5.4).
+              Nog verplicht staat apart van wat nog te begroten valt: het
+              ligt al vast, daar kun je niets meer aan veranderen. */}
+          <dl className="mt-s3 grid gap-s2 sm:grid-cols-3">
+            <div>
+              <dt className="text-sm text-slate">Begroot</dt>
+              <dd className="text-body text-ink">{toonBedrag(stand.begroot)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-slate">Werkelijk</dt>
+              <dd className="text-body text-ink">{toonBedrag(stand.werkelijk)}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-slate">Nog verplicht</dt>
+              <dd className="text-body text-ink">{toonBedrag(stand.nogVerplicht)}</dd>
+            </div>
+          </dl>
           </div>
 
           <div className="mt-s3">

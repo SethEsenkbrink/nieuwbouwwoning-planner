@@ -32,6 +32,24 @@ export interface Nabudgetstand {
    * Positief betekent: duurder uitgevallen dan gedacht.
    */
   afwijking: number;
+  /**
+   * ── De financiële drieslag (B5.4) ──────────────────────────────────────
+   *
+   * Drie getallen die elk een andere vraag beantwoorden, en die je naast
+   * elkaar moet zien om te weten waar je staat:
+   *
+   *   begroot       wat je dácht dat het zou kosten — de som van alle ramingen
+   *   werkelijk     wat er daadwerkelijk is afgerekend
+   *   nogVerplicht  wat vastligt maar nog niet betaald is
+   *
+   * `nogVerplicht` is bewust apart gehouden van wat er nog te begroten valt:
+   * het ligt al vast, daar kun je niets meer aan veranderen. Die twee als één
+   * "openstaand" bedrag tonen zou precies het verschil verbergen dat ertoe
+   * doet als je moet bijsturen.
+   */
+  begroot: number;
+  werkelijk: number;
+  nogVerplicht: number;
   /** Posten zonder enig bedrag; de totalen zijn dan een ondergrens. */
   zonderBedrag: number;
 }
@@ -44,6 +62,9 @@ export function telNabudget(posten: readonly NabudgetMetId[]): Nabudgetstand {
     besteld: 0,
     betaald: 0,
     afwijking: 0,
+    begroot: 0,
+    werkelijk: 0,
+    nogVerplicht: 0,
     zonderBedrag: 0,
   };
 
@@ -58,6 +79,12 @@ export function telNabudget(posten: readonly NabudgetMetId[]): Nabudgetstand {
     if (post.status === "betaald") stand.betaald += bedrag;
     else if (post.status === "besteld") stand.besteld += bedrag;
     else stand.geraamd += bedrag;
+
+    // De drieslag telt langs een andere as dan de statusverdeling hierboven:
+    // begroot kijkt naar de raming, werkelijk naar wat afgerekend is.
+    if (post.geraamd !== undefined) stand.begroot += post.geraamd;
+    if (post.status === "betaald") stand.werkelijk += bedrag;
+    else if (post.status === "besteld") stand.nogVerplicht += bedrag;
   }
 
   return stand;
