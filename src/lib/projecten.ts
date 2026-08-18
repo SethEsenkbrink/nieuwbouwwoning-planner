@@ -9,6 +9,7 @@ import {
   verwijderVanProject,
 } from "@/db/kluisopslag";
 import { Timestamp } from "@/types/model";
+import { markeerAlsIngevoerd, voegBerekendeWaardenSamen } from "@/lib/bron";
 import {
   afspraakNaarOpslag,
   afspraakUitOpslag,
@@ -130,6 +131,12 @@ export async function haalProject(_uid: string, projectId: string): Promise<Proj
   return projectUitOpslag(record.id, record);
 }
 
+/**
+ * Werkt het project bij met wijzigingen die de gebruiker zelf heeft gemaakt.
+ *
+ * De gewijzigde velden worden als `ingevoerd` gemarkeerd en zijn daarmee
+ * beschermd tegen elke latere automatische bewerking (bevinding A-10).
+ */
 export async function werkProjectBij(
   _uid: string,
   projectId: string,
@@ -138,12 +145,43 @@ export async function werkProjectBij(
   const bestaand = await haal(db.projecten, projectId);
   if (!bestaand) return;
   const conversie = projectNaarOpslag(wijzigingen);
-  const bijgewerkt = {
-    ...bestaand,
-    ...conversie,
-    bijgewerktOp: Timestamp.now(),
-  };
+
+  const bijgewerkt: { id: string; projectId?: string } & Record<string, unknown> =
+    markeerAlsIngevoerd(
+      {
+        ...bestaand,
+        ...conversie,
+        bijgewerktOp: Timestamp.now(),
+      },
+      Object.keys(conversie),
+    );
+
   await bewaar(db.projecten, bijgewerkt);
+}
+
+/**
+ * Werkt het project bij met dóór de app berekende waarden.
+ *
+ * Slaat velden over die de gebruiker zelf heeft ingevuld en geeft terug welke
+ * dat waren, zodat de aanroeper dat kan tonen in plaats van stil af te wijken
+ * van wat de berekening zei.
+ */
+export async function werkBerekendeProjectwaardenBij(
+  _uid: string,
+  projectId: string,
+  berekend: ProjectInvoer,
+): Promise<{ overgeslagen: string[] }> {
+  const bestaand = await haal(db.projecten, projectId);
+  if (!bestaand) return { overgeslagen: [] };
+
+  const conversie = projectNaarOpslag(berekend);
+  const { record, overgeslagen } = voegBerekendeWaardenSamen(
+    bestaand as { id: string; projectId?: string } & Record<string, unknown>,
+    { ...conversie, bijgewerktOp: Timestamp.now() },
+  );
+
+  await bewaar(db.projecten, record);
+  return { overgeslagen };
 }
 
 export async function zetWoningStatus(

@@ -104,6 +104,31 @@ export type OpleverStatus = "indicatief" | "bandbreedte" | "aangezegd";
  * app zou dan van vorm veranderen op precies het moment dat er nog van alles
  * moet gebeuren. Zie ADR-0010 §1.
  */
+
+/**
+ * Waar een waarde vandaan komt.
+ *
+ * Dit is geen administratief detail maar de grendel onder de rekenkern: een
+ * herberekening mag nooit iets overschrijven wat de gebruiker zelf heeft
+ * ingevuld. Zonder herkomst is dat onderscheid niet te maken en overschrijft
+ * de eerstvolgende berekening stilletjes wat iemand bewust had aangepast.
+ *
+ * - `ingevoerd`   — de gebruiker heeft dit zelf ingevuld. Onaantastbaar.
+ * - `afgeleid`    — door de app berekend uit andere waarden.
+ * - `geïmporteerd`— uit een backup, P1-export of inbox-delta gekomen.
+ * - `voorstel`    — door de app voorgesteld, nog niet bevestigd.
+ */
+export type Bron = "ingevoerd" | "afgeleid" | "geïmporteerd" | "voorstel";
+
+/**
+ * De herkomst per veld van een record.
+ *
+ * Bewust een losse map naast de waarden in plaats van elke waarde in een
+ * `{ waarde, bron }`-omhulsel: dat laatste zou elk bestaand veld, elke query
+ * en elke bestaande backup breken. Zo blijft het datamodel leesbaar en is de
+ * herkomst optioneel bij te houden voor precies die velden waar het uitmaakt.
+ */
+export type Bronnen = Partial<Record<string, Bron>>;
 export type WoningStatus = "in_aanbouw" | "opgeleverd";
 
 /**
