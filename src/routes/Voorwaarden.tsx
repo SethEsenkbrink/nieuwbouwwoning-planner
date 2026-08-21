@@ -167,16 +167,10 @@ export default function Voorwaarden() {
       <Artikel nummer={8} titel="Broncode, licentie en merknaam">
         <p>
           De broncode van {AANBIEDER.product} is openbaar en beschikbaar onder de{" "}
-          <a
-            href={AANBIEDER.licentieUrl}
-            className="text-link underline"
-            rel="noreferrer noopener"
-            target="_blank"
-          >
-            {AANBIEDER.licentie}
-          </a>
-          -licentie. Je mag de code bekijken, aanpassen en zelf draaien onder de voorwaarden van
-          die licentie.
+          <strong className="text-ink">{AANBIEDER.licentie}</strong>-licentie. Je mag de code
+          bekijken, aanpassen en zelf draaien onder de voorwaarden van die licentie. De volledige
+          licentietekst staat in het bestand <code className="rounded-xs bg-bone px-1">LICENSE</code>{" "}
+          in de broncode.
         </p>
         <p>
           Die licentie geldt voor de code, niet voor de naam en de vormgeving. De namen{" "}

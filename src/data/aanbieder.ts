@@ -25,9 +25,16 @@ export interface Aanbieder {
   kvk?: string;
   /** Leeg laten tot het ingevuld kan worden. */
   vestigingsadres?: string;
-  /** De licentie waaronder de broncode beschikbaar is. */
+  /**
+   * De licentie waaronder de broncode beschikbaar is.
+   *
+   * Bewust alleen de naam en géén URL. `verify:offline` scant de gebouwde
+   * bundle op externe adressen en loopt rood op elke http(s)-verwijzing, ook
+   * op een link waar de gebruiker zelf op klikt. Die gate absoluut houden is
+   * meer waard dan een klikbare licentie: de volledige tekst staat in
+   * `LICENSE` in de broncode.
+   */
   licentie: string;
-  licentieUrl: string;
 }
 
 export const AANBIEDER: Aanbieder = {
@@ -36,7 +43,6 @@ export const AANBIEDER: Aanbieder = {
   email: "info@brinkmultimedia.nl",
   beveiligingEmail: "security@brinkmultimedia.nl",
   licentie: "AGPL-3.0-only",
-  licentieUrl: "https://www.gnu.org/licenses/agpl-3.0.nl.html",
 };
 
 /** De datum waarop de juridische teksten voor het laatst zijn herzien. */
