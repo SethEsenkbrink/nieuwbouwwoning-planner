@@ -2,11 +2,15 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { VaultProvider } from "@/context/VaultContext";
 import { useVault } from "@/context/useVault";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { Laadscherm } from "@/components/Laadscherm";
+import Landing from "@/routes/Landing";
+import Voorwaarden from "@/routes/Voorwaarden";
+import Privacy from "@/routes/Privacy";
 import Inloggen from "@/routes/Inloggen";
 import Registreren from "@/routes/Registreren";
 import WachtwoordVergeten from "@/routes/WachtwoordVergeten";
 import Dashboard from "@/routes/Dashboard";
-import ProjectWizard from "@/routes/ProjectWizard";
+import Startwizard from "@/routes/Startwizard";
 import Betrokkenen from "@/routes/Betrokkenen";
 import Ankers from "@/routes/Ankers";
 import Afspraken from "@/routes/Afspraken";
@@ -39,11 +43,47 @@ function AlleenVergrendeld({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * `/` heeft drie gezichten, en het onderscheid zit hem in wat er op dít
+ * apparaat al staat.
+ *
+ *   ontgrendeld         → het dashboard
+ *   kluis bestaat hier  → het ontgrendelscherm
+ *   geen kluis          → de landingspagina
+ *
+ * De landingspagina is nieuw: tot nu toe stuurde `/` iedereen rechtstreeks
+ * naar /inloggen, dus naar een wachtwoordveld zonder één zin over waar dat
+ * wachtwoord bij hoort.
+ *
+ * MAAR HIJ MAG NIET IEDEREEN OVERKOMEN. De kluis vergrendelt zichzelf bij
+ * inactiviteit en zodra je van tabblad wisselt. Zou `/` dan de
+ * marketingpagina tonen, dan krijgt iemand die zijn dossier al vier maanden
+ * gebruikt elke keer opnieuw uitgelegd wat de app is, en moet hij zelf de weg
+ * naar het ontgrendelscherm zoeken. Vandaar `isGeinitialiseerd`: bestaat er
+ * hier een kluis, dan is dat de bedoeling van dit bezoek.
+ *
+ * Zolang dat nog niet vaststaat (`bezig`) toont hij een laadscherm en geen van
+ * beide. Anders flitst er bij elke start eerst een verkeerd scherm voorbij —
+ * `isGeinitialiseerd` staat op true tot het tegendeel uit IndexedDB blijkt.
+ */
+function Startpagina() {
+  const { isOntgrendeld, isGeinitialiseerd, bezig } = useVault();
+
+  if (isOntgrendeld) return <Dashboard />;
+  if (bezig) return <Laadscherm />;
+  if (isGeinitialiseerd) return <Navigate to="/inloggen" replace />;
+  return <Landing />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <VaultProvider>
         <Routes>
+          {/* ── Publiek: zichtbaar zonder ontgrendelde kluis ────────── */}
+          <Route path="/voorwaarden" element={<Voorwaarden />} />
+          <Route path="/privacy" element={<Privacy />} />
+
           <Route
             path="/inloggen"
             element={
@@ -52,14 +92,12 @@ export default function App() {
               </AlleenVergrendeld>
             }
           />
-          <Route
-            path="/registreren"
-            element={
-              <AlleenVergrendeld>
-                <Registreren />
-              </AlleenVergrendeld>
-            }
-          />
+          {/* NIET in AlleenVergrendeld. `initialiseerKluis()` ontgrendelt de
+              kluis zelf, waardoor die wacht tussen het aanmaken en het tonen
+              van de herstelcode in zou wegnavigeren — en dan ziet de gebruiker
+              de enige noodingang van zijn dossier nooit. Registreren beslist
+              nu zelf, via `lib/registratie.ts`. */}
+          <Route path="/registreren" element={<Registreren />} />
           <Route
             path="/wachtwoord-vergeten"
             element={
@@ -69,22 +107,19 @@ export default function App() {
             }
           />
 
+          <Route path="/" element={<Startpagina />} />
           <Route
-            path="/"
+            path="/start"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <Startwizard />
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/project/nieuw"
-            element={
-              <ProtectedRoute>
-                <ProjectWizard />
-              </ProtectedRoute>
-            }
-          />
+          {/* De oude driestapswizard zat op /project/nieuw. Die URL staat in
+              bladwijzers en in oude sessielogs, dus hij blijft werken en wijst
+              door naar de startwizard. */}
+          <Route path="/project/nieuw" element={<Navigate to="/start" replace />} />
           <Route
             path="/project"
             element={

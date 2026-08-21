@@ -40,12 +40,21 @@ const MOETEN_BEREIKBAAR_ZIJN = [
  *
  * Inloggen en registreren horen daar niet; /diagnostiek is een hulpmiddel voor
  * ontwikkelaars en niet iets waar een bewoner langs moet lopen.
+ *
+ * /voorwaarden en /privacy staan in de voettekst van PubliekeLayout en niet in
+ * de hoofdnavigatie: dat is navigatie voor een ontgrendelde kluis, en deze
+ * pagina's zijn juist zichtbaar zonder. /start is de startwizard, die je via de
+ * registratie of het dashboard binnenkomt.
  */
 const NIET_IN_NAVIGATIE = [
+  "/",
   "/inloggen",
   "/registreren",
   "/wachtwoord-vergeten",
+  "/voorwaarden",
+  "/privacy",
   "/project/nieuw",
+  "/start",
   "/diagnostiek",
   "*",
 ];

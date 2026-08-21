@@ -41,6 +41,7 @@
 | [0025](ADR-0025-energie-p1-en-saldering.md) | Energieverbruik, P1 CSV-Import en Saldering | Geaccepteerd | P1 CSV parser, indicatief label met permanente disclaimer, post-2027 salderingsparameters |
 | [0026](ADR-0026-mobile-companion-inbox-delta-en-overdracht.md) | Mobile Companion (Inbox-Delta), Woningpaspoort Overdracht en WebAuthn-PRF | Geaccepteerd | Offline quick-capture inbox-delta, zelfstandig overdrachtsdossier (HTML/JSON), biometrisch kluisslot |
 | [0027](ADR-0027-diagnostiek-en-audit-systeem.md) | Diagnostiek, Systeemaudit en Ontwikkelaarsrapportage | Geaccepteerd | Diepgaande integriteitsaudit, verweesde relatie detectie & herstel, benchmark timers, Markdown/JSON rapport |
+| [0028](ADR-0028-instapmoment-en-startwizard.md) | Het instapmoment als stuurwiel van de startwizard | Geaccepteerd | Traject + instapmoment bepalen welke stappen er zijn en welke verplicht; pure regels in src/lib/wizard/ |
 
 ## De vier die je als eerste moet lezen
 

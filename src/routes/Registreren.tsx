@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, Navigate, useNavigate } from "react-router";
 import { useVault } from "@/context/useVault";
+import { bepaalRegistratiescherm } from "@/lib/registratie";
 import { authFoutmelding } from "@/lib/authFouten";
 import { AuthLayout } from "@/components/AuthLayout";
 import { Veld } from "@/components/Veld";
@@ -10,7 +11,7 @@ import { Melding } from "@/components/Melding";
 const MIN_WACHTWOORD = 8;
 
 export default function Registreren() {
-  const { initialiseerKluis } = useVault();
+  const { initialiseerKluis, isOntgrendeld } = useVault();
   const navigeer = useNavigate();
 
   const [wachtwoord, setWachtwoord] = useState("");
@@ -58,10 +59,24 @@ export default function Registreren() {
   }
 
   function afronden() {
-    void navigeer("/project/nieuw", { replace: true });
+    void navigeer("/start", { replace: true });
   }
 
-  if (gegenereerdeCode) {
+  /**
+   * Welk scherm hier hoort, staat in `lib/registratie.ts` en niet in de
+   * routetabel.
+   *
+   * `/registreren` zat eerder in `AlleenVergrendeld`, en dat werkte averechts:
+   * `initialiseerKluis()` ontgrendelt de kluis zélf, dus de redirect vuurde
+   * tussen het aanmaken en het tonen van de herstelcode in. De gebruiker kwam
+   * op het dashboard uit met een kluis waarvan hij de enige noodingang nooit
+   * had gezien.
+   */
+  const scherm = bepaalRegistratiescherm(isOntgrendeld, gegenereerdeCode !== null);
+
+  if (scherm === "doorsturen") return <Navigate to="/" replace />;
+
+  if (scherm === "herstelcode") {
     return (
       <AuthLayout
         titel="Herstelcode bewaren"

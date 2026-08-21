@@ -16,6 +16,9 @@ import type {
   Garantiewaarborg,
   Gebrek,
   GebrekStatus,
+  Hypotheekgegevens,
+  Hypotheekvorm,
+  KadastraleGegevens,
   MeerwerkItem,
   MeerwerkSluiting,
   MeerwerkStatus,
@@ -32,6 +35,7 @@ import type {
   TaakBron,
   TaakStatus,
   Task,
+  TrajectType,
   Termijn,
   WaardenBron,
   Energielabel,
@@ -90,8 +94,10 @@ export type WoningpaspoortData = MetDatums<Woningpaspoort>;
  * hier expliciet vervangen — zichtbaar in plaats van verstopt in een slim
  * mapped type dat bij de volgende geneste map opnieuw stilzwijgend faalt.
  */
-export type ProjectData = Omit<MetDatums<Project>, "woningpaspoort"> & {
+export type HypotheekData = MetDatums<Hypotheekgegevens>;
+export type ProjectData = Omit<MetDatums<Project>, "woningpaspoort" | "hypotheek"> & {
   woningpaspoort?: WoningpaspoortData;
+  hypotheek?: HypotheekData;
 };
 export type AnkerData = MetDatums<Anker>;
 export type BetrokkeneData = MetDatums<Betrokkene>;
@@ -292,6 +298,15 @@ const MEERWERKSLUITINGEN = [
   "onbekend",
 ] as const satisfies readonly MeerwerkSluiting[];
 const WONINGSTATUSSEN = ["in_aanbouw", "opgeleverd"] as const satisfies readonly WoningStatus[];
+const TRAJECTTYPES = [
+  "nieuwbouw",
+  "bestaandeBouw",
+] as const satisfies readonly TrajectType[];
+const HYPOTHEEKVORMEN = [
+  "annuitair",
+  "lineair",
+  "aflossingsvrij",
+] as const satisfies readonly Hypotheekvorm[];
 const WONINGTYPES = [
   "tussenwoning",
   "hoekwoning",
@@ -360,6 +375,54 @@ export const ALLE_CATEGORIEEN = CATEGORIEEN;
 export const ALLE_WONINGTYPES = WONINGTYPES;
 export const ALLE_ENERGIELABELS = ENERGIELABELS;
 
+// ── Hypotheek (ADR-0019) ───────────────────────────────────────────────────
+
+/**
+ * De hypotheekgegevens zijn een geneste map met een `Timestamp` erin, net als
+ * het woningpaspoort. `MetDatums` mapt alleen op het bovenste niveau, dus de
+ * omzetting moet hier expliciet gebeuren.
+ *
+ * DIT BLOK ONTBRAK. `Hypotheekgegevens` staat sinds ADR-0019 in het model en
+ * `rules/financieel.ts` leest `project.hypotheek?.passeerdatum` om de
+ * 24-maandenregel van het bouwdepot te laten afgaan — maar er was geen enkele
+ * weg om die map ooit weggeschreven te krijgen. De regel kon dus niet vuren en
+ * een maandlastenprognose was onmogelijk. Zie converters.test.ts.
+ */
+function hypotheekNaarOpslag(
+  hypotheek: Invoer<HypotheekData> | undefined,
+): DocumentData | undefined {
+  if (!hypotheek) return undefined;
+
+  const inhoud = zonderLegeVelden({
+    bedrag: hypotheek.bedrag,
+    rente: hypotheek.rente,
+    vorm: hypotheek.vorm,
+    looptijdMaanden: hypotheek.looptijdMaanden,
+    depotRente: hypotheek.depotRente,
+    grondbedrag: hypotheek.grondbedrag,
+    passeerdatum: naarTimestamp(hypotheek.passeerdatum),
+  });
+
+  return Object.keys(inhoud).length === 0 ? undefined : inhoud;
+}
+
+function hypotheekUitOpslag(waarde: unknown): HypotheekData | undefined {
+  if (typeof waarde !== "object" || waarde === null || Array.isArray(waarde)) return undefined;
+  const data = waarde as DocumentData;
+
+  const hypotheek: HypotheekData = {
+    ...optioneel("bedrag", leesGetal(data.bedrag)),
+    ...optioneel("rente", leesGetal(data.rente)),
+    ...optioneel("vorm", leesEnum(data.vorm, HYPOTHEEKVORMEN)),
+    ...optioneel("looptijdMaanden", leesGetal(data.looptijdMaanden)),
+    ...optioneel("depotRente", leesGetal(data.depotRente)),
+    ...optioneel("grondbedrag", leesGetal(data.grondbedrag)),
+    ...optioneel("passeerdatum", leesDatum(data.passeerdatum)),
+  };
+
+  return Object.keys(hypotheek).length === 0 ? undefined : hypotheek;
+}
+
 // ── Woningpaspoort (ADR-0013 §5) ───────────────────────────────────────────
 
 /**
@@ -367,6 +430,42 @@ export const ALLE_ENERGIELABELS = ENERGIELABELS;
  * terug in plaats van een lege map: een leeg object zou in de opslag een veld
  * bezetten en in de UI als "ingevuld" tellen.
  */
+/**
+ * De kadastrale aanduiding, genest in het paspoort.
+ *
+ * `lib/woningpaspoort/overdracht.ts` drukt deze gegevens af op het
+ * overdrachtsdossier, maar er was geen converter — het exportbestand toonde
+ * daardoor altijd een streepje, ongeacht wat er ingevuld was.
+ */
+function kadasterNaarOpslag(kadaster: KadastraleGegevens | undefined): DocumentData | undefined {
+  if (!kadaster) return undefined;
+
+  const inhoud = zonderLegeVelden({
+    gemeente: kadaster.gemeente,
+    sectie: kadaster.sectie,
+    perceelnummer: kadaster.perceelnummer,
+    complexaanduiding: kadaster.complexaanduiding,
+    appartementsindex: kadaster.appartementsindex,
+  });
+
+  return Object.keys(inhoud).length === 0 ? undefined : inhoud;
+}
+
+function kadasterUitOpslag(waarde: unknown): KadastraleGegevens | undefined {
+  if (typeof waarde !== "object" || waarde === null || Array.isArray(waarde)) return undefined;
+  const data = waarde as DocumentData;
+
+  const kadaster: KadastraleGegevens = {
+    ...optioneel("gemeente", leesString(data.gemeente)),
+    ...optioneel("sectie", leesString(data.sectie)),
+    ...optioneel("perceelnummer", leesString(data.perceelnummer)),
+    ...optioneel("complexaanduiding", leesString(data.complexaanduiding)),
+    ...optioneel("appartementsindex", leesString(data.appartementsindex)),
+  };
+
+  return Object.keys(kadaster).length === 0 ? undefined : kadaster;
+}
+
 function paspoortNaarOpslag(
   paspoort: Invoer<WoningpaspoortData> | undefined,
 ): DocumentData | undefined {
@@ -374,6 +473,8 @@ function paspoortNaarOpslag(
 
   const inhoud = zonderLegeVelden({
     adres: paspoort.adres,
+    huisnummer: paspoort.huisnummer,
+    huisnummerToevoeging: paspoort.huisnummerToevoeging,
     postcode: paspoort.postcode,
     plaats: paspoort.plaats,
     woningtype: paspoort.woningtype,
@@ -383,8 +484,10 @@ function paspoortNaarOpslag(
     energielabel: paspoort.energielabel,
     energielabelRegistratie: paspoort.energielabelRegistratie,
     energielabelOpnameDatum: naarTimestamp(paspoort.energielabelOpnameDatum),
+    kadaster: kadasterNaarOpslag(paspoort.kadaster),
     waarborgpolisnummer: paspoort.waarborgpolisnummer,
     notaris: paspoort.notaris,
+    transportdatum: naarTimestamp(paspoort.transportdatum),
     hypotheekverstrekker: paspoort.hypotheekverstrekker,
   });
 
@@ -397,6 +500,8 @@ function paspoortUitOpslag(waarde: unknown): WoningpaspoortData | undefined {
 
   const paspoort: WoningpaspoortData = {
     ...optioneel("adres", leesString(data.adres)),
+    ...optioneel("huisnummer", leesString(data.huisnummer)),
+    ...optioneel("huisnummerToevoeging", leesString(data.huisnummerToevoeging)),
     ...optioneel("postcode", leesString(data.postcode)),
     ...optioneel("plaats", leesString(data.plaats)),
     ...optioneel("woningtype", leesEnum(data.woningtype, WONINGTYPES)),
@@ -406,8 +511,10 @@ function paspoortUitOpslag(waarde: unknown): WoningpaspoortData | undefined {
     ...optioneel("energielabel", leesEnum(data.energielabel, ENERGIELABELS)),
     ...optioneel("energielabelRegistratie", leesString(data.energielabelRegistratie)),
     ...optioneel("energielabelOpnameDatum", leesDatum(data.energielabelOpnameDatum)),
+    ...optioneel("kadaster", kadasterUitOpslag(data.kadaster)),
     ...optioneel("waarborgpolisnummer", leesString(data.waarborgpolisnummer)),
     ...optioneel("notaris", leesString(data.notaris)),
+    ...optioneel("transportdatum", leesDatum(data.transportdatum)),
     ...optioneel("hypotheekverstrekker", leesString(data.hypotheekverstrekker)),
   };
 
@@ -419,12 +526,14 @@ function paspoortUitOpslag(waarde: unknown): WoningpaspoortData | undefined {
 export function projectNaarOpslag(project: Invoer<ProjectData>): DocumentData {
   return zonderLegeVelden({
     naam: project.naam,
+    traject: project.traject,
     bouwnummer: project.bouwnummer,
     projectnaam: project.projectnaam,
     aannemer: project.aannemer,
     garantiewaarborg: project.garantiewaarborg,
     koopsom: project.koopsom,
     meerwerkbudget: project.meerwerkbudget,
+    bouwdepotBedrag: project.bouwdepotBedrag,
     opleverStatus: project.opleverStatus,
     opleverVroegst: naarTimestamp(project.opleverVroegst),
     opleverVerwacht: naarTimestamp(project.opleverVerwacht),
@@ -436,6 +545,7 @@ export function projectNaarOpslag(project: Invoer<ProjectData>): DocumentData {
     opschortingNotitie: project.opschortingNotitie,
     woningStatus: project.woningStatus,
     woningpaspoort: paspoortNaarOpslag(project.woningpaspoort),
+    hypotheek: hypotheekNaarOpslag(project.hypotheek),
     aangemaaktOp: naarTimestamp(project.aangemaaktOp),
     bijgewerktOp: naarTimestamp(project.bijgewerktOp),
   });
@@ -445,12 +555,14 @@ export function projectUitOpslag(id: string, data: DocumentData): ProjectMetId {
   return {
     id,
     naam: leesString(data.naam) ?? "Naamloos project",
+    ...optioneel("traject", leesEnum(data.traject, TRAJECTTYPES)),
     ...optioneel("bouwnummer", leesString(data.bouwnummer)),
     ...optioneel("projectnaam", leesString(data.projectnaam)),
     ...optioneel("aannemer", leesString(data.aannemer)),
     ...optioneel("garantiewaarborg", leesEnum(data.garantiewaarborg, GARANTIEWAARBORGEN)),
     ...optioneel("koopsom", leesGetal(data.koopsom)),
     ...optioneel("meerwerkbudget", leesGetal(data.meerwerkbudget)),
+    ...optioneel("bouwdepotBedrag", leesGetal(data.bouwdepotBedrag)),
     ...optioneel("opleverStatus", leesEnum(data.opleverStatus, OPLEVERSTATUSSEN)),
     ...optioneel("opleverVroegst", leesDatum(data.opleverVroegst)),
     ...optioneel("opleverVerwacht", leesDatum(data.opleverVerwacht)),
@@ -465,6 +577,7 @@ export function projectUitOpslag(id: string, data: DocumentData): ProjectMetId {
     // Projecten van vóór blok E hoeven dus niet gemigreerd te worden.
     ...optioneel("woningStatus", leesEnum(data.woningStatus, WONINGSTATUSSEN)),
     ...optioneel("woningpaspoort", paspoortUitOpslag(data.woningpaspoort)),
+    ...optioneel("hypotheek", hypotheekUitOpslag(data.hypotheek)),
     aangemaaktOp: leesDatum(data.aangemaaktOp) ?? new Date(0),
     ...optioneel("bijgewerktOp", leesDatum(data.bijgewerktOp)),
   };

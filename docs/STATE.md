@@ -1,11 +1,86 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-08-16 · sessie 12 (**audit volledig afgewerkt** — zie `docs/AUDIT.md`)
+> **Bijgewerkt:** 2026-08-21 · sessie 13 (productiebugs, publieke pagina's, startwizard)
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
 
 ---
 
-## Stand: de audit is afgewerkt
+## Stand: de app werkte in productie helemaal niet, en dat is verholpen
+
+Sessie 13 begon met twee screenshots van **nieuwbouwplanner.netlify.app**. Daar
+stond de kern van de dag in: `script-src 'self'` verbood Chrome om
+`WebAssembly.compile()` te draaien, dus de Argon2id-sleutelafleiding kwam nooit
+op gang en **een kluis aanmaken of ontgrendelen was onmogelijk**. Alles
+daarachter — het hele dossier — was daarmee onbereikbaar.
+
+Vier bugs verholpen, alle vier met een gate of test die ze in het vervolg
+afvangt:
+
+| # | Bug | Wat er niet werkte | Gate erop |
+| --- | --- | --- | --- |
+| 1 | CSP blokkeerde WebAssembly | Kluis aanmaken én ontgrendelen, in productie | `scripts/headers.test.mjs` (8 tests) |
+| 2 | Manifest wees naar niet-bestaande iconen | Installeren gaf een app zonder icoon; console vol fouten | `scripts/verify-pwa.mjs` + 9 tests |
+| 3 | `traject`, `bouwdepotBedrag` en `hypotheek` werden nooit weggeschreven | Depotbalk zonder schaal, 24-maandenregel kon niet afgaan, overdrachtsdossier zonder traject | 13 tests in `converters.test.ts` |
+| 4 | **De herstelcode werd nooit getoond** | Iemand kreeg een versleuteld dossier waarvan de enige noodingang één render eerder was weggegooid | `lib/registratie.ts` + 5 tests |
+| 5 | robots.txt en `noindex` blokkeerden alles | De nieuwe landingspagina, voorwaarden en privacyverklaring waren onvindbaar | `scripts/verify-seo.mjs` + 17 tests |
+
+Bug 4 is de duurste die deze app kan maken: er is geen server die een
+wachtwoord kan resetten, dus zonder die code is een vergeten wachtwoordzin
+definitief.
+
+**Nieuw sinds sessie 12:**
+
+- **Publieke pagina's.** `/` toont nu een landingspagina, het ontgrendelscherm
+  of het dashboard, afhankelijk van wat er op dít apparaat staat. Daarnaast
+  `/voorwaarden` en `/privacy`, met de aanbiedergegevens op één plek in
+  `src/data/aanbieder.ts`.
+- **De startwizard** (`/start`, ADR-0028). Eén vraag — waar sta je nu — bepaalt
+  welke stappen er zijn en welke verplicht. Het financiële beeld zit er
+  volledig in, inclusief de hypotheek die tot vandaag niet eens op te slaan was.
+- **Vindbaarheid.** `public/sitemap.xml` en een `robots.txt` die alles
+  afsluit en alleen de drie publieke paden weer openzet; `noindex` is uit
+  `index.html` verdwenen. Titel, omschrijving en canonical worden per route
+  gezet (`src/lib/usePaginameta.ts`) — één vaste canonical in `index.html` zou
+  op /voorwaarden beweren dat de homepage het origineel is.
+- **Bedrijfsgegevens** overgenomen uit de voettekst van brinkmultimedia.nl:
+  adres, telefoon, KvK, btw-id en de fiscale noot, op één plek in
+  `src/data/aanbieder.ts`.
+- **`verify:pwa` en `verify:seo`** als achtste en negende verify-script, na
+  `verify:offline` in de keten.
+
+`npm run verify` groen: **847 tests in 50 bestanden**, gedraaid op Seths eigen
+machine (Node 24.12.0) — dus inclusief lint, build en de echte testsuite.
+
+### Opgeruimd aan het eind van de sessie
+
+Drie bestanden verwijderd, met toestemming:
+
+- `src/routes/ProjectWizard.tsx` — de oude driestapswizard. `/project/nieuw`
+  stuurt door naar `/start`, dus oude bladwijzers blijven werken.
+- `src/components/Stapindicator.tsx` — raakte hierdoor verweesd; alleen
+  ProjectWizard gebruikte hem. De startwizard heeft `Stapvoortgang`.
+- `public/manifest.webmanifest` — werd door `vite-plugin-pwa` overschreven
+  zonder melding, dus wat je daar wijzigde kwam nooit in `dist/`. De controle
+  in `verify:pwa` blijft staan, zodat hij niet terugsluipt.
+
+Een wees-scan over heel `src/` leverde verder niets op: `App`, `OpstartFout`
+en `crypto/argon2.worker` lijken zonder importeur maar worden dynamisch
+geladen (`await import(...)` en `new URL(...)`).
+
+### Wat er open staat
+
+1. **Het canonieke domein staat op `https://nieuwbouwplanner.netlify.app`**
+   (`src/data/publieke-paginas.ts`). Verhuist de app naar een eigen domein, pas
+   dan die ene constante aan; `verify:seo` dwingt af dat sitemap.xml en
+   robots.txt meegaan. Vergeet ook `EIGEN_ORIGIN` in `verify-offline.mjs` niet
+   — die staat er los, met opzet.
+5. **De sitemap is nog niet aangemeld** bij Google Search Console of Bing
+   Webmaster Tools. Zonder aanmelding duurt het langer voordat er iets gevonden
+   wordt.
+
+---
+
+## Uit sessie 12: de audit is afgewerkt
 
 Sessie 11 draaide een volledige audit (`docs/AUDIT.md`, 21 bevindingen). Sessie 12 heeft ze
 afgewerkt op één na. Wat er sindsdien veranderd is:
@@ -25,7 +100,7 @@ afgewerkt op één na. Wat er sindsdien veranderd is:
 
 Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in `AUDIT.md`.
 
-`npm run verify` groen: **686 tests in 42 bestanden**. `npm audit`: nul kwetsbaarheden.
+`npm run verify` was toen groen met 686 tests in 42 bestanden; `npm audit` meldde nul kwetsbaarheden.
 
 ---
 
@@ -44,7 +119,10 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 | **Energie & Saldering (Fase 5)** | ✅ Afgerond | P1 slimme meter CSV-parser (`src/lib/p1.ts`), indicatief energielabel met permanente wettelijke disclaimer (`src/lib/energie.ts`), salderingsberekening met post-2027 afbouwparameters, E-002 regel |
 | **Mobiel, Overdracht & WebAuthn (Fase 6)** | ✅ Afgerond | Mobile snapshot + quick-capture inbox-delta encryptie/import (`src/lib/inbox/`), zelfstandig overdrachtsdossier HTML/JSON (`src/lib/woningpaspoort/`), optioneel biometrisch WebAuthn-PRF kluisslot (`src/crypto/webauthn.ts`) |
 | **Diagnostiek & Systeemaudit Tool** | ✅ Afgerond | In-memory logger (`src/lib/diagnostiek/logger.ts`), diepgaande audit-engine (`audit.ts`), Markdown/JSON rapportgenerator (`rapport.ts`), interactief auditdashboard (`/diagnostiek`), geautomatiseerde relatie-reparaties |
-| **Verificatie** | ✅ Groen | `npm run verify` doorloopt typecheck (`tsc --build --force`), lint (`eslint .`), unit tests (**686 tests in 42 bestanden**), token-pariteit (50 tokens), headers (10 headers + 14 CSP directives), cryptografie-verificatie (`verify:crypto`), backup-verificatie (`verify:backup`), productiebuild (Vite + Rolldown), en offline validatie |
+| **Publieke pagina's & juridisch** | ✅ Afgerond | Landingspagina op `/`, `/voorwaarden` en `/privacy`; aanbiedergegevens op één plek (`src/data/aanbieder.ts`) |
+| **Vindbaarheid** | ✅ Afgerond | `sitemap.xml`, restrictieve `robots.txt`, per-route canonical en Open Graph; bewaakt door `verify:seo` |
+| **Startwizard (ADR-0028)** | ✅ Afgerond | Instapmoment stuurt het stappenplan; volledig financieel beeld inclusief hypotheek; pure regels in `src/lib/wizard/` met 115 tests |
+| **Verificatie** | ✅ Groen | `npm run verify` doorloopt typecheck (`tsc --build --force`), lint (`eslint .`), unit tests (**686 tests in 42 bestanden**), token-pariteit (50 tokens), headers (10 headers + 14 CSP directives), cryptografie-verificatie (`verify:crypto`), backup-verificatie (`verify:backup`), productiebuild (Vite + Rolldown), offline validatie, PWA-manifestcontrole (`verify:pwa`) en sitemap/robots-controle (`verify:seo`) |
 
 ---
 
@@ -52,15 +130,16 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 
 | Meting | Waarde |
 | --- | --- |
-| Unit tests | **686 passed** in 42 testbestanden |
+| Unit tests | **847 passed** in 50 testbestanden |
 | Token-pariteit | **50 tokens** synchroon met `brink-ui/tokens.js` |
-| Headers & CSP | **10 headers**, CSP zero-network (`connect-src 'none'`) |
+| Headers & CSP | **10 headers**, CSP zero-network (`connect-src 'none'`), `script-src 'self' 'wasm-unsafe-eval'` |
 | Cryptografie | AES-256-GCM non-extractable DEK, Argon2id (64 MiB/3/4), HKDF 128-bit, WebAuthn-PRF |
 | Opslag & Bestanden | Beide versleuteld: IndexedDB per record, OPFS per 1 MiB-chunk |
 | Regelmotor | 100% deterministisch (0 netwerk / 0 side-effects) |
 | Diagnostiek | Volledig geïntegreerd audit- en rapportagesysteem (`/diagnostiek`) |
 | Overdracht | Zelfstandig HTML/JSON Woningpaspoort |
 | Netwerkcalls | **0** (geverifieerd: `verify-offline` scant `dist/`, negatief getest) |
+| Publieke URL's | **3** — `/`, `/voorwaarden`, `/privacy`; de rest sluit `robots.txt` af |
 
 ---
 
@@ -74,3 +153,4 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 6. **FASE 5 — ENERGIE:** ✅ **VOLTOOID**
 7. **FASE 6 — MOBIEL + COMFORT:** ✅ **VOLTOOID**
 8. **EXTRA — DIAGNOSTIEK & ONTWIKKELAARSAUDIT:** ✅ **VOLTOOID**
+9. **EXTRA — PUBLIEKE PAGINA'S & STARTWIZARD:** ✅ **VOLTOOID** (sessie 13, ADR-0028)

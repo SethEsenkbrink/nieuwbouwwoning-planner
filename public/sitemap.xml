@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Handgeschreven en niet gegenereerd: er zijn drie publieke URL's, en een
+  generator zou hier meer bewegende delen toevoegen dan hij oplost.
+
+  De bron van deze lijst is `src/data/publieke-paginas.ts`.
+  `scripts/verify-seo.mjs` controleert bij elke `npm run verify` dat dit
+  bestand daar exact op aansluit — inclusief het domein. Een sitemap die naar
+  een verkeerd adres wijst, blijft anders maanden staan zonder dat iets klaagt.
+
+  Alle overige routes van de app zitten achter een kluis en horen niet in een
+  zoekindex; `public/robots.txt` sluit ze uit.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://nieuwbouwplanner.netlify.app/</loc>
+    <lastmod>2026-08-21</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://nieuwbouwplanner.netlify.app/voorwaarden</loc>
+    <lastmod>2026-08-21</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://nieuwbouwplanner.netlify.app/privacy</loc>
+    <lastmod>2026-08-21</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>

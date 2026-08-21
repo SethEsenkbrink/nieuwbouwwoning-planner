@@ -19,24 +19,40 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
+      // Alleen bestanden die echt in public/ staan. Een naam die er niet is
+      // levert geen foutmelding bij het bouwen, maar wel een 404 in de
+      // service worker en een half werkende installatie.
+      includeAssets: ["favicon.svg", "apple-touch-icon.png", "robots.txt"],
       manifest: {
         name: "Woningdossier",
         short_name: "Woningdossier",
         description: "100% lokaal, end-to-end versleuteld dossier voor het complete leven van een woning.",
-        theme_color: "#1e293b",
-        background_color: "#f8fafc",
+        // Huisstijlkleuren, gelijk aan --color-canvas in brink-theme.css en aan
+        // de theme-color in index.html. Stonden hier op slate-grijs uit een
+        // template, waardoor de app-balk bij installatie niet bij de app paste.
+        theme_color: "#f5f1e8",
+        background_color: "#f5f1e8",
         display: "standalone",
+        lang: "nl",
+        start_url: "/",
+        scope: "/",
+        // DE NAMEN HIERONDER MOETEN BESTAANDE BESTANDEN IN public/ ZIJN.
+        // Ze stonden op pwa-192x192.png en pwa-512x512.png — bestanden die er
+        // nooit zijn geweest. Chrome meldde bij elke start "Error while trying
+        // to use the following icon from the Manifest" en installeren gaf een
+        // app zonder icoon. `scripts/verify-pwa.mjs` vangt dit nu af.
         icons: [
           {
-            src: "pwa-192x192.png",
+            src: "icon-192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any",
           },
           {
-            src: "pwa-512x512.png",
+            src: "icon-512.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any",
           },
         ],
       },
@@ -59,7 +75,14 @@ export default defineConfig({
   },
 
   build: {
-    sourcemap: true,
+    // GEEN sourcemaps in de productiebundel.
+    //
+    // DevTools haalt een .map-bestand op met fetch(), en `connect-src 'none'`
+    // blokkeert dat. Resultaat: vijf CSP-fouten in de console bij elke keer dat
+    // iemand DevTools opent, die niets met de app te maken hebben maar wel de
+    // échte fouten wegdrukken. De broncode is bovendien gewoon publiek (AGPL),
+    // dus de maps leveren niets op wat de repo niet al geeft.
+    sourcemap: false,
     target: "es2022",
   },
 

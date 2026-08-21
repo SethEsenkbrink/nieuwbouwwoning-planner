@@ -47,6 +47,11 @@
     Cross-Origin-Opener-Policy = "same-origin"
     Cross-Origin-Resource-Policy = "same-origin"
 
+    # 'wasm-unsafe-eval' in script-src is GEEN versoepeling van 'unsafe-eval'.
+    # Het is de smalle variant die uitsluitend WebAssembly.compile() toestaat en
+    # eval() van JavaScript nog steeds blokkeert. Zonder deze bron weigert Chrome
+    # de Argon2id-WASM van hash-wasm, en dan is een kluis aanmaken of ontgrendelen
+    # onmogelijk - precies wat er op nieuwbouwplanner.netlify.app gebeurde.
     # ⚠ LET OP DE BACKSLASHES aan het einde van elke regel.
     Content-Security-Policy = """\
 default-src 'self'; \
@@ -57,7 +62,7 @@ form-action 'self'; \
 img-src 'self' data: blob:; \
 font-src 'self' data:; \
 style-src 'self'; \
-script-src 'self'; \
+script-src 'self' 'wasm-unsafe-eval'; \
 connect-src 'none'; \
 frame-src 'none'; \
 worker-src 'self' blob:; \

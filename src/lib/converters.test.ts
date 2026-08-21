@@ -627,3 +627,150 @@ describe("meterstandconverters", () => {
     expect(Object.keys(data).sort()).toEqual(["meterId", "notitie", "opgenomenOp", "stand"]);
   });
 });
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ * De velden die het model kende en de converter niet
+ *
+ * `Project` heeft `traject`, `bouwdepotBedrag` en `hypotheek`, en alle drie
+ * werden ze gelézen door de app:
+ *
+ *   - Dashboard.tsx zet de bouwdepotbalk af tegen `project.bouwdepotBedrag`
+ *   - rules/financieel.ts leest `project.hypotheek?.passeerdatum` voor de
+ *     24-maandenregel van het depot
+ *   - lib/woningpaspoort/overdracht.ts drukt `project.traject` af
+ *
+ * `projectNaarOpslag` noemde ze geen van drieën, en `zonderLegeVelden` gooit
+ * weg wat niet genoemd wordt. Ze verdwenen dus stil bij het opslaan: geen
+ * foutmelding, geen typefout, alleen een balk zonder schaal en een regel die
+ * nooit afging. Projectinstellingen.tsx schreef `bouwdepotBedrag` al netjes
+ * weg — het kwam er alleen nooit aan.
+ *
+ * Deze tests staan hier zodat dat niet nog eens ongemerkt kan gebeuren.
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+describe("project — velden die eerder stil verdwenen", () => {
+  it("bewaart het traject", () => {
+    const data = projectNaarOpslag({ naam: "Ons huis", traject: "bestaandeBouw" });
+    expect(data.traject).toBe("bestaandeBouw");
+    expect(projectUitOpslag("p1", data).traject).toBe("bestaandeBouw");
+  });
+
+  it("weigert een traject dat niet bestaat", () => {
+    const gelezen = projectUitOpslag("p1", { naam: "X", traject: "kraakpand" });
+    expect("traject" in gelezen).toBe(false);
+  });
+
+  it("bewaart het bouwdepotbedrag — de schaal onder de depotbalk", () => {
+    const data = projectNaarOpslag({ naam: "Ons huis", bouwdepotBedrag: 185000 });
+    expect(data.bouwdepotBedrag).toBe(185000);
+    expect(projectUitOpslag("p1", data).bouwdepotBedrag).toBe(185000);
+  });
+
+  it("bewaart nul als bedrag en verwart het niet met leeg", () => {
+    const data = projectNaarOpslag({ naam: "Ons huis", bouwdepotBedrag: 0 });
+    expect(projectUitOpslag("p1", data).bouwdepotBedrag).toBe(0);
+  });
+
+  it("bewaart de hypotheekmap inclusief de passeerdatum als Timestamp", () => {
+    const passeerdatum = new Date("2026-03-16T00:00:00.000Z");
+    const data = projectNaarOpslag({
+      naam: "Ons huis",
+      hypotheek: {
+        bedrag: 380000,
+        rente: 3.85,
+        vorm: "annuitair",
+        looptijdMaanden: 360,
+        depotRente: 3.85,
+        grondbedrag: 95000,
+        passeerdatum,
+      },
+    });
+
+    // In de opslag hoort een Timestamp te staan, niet een Date: het
+    // backupformaat serialiseert naar JSON en moet de datum terugkennen.
+    const opgeslagen = data.hypotheek as Record<string, unknown>;
+    expect(opgeslagen.passeerdatum).toBeInstanceOf(Timestamp);
+
+    const gelezen = projectUitOpslag("p1", data);
+    expect(gelezen.hypotheek?.bedrag).toBe(380000);
+    expect(gelezen.hypotheek?.rente).toBe(3.85);
+    expect(gelezen.hypotheek?.vorm).toBe("annuitair");
+    expect(gelezen.hypotheek?.looptijdMaanden).toBe(360);
+    expect(gelezen.hypotheek?.depotRente).toBe(3.85);
+    expect(gelezen.hypotheek?.grondbedrag).toBe(95000);
+    expect(gelezen.hypotheek?.passeerdatum?.getTime()).toBe(passeerdatum.getTime());
+  });
+
+  it("laat de hypotheek weg als er niets is ingevuld", () => {
+    // Een lege map zou een veld bezetten en in de UI als ingevuld tellen.
+    const data = projectNaarOpslag({ naam: "Ons huis", hypotheek: {} });
+    expect("hypotheek" in data).toBe(false);
+    expect("hypotheek" in projectUitOpslag("p1", data)).toBe(false);
+  });
+
+  it("weigert een aflossingsvorm die niet bestaat", () => {
+    const gelezen = projectUitOpslag("p1", {
+      naam: "X",
+      hypotheek: { bedrag: 100, vorm: "spaarhypotheek" },
+    });
+    expect(gelezen.hypotheek?.bedrag).toBe(100);
+    expect(gelezen.hypotheek?.vorm).toBeUndefined();
+  });
+
+  it("negeert een hypotheekveld dat geen map is", () => {
+    expect("hypotheek" in projectUitOpslag("p1", { naam: "X", hypotheek: "nee" })).toBe(false);
+    expect("hypotheek" in projectUitOpslag("p1", { naam: "X", hypotheek: [1, 2] })).toBe(false);
+  });
+
+  it("overleeft een volledige heen-en-terugslag van alle drie tegelijk", () => {
+    const project: ProjectData = {
+      naam: "Ons huis in Almere",
+      traject: "nieuwbouw",
+      bouwdepotBedrag: 185000,
+      hypotheek: { bedrag: 380000, rente: 3.85, vorm: "lineair" },
+      aangemaaktOp: new Date("2026-01-05T00:00:00.000Z"),
+    };
+    const heen = projectNaarOpslag(project);
+    const terug = projectUitOpslag("p1", heen);
+
+    expect(terug.traject).toBe("nieuwbouw");
+    expect(terug.bouwdepotBedrag).toBe(185000);
+    expect(terug.hypotheek?.vorm).toBe("lineair");
+  });
+});
+
+describe("woningpaspoort — kadaster, transportdatum en huisnummer", () => {
+  it("bewaart de kadastrale aanduiding die het overdrachtsdossier afdrukt", () => {
+    // overdracht.ts leest wp.kadaster.gemeente/sectie/perceelnummer. Zonder
+    // converter stond daar altijd een streepje, wat je pas ziet als je het
+    // dossier opent voor een koper.
+    const data = projectNaarOpslag({
+      naam: "Ons huis",
+      woningpaspoort: {
+        kadaster: { gemeente: "Almere", sectie: "K", perceelnummer: "4821" },
+      },
+    });
+    const gelezen = projectUitOpslag("p1", data);
+    expect(gelezen.woningpaspoort?.kadaster?.gemeente).toBe("Almere");
+    expect(gelezen.woningpaspoort?.kadaster?.sectie).toBe("K");
+    expect(gelezen.woningpaspoort?.kadaster?.perceelnummer).toBe("4821");
+  });
+
+  it("laat een leeg kadaster weg", () => {
+    const data = projectNaarOpslag({ naam: "X", woningpaspoort: { kadaster: {} } });
+    expect("woningpaspoort" in data).toBe(false);
+  });
+
+  it("bewaart huisnummer, toevoeging en transportdatum", () => {
+    const transportdatum = new Date("2026-09-01T00:00:00.000Z");
+    const data = projectNaarOpslag({
+      naam: "X",
+      woningpaspoort: { huisnummer: "12", huisnummerToevoeging: "B", transportdatum },
+    });
+    const gelezen = projectUitOpslag("p1", data);
+    expect(gelezen.woningpaspoort?.huisnummer).toBe("12");
+    expect(gelezen.woningpaspoort?.huisnummerToevoeging).toBe("B");
+    expect(gelezen.woningpaspoort?.transportdatum?.getTime()).toBe(transportdatum.getTime());
+  });
+});
