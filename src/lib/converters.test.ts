@@ -689,7 +689,8 @@ describe("project — velden die eerder stil verdwenen", () => {
 
     // In de opslag hoort een Timestamp te staan, niet een Date: het
     // backupformaat serialiseert naar JSON en moet de datum terugkennen.
-    expect(data.hypotheek.passeerdatum).toBeInstanceOf(Timestamp);
+    const opgeslagen = data.hypotheek as Record<string, unknown>;
+    expect(opgeslagen.passeerdatum).toBeInstanceOf(Timestamp);
 
     const gelezen = projectUitOpslag("p1", data);
     expect(gelezen.hypotheek?.bedrag).toBe(380000);
