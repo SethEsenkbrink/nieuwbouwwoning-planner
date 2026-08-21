@@ -1,11 +1,61 @@
 # STATE.md — waar staan we nu
 
-> **Bijgewerkt:** 2026-08-16 · sessie 12 (**audit volledig afgewerkt** — zie `docs/AUDIT.md`)
+> **Bijgewerkt:** 2026-08-21 · sessie 13 (productiebugs, publieke pagina's, startwizard)
 > **Rol van dit bestand:** de levende status. Elke sessie bijwerken (`WORKFLOW.md` §2).
 
 ---
 
-## Stand: de audit is afgewerkt
+## Stand: de app werkte in productie helemaal niet, en dat is verholpen
+
+Sessie 13 begon met twee screenshots van **nieuwbouwplanner.netlify.app**. Daar
+stond de kern van de dag in: `script-src 'self'` verbood Chrome om
+`WebAssembly.compile()` te draaien, dus de Argon2id-sleutelafleiding kwam nooit
+op gang en **een kluis aanmaken of ontgrendelen was onmogelijk**. Alles
+daarachter — het hele dossier — was daarmee onbereikbaar.
+
+Vier bugs verholpen, alle vier met een gate of test die ze in het vervolg
+afvangt:
+
+| # | Bug | Wat er niet werkte | Gate erop |
+| --- | --- | --- | --- |
+| 1 | CSP blokkeerde WebAssembly | Kluis aanmaken én ontgrendelen, in productie | `scripts/headers.test.mjs` (8 tests) |
+| 2 | Manifest wees naar niet-bestaande iconen | Installeren gaf een app zonder icoon; console vol fouten | `scripts/verify-pwa.mjs` + 9 tests |
+| 3 | `traject`, `bouwdepotBedrag` en `hypotheek` werden nooit weggeschreven | Depotbalk zonder schaal, 24-maandenregel kon niet afgaan, overdrachtsdossier zonder traject | 13 tests in `converters.test.ts` |
+| 4 | **De herstelcode werd nooit getoond** | Iemand kreeg een versleuteld dossier waarvan de enige noodingang één render eerder was weggegooid | `lib/registratie.ts` + 5 tests |
+
+Bug 4 is de duurste die deze app kan maken: er is geen server die een
+wachtwoord kan resetten, dus zonder die code is een vergeten wachtwoordzin
+definitief.
+
+**Nieuw sinds sessie 12:**
+
+- **Publieke pagina's.** `/` toont nu een landingspagina, het ontgrendelscherm
+  of het dashboard, afhankelijk van wat er op dít apparaat staat. Daarnaast
+  `/voorwaarden` en `/privacy`, met de aanbiedergegevens op één plek in
+  `src/data/aanbieder.ts`.
+- **De startwizard** (`/start`, ADR-0028). Eén vraag — waar sta je nu — bepaalt
+  welke stappen er zijn en welke verplicht. Het financiële beeld zit er
+  volledig in, inclusief de hypotheek die tot vandaag niet eens op te slaan was.
+- **`verify:pwa`** als achtste verify-script, na `verify:offline` in de keten.
+
+`npm run verify` groen: **830 tests in 49 bestanden**, gedraaid op Seths eigen
+machine (Node 24.12.0) — dus inclusief lint, build en de echte testsuite.
+
+### Wat er open staat
+
+1. `src/routes/ProjectWizard.tsx` is dood; `/project/nieuw` stuurt door naar
+   `/start`. Verwijderen vraagt toestemming (CLAUDE.md §6).
+2. `public/manifest.webmanifest` wordt door `vite-plugin-pwa` overschreven
+   zonder melding — wat je daar wijzigt komt nooit in `dist/`. `verify:pwa`
+   waarschuwt, maar loopt er niet rood op.
+3. `kvk` en `vestigingsadres` in `src/data/aanbieder.ts` zijn leeg; de
+   juridische pagina's laten die regels dan weg.
+4. `index.html` staat op `noindex, nofollow` — een keuze die met een publieke
+   landingspagina heroverwogen mag worden.
+
+---
+
+## Uit sessie 12: de audit is afgewerkt
 
 Sessie 11 draaide een volledige audit (`docs/AUDIT.md`, 21 bevindingen). Sessie 12 heeft ze
 afgewerkt op één na. Wat er sindsdien veranderd is:
@@ -25,7 +75,7 @@ afgewerkt op één na. Wat er sindsdien veranderd is:
 
 Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in `AUDIT.md`.
 
-`npm run verify` groen: **686 tests in 42 bestanden**. `npm audit`: nul kwetsbaarheden.
+`npm run verify` was toen groen met 686 tests in 42 bestanden; `npm audit` meldde nul kwetsbaarheden.
 
 ---
 
@@ -44,7 +94,9 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 | **Energie & Saldering (Fase 5)** | ✅ Afgerond | P1 slimme meter CSV-parser (`src/lib/p1.ts`), indicatief energielabel met permanente wettelijke disclaimer (`src/lib/energie.ts`), salderingsberekening met post-2027 afbouwparameters, E-002 regel |
 | **Mobiel, Overdracht & WebAuthn (Fase 6)** | ✅ Afgerond | Mobile snapshot + quick-capture inbox-delta encryptie/import (`src/lib/inbox/`), zelfstandig overdrachtsdossier HTML/JSON (`src/lib/woningpaspoort/`), optioneel biometrisch WebAuthn-PRF kluisslot (`src/crypto/webauthn.ts`) |
 | **Diagnostiek & Systeemaudit Tool** | ✅ Afgerond | In-memory logger (`src/lib/diagnostiek/logger.ts`), diepgaande audit-engine (`audit.ts`), Markdown/JSON rapportgenerator (`rapport.ts`), interactief auditdashboard (`/diagnostiek`), geautomatiseerde relatie-reparaties |
-| **Verificatie** | ✅ Groen | `npm run verify` doorloopt typecheck (`tsc --build --force`), lint (`eslint .`), unit tests (**686 tests in 42 bestanden**), token-pariteit (50 tokens), headers (10 headers + 14 CSP directives), cryptografie-verificatie (`verify:crypto`), backup-verificatie (`verify:backup`), productiebuild (Vite + Rolldown), en offline validatie |
+| **Publieke pagina's & juridisch** | ✅ Afgerond | Landingspagina op `/`, `/voorwaarden` en `/privacy`; aanbiedergegevens op één plek (`src/data/aanbieder.ts`) |
+| **Startwizard (ADR-0028)** | ✅ Afgerond | Instapmoment stuurt het stappenplan; volledig financieel beeld inclusief hypotheek; pure regels in `src/lib/wizard/` met 115 tests |
+| **Verificatie** | ✅ Groen | `npm run verify` doorloopt typecheck (`tsc --build --force`), lint (`eslint .`), unit tests (**686 tests in 42 bestanden**), token-pariteit (50 tokens), headers (10 headers + 14 CSP directives), cryptografie-verificatie (`verify:crypto`), backup-verificatie (`verify:backup`), productiebuild (Vite + Rolldown), offline validatie en PWA-manifestcontrole (`verify:pwa`) |
 
 ---
 
@@ -52,9 +104,9 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 
 | Meting | Waarde |
 | --- | --- |
-| Unit tests | **686 passed** in 42 testbestanden |
+| Unit tests | **830 passed** in 49 testbestanden |
 | Token-pariteit | **50 tokens** synchroon met `brink-ui/tokens.js` |
-| Headers & CSP | **10 headers**, CSP zero-network (`connect-src 'none'`) |
+| Headers & CSP | **10 headers**, CSP zero-network (`connect-src 'none'`), `script-src 'self' 'wasm-unsafe-eval'` |
 | Cryptografie | AES-256-GCM non-extractable DEK, Argon2id (64 MiB/3/4), HKDF 128-bit, WebAuthn-PRF |
 | Opslag & Bestanden | Beide versleuteld: IndexedDB per record, OPFS per 1 MiB-chunk |
 | Regelmotor | 100% deterministisch (0 netwerk / 0 side-effects) |
@@ -74,3 +126,4 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 6. **FASE 5 — ENERGIE:** ✅ **VOLTOOID**
 7. **FASE 6 — MOBIEL + COMFORT:** ✅ **VOLTOOID**
 8. **EXTRA — DIAGNOSTIEK & ONTWIKKELAARSAUDIT:** ✅ **VOLTOOID**
+9. **EXTRA — PUBLIEKE PAGINA'S & STARTWIZARD:** ✅ **VOLTOOID** (sessie 13, ADR-0028)
