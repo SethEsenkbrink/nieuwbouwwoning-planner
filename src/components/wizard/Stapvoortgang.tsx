@@ -4,9 +4,12 @@
  *
  * Bewust niet `Voortgangsbalk` hergebruikt: die toont een verdeling van
  * bedragen mét legenda, en zou hier een lijst van negen regels onder de balk
- * plakken. En bewust niet `Stapindicator`: negen bolletjes met labels naast
- * elkaar past niet op een telefoon, en het aantal stappen verschilt per
- * instapmoment.
+ * plakken.
+ *
+ * De oude wizard had een `Stapindicator` met een bolletje per stap. Die werkt
+ * tot een stuk of vier; bij negen bolletjes met labels naast elkaar past hij
+ * niet meer op een telefoon, en het aantal stappen verschilt hier bovendien
+ * per instapmoment. Dat component is met de oude wizard meeverwijderd.
  *
  * DE BREEDTE STAAT ALS SVG-ATTRIBUUT, niet als inline style. `width` op een
  * `<rect>` is een XML-attribuut en valt buiten de Content-Security-Policy —

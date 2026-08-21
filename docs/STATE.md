@@ -51,16 +51,25 @@ definitief.
 `npm run verify` groen: **847 tests in 50 bestanden**, gedraaid op Seths eigen
 machine (Node 24.12.0) — dus inclusief lint, build en de echte testsuite.
 
+### Opgeruimd aan het eind van de sessie
+
+Drie bestanden verwijderd, met toestemming:
+
+- `src/routes/ProjectWizard.tsx` — de oude driestapswizard. `/project/nieuw`
+  stuurt door naar `/start`, dus oude bladwijzers blijven werken.
+- `src/components/Stapindicator.tsx` — raakte hierdoor verweesd; alleen
+  ProjectWizard gebruikte hem. De startwizard heeft `Stapvoortgang`.
+- `public/manifest.webmanifest` — werd door `vite-plugin-pwa` overschreven
+  zonder melding, dus wat je daar wijzigde kwam nooit in `dist/`. De controle
+  in `verify:pwa` blijft staan, zodat hij niet terugsluipt.
+
+Een wees-scan over heel `src/` leverde verder niets op: `App`, `OpstartFout`
+en `crypto/argon2.worker` lijken zonder importeur maar worden dynamisch
+geladen (`await import(...)` en `new URL(...)`).
+
 ### Wat er open staat
 
-1. `src/routes/ProjectWizard.tsx` is dood; `/project/nieuw` stuurt door naar
-   `/start`. Verwijderen vraagt toestemming (CLAUDE.md §6).
-2. `public/manifest.webmanifest` wordt door `vite-plugin-pwa` overschreven
-   zonder melding — wat je daar wijzigt komt nooit in `dist/`. `verify:pwa`
-   waarschuwt, maar loopt er niet rood op.
-3. `kvk` en `vestigingsadres` in `src/data/aanbieder.ts` zijn leeg; de
-   juridische pagina's laten die regels dan weg.
-4. **Het canonieke domein staat op `https://nieuwbouwplanner.netlify.app`**
+1. **Het canonieke domein staat op `https://nieuwbouwplanner.netlify.app`**
    (`src/data/publieke-paginas.ts`). Verhuist de app naar een eigen domein, pas
    dan die ene constante aan; `verify:seo` dwingt af dat sitemap.xml en
    robots.txt meegaan. Vergeet ook `EIGEN_ORIGIN` in `verify-offline.mjs` niet
