@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Regeleindes — LF in de repository én in de werkmap
+#
+# WAT ER MISGING. Op Windows staat `core.autocrlf=true`, waardoor Git bij élke
+# checkout LF omzet naar CRLF. Voor de meeste bestanden maakt dat niets uit,
+# maar vitest kan `scripts/*.mjs` met CRLF niet transformeren:
+#
+#     FAIL  scripts/seo.test.mjs
+#     SyntaxError: Invalid or unexpected token
+#
+# Terwijl `node --check` op datzelfde bestand gewoon slaagt — het is geen echte
+# syntaxfout. Gevolg: 34 tests vielen stilletjes weg en `npm run verify` liep
+# rood na iedere `git checkout` of `git merge`. Op een verse kloon op Windows
+# zou het net zo gaan.
+#
+# `eol=lf` overrulet `core.autocrlf`. De werkmap krijgt daarmee dezelfde
+# regeleindes als de repository en als de Linux-buildserver van Netlify, wat
+# meteen een klasse verschillen wegneemt tussen "werkt lokaal" en "werkt op CI".
+#
+# ⚠ BINAIRE BESTANDEN MOETEN HIER EXPLICIET STAAN.
+# Git raadt binair meestal goed, maar bij `text=auto` is de prijs van een fout
+# raadwerk hoog: één CRLF-conversie door een zip heen en de golden fixture van
+# `verify:backup` is onherstelbaar stuk. Die staat er daarom met naam onder.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Alles wat tekst is: LF, in de repo en in de werkmap.
+* text=auto eol=lf
+
+# ── Nooit aanraken ─────────────────────────────────────────────────────────
+
+# De golden fixtures van het backupformaat zijn zip-archieven. Een enkele
+# byteverandering maakt de checksumcontrole in verify:backup ongeldig.
+*.woningdossier binary
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
