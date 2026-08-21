@@ -67,6 +67,16 @@ Een wees-scan over heel `src/` leverde verder niets op: `App`, `OpstartFout`
 en `crypto/argon2.worker` lijken zonder importeur maar worden dynamisch
 geladen (`await import(...)` en `new URL(...)`).
 
+### Valkuil die deze sessie opleverde
+
+**Let op het aantal tests, niet alleen op de kleur.** Bij het mergen naar
+`main` viel `npm run verify` terug van 847 naar 813 tests zonder dat er iets
+rood kleurde: `core.autocrlf=true` zette de `scripts/*.mjs` om naar CRLF, en
+vitest kan die niet transformeren. Een testbestand dat niet laadt, telt niet
+mee. Opgelost met een `.gitattributes` die LF afdwingt, mét de binaire
+bestanden er expliciet in — de golden fixture van `verify:backup` is een zip
+en overleeft geen regeleinde-conversie.
+
 ### Wat er open staat
 
 1. **Het canonieke domein staat op `https://nieuwbouwplanner.netlify.app`**
