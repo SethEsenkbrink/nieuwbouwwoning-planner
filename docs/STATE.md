@@ -22,6 +22,7 @@ afvangt:
 | 2 | Manifest wees naar niet-bestaande iconen | Installeren gaf een app zonder icoon; console vol fouten | `scripts/verify-pwa.mjs` + 9 tests |
 | 3 | `traject`, `bouwdepotBedrag` en `hypotheek` werden nooit weggeschreven | Depotbalk zonder schaal, 24-maandenregel kon niet afgaan, overdrachtsdossier zonder traject | 13 tests in `converters.test.ts` |
 | 4 | **De herstelcode werd nooit getoond** | Iemand kreeg een versleuteld dossier waarvan de enige noodingang één render eerder was weggegooid | `lib/registratie.ts` + 5 tests |
+| 5 | robots.txt en `noindex` blokkeerden alles | De nieuwe landingspagina, voorwaarden en privacyverklaring waren onvindbaar | `scripts/verify-seo.mjs` + 17 tests |
 
 Bug 4 is de duurste die deze app kan maken: er is geen server die een
 wachtwoord kan resetten, dus zonder die code is een vergeten wachtwoordzin
@@ -36,9 +37,18 @@ definitief.
 - **De startwizard** (`/start`, ADR-0028). Eén vraag — waar sta je nu — bepaalt
   welke stappen er zijn en welke verplicht. Het financiële beeld zit er
   volledig in, inclusief de hypotheek die tot vandaag niet eens op te slaan was.
-- **`verify:pwa`** als achtste verify-script, na `verify:offline` in de keten.
+- **Vindbaarheid.** `public/sitemap.xml` en een `robots.txt` die alles
+  afsluit en alleen de drie publieke paden weer openzet; `noindex` is uit
+  `index.html` verdwenen. Titel, omschrijving en canonical worden per route
+  gezet (`src/lib/usePaginameta.ts`) — één vaste canonical in `index.html` zou
+  op /voorwaarden beweren dat de homepage het origineel is.
+- **Bedrijfsgegevens** overgenomen uit de voettekst van brinkmultimedia.nl:
+  adres, telefoon, KvK, btw-id en de fiscale noot, op één plek in
+  `src/data/aanbieder.ts`.
+- **`verify:pwa` en `verify:seo`** als achtste en negende verify-script, na
+  `verify:offline` in de keten.
 
-`npm run verify` groen: **830 tests in 49 bestanden**, gedraaid op Seths eigen
+`npm run verify` groen: **847 tests in 50 bestanden**, gedraaid op Seths eigen
 machine (Node 24.12.0) — dus inclusief lint, build en de echte testsuite.
 
 ### Wat er open staat
@@ -50,8 +60,14 @@ machine (Node 24.12.0) — dus inclusief lint, build en de echte testsuite.
    waarschuwt, maar loopt er niet rood op.
 3. `kvk` en `vestigingsadres` in `src/data/aanbieder.ts` zijn leeg; de
    juridische pagina's laten die regels dan weg.
-4. `index.html` staat op `noindex, nofollow` — een keuze die met een publieke
-   landingspagina heroverwogen mag worden.
+4. **Het canonieke domein staat op `https://nieuwbouwplanner.netlify.app`**
+   (`src/data/publieke-paginas.ts`). Verhuist de app naar een eigen domein, pas
+   dan die ene constante aan; `verify:seo` dwingt af dat sitemap.xml en
+   robots.txt meegaan. Vergeet ook `EIGEN_ORIGIN` in `verify-offline.mjs` niet
+   — die staat er los, met opzet.
+5. **De sitemap is nog niet aangemeld** bij Google Search Console of Bing
+   Webmaster Tools. Zonder aanmelding duurt het langer voordat er iets gevonden
+   wordt.
 
 ---
 
@@ -95,8 +111,9 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 | **Mobiel, Overdracht & WebAuthn (Fase 6)** | ✅ Afgerond | Mobile snapshot + quick-capture inbox-delta encryptie/import (`src/lib/inbox/`), zelfstandig overdrachtsdossier HTML/JSON (`src/lib/woningpaspoort/`), optioneel biometrisch WebAuthn-PRF kluisslot (`src/crypto/webauthn.ts`) |
 | **Diagnostiek & Systeemaudit Tool** | ✅ Afgerond | In-memory logger (`src/lib/diagnostiek/logger.ts`), diepgaande audit-engine (`audit.ts`), Markdown/JSON rapportgenerator (`rapport.ts`), interactief auditdashboard (`/diagnostiek`), geautomatiseerde relatie-reparaties |
 | **Publieke pagina's & juridisch** | ✅ Afgerond | Landingspagina op `/`, `/voorwaarden` en `/privacy`; aanbiedergegevens op één plek (`src/data/aanbieder.ts`) |
+| **Vindbaarheid** | ✅ Afgerond | `sitemap.xml`, restrictieve `robots.txt`, per-route canonical en Open Graph; bewaakt door `verify:seo` |
 | **Startwizard (ADR-0028)** | ✅ Afgerond | Instapmoment stuurt het stappenplan; volledig financieel beeld inclusief hypotheek; pure regels in `src/lib/wizard/` met 115 tests |
-| **Verificatie** | ✅ Groen | `npm run verify` doorloopt typecheck (`tsc --build --force`), lint (`eslint .`), unit tests (**686 tests in 42 bestanden**), token-pariteit (50 tokens), headers (10 headers + 14 CSP directives), cryptografie-verificatie (`verify:crypto`), backup-verificatie (`verify:backup`), productiebuild (Vite + Rolldown), offline validatie en PWA-manifestcontrole (`verify:pwa`) |
+| **Verificatie** | ✅ Groen | `npm run verify` doorloopt typecheck (`tsc --build --force`), lint (`eslint .`), unit tests (**686 tests in 42 bestanden**), token-pariteit (50 tokens), headers (10 headers + 14 CSP directives), cryptografie-verificatie (`verify:crypto`), backup-verificatie (`verify:backup`), productiebuild (Vite + Rolldown), offline validatie, PWA-manifestcontrole (`verify:pwa`) en sitemap/robots-controle (`verify:seo`) |
 
 ---
 
@@ -104,7 +121,7 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 
 | Meting | Waarde |
 | --- | --- |
-| Unit tests | **830 passed** in 49 testbestanden |
+| Unit tests | **847 passed** in 50 testbestanden |
 | Token-pariteit | **50 tokens** synchroon met `brink-ui/tokens.js` |
 | Headers & CSP | **10 headers**, CSP zero-network (`connect-src 'none'`), `script-src 'self' 'wasm-unsafe-eval'` |
 | Cryptografie | AES-256-GCM non-extractable DEK, Argon2id (64 MiB/3/4), HKDF 128-bit, WebAuthn-PRF |
@@ -113,6 +130,7 @@ Enige bewuste uitzondering: **B4.6** (streaming zip). Zie "Genomen besluiten" in
 | Diagnostiek | Volledig geïntegreerd audit- en rapportagesysteem (`/diagnostiek`) |
 | Overdracht | Zelfstandig HTML/JSON Woningpaspoort |
 | Netwerkcalls | **0** (geverifieerd: `verify-offline` scant `dist/`, negatief getest) |
+| Publieke URL's | **3** — `/`, `/voorwaarden`, `/privacy`; de rest sluit `robots.txt` af |
 
 ---
 
