@@ -25,7 +25,8 @@
     "verify:backup": "node scripts/verify-backup.mjs",
     "verify:bereikbaarheid": "node scripts/verify-bereikbaarheid.mjs",
     "verify:lockfile": "node scripts/verify-lockfile.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run verify:tokens && npm run verify:headers && npm run verify:crypto && npm run verify:backup && npm run verify:bereikbaarheid && npm run verify:lockfile && npm run build && npm run verify:offline"
+    "verify:pwa": "node scripts/verify-pwa.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run verify:tokens && npm run verify:headers && npm run verify:crypto && npm run verify:backup && npm run verify:bereikbaarheid && npm run verify:lockfile && npm run build && npm run verify:offline && npm run verify:pwa"
   },
   "overrides": {
     "brace-expansion": "^5.0.9",
