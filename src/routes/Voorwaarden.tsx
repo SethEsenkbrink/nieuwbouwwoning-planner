@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { Artikel, JuridischePagina } from "@/components/PubliekeLayout";
-import { AANBIEDER, JURIDISCH_BIJGEWERKT, VOORWAARDEN_VERSIE } from "@/data/aanbieder";
+import { AANBIEDER, JURIDISCH_BIJGEWERKT, VOORWAARDEN_VERSIE, adresOpEenRegel } from "@/data/aanbieder";
+import { usePaginameta } from "@/lib/usePaginameta";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -23,6 +24,8 @@ import { AANBIEDER, JURIDISCH_BIJGEWERKT, VOORWAARDEN_VERSIE } from "@/data/aanb
  */
 
 export default function Voorwaarden() {
+  usePaginameta("/voorwaarden");
+
   return (
     <JuridischePagina
       titel="Algemene voorwaarden"
@@ -33,14 +36,52 @@ export default function Voorwaarden() {
       <Artikel nummer={1} titel="Wie deze voorwaarden stelt">
         <p>
           {AANBIEDER.product} wordt aangeboden door {AANBIEDER.naam}
-          {AANBIEDER.vestigingsadres ? `, gevestigd te ${AANBIEDER.vestigingsadres}` : ""}
+          {AANBIEDER.vestigingsadres ? `, gevestigd te ${adresOpEenRegel()}` : ""}
           {AANBIEDER.kvk ? `, ingeschreven bij de Kamer van Koophandel onder nummer ${AANBIEDER.kvk}` : ""}
-          . Vragen over deze voorwaarden kun je stellen via{" "}
-          <a href={`mailto:${AANBIEDER.email}`} className="text-link underline">
-            {AANBIEDER.email}
-          </a>
           .
         </p>
+
+        <dl className="flex flex-col gap-1 rounded-consent border border-taupe/40 bg-bone p-s3">
+          {AANBIEDER.vestigingsadres && (
+            <div className="flex flex-wrap gap-2">
+              <dt className="font-semibold text-ink">Adres</dt>
+              <dd className="text-slate">
+                {AANBIEDER.vestigingsadres.straat}, {AANBIEDER.vestigingsadres.postcode}{" "}
+                {AANBIEDER.vestigingsadres.plaats}, {AANBIEDER.vestigingsadres.land}
+              </dd>
+            </div>
+          )}
+          {AANBIEDER.telefoon && (
+            <div className="flex flex-wrap gap-2">
+              <dt className="font-semibold text-ink">Telefoon</dt>
+              <dd className="text-slate">{AANBIEDER.telefoon}</dd>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <dt className="font-semibold text-ink">E-mail</dt>
+            <dd>
+              <a href={`mailto:${AANBIEDER.email}`} className="text-link underline">
+                {AANBIEDER.email}
+              </a>
+            </dd>
+          </div>
+          {AANBIEDER.kvk && (
+            <div className="flex flex-wrap gap-2">
+              <dt className="font-semibold text-ink">KvK</dt>
+              <dd className="text-slate">{AANBIEDER.kvk}</dd>
+            </div>
+          )}
+          {AANBIEDER.btwId && (
+            <div className="flex flex-wrap gap-2">
+              <dt className="font-semibold text-ink">Btw-id</dt>
+              <dd className="text-slate">{AANBIEDER.btwId}</dd>
+            </div>
+          )}
+        </dl>
+
+        {AANBIEDER.fiscaleNoot && (
+          <p className="text-sm text-granite">{AANBIEDER.fiscaleNoot}</p>
+        )}
         <p>
           Waar hieronder &quot;wij&quot; staat, wordt {AANBIEDER.naam} bedoeld. Waar &quot;jij&quot;
           staat, wordt de gebruiker van de app bedoeld.

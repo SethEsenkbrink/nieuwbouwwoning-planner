@@ -1,3 +1,24 @@
-# De app zit volledig achter een login — er is niets te indexeren.
+# Woningdossier — wat een zoekmachine mag zien
+#
+# De standaard is GEBLOKKEERD. Deze app is één SPA: elke onbekende URL levert
+# via de Netlify-fallback dezelfde index.html op met status 200. Zou hier een
+# open regel staan, dan kan een crawler /bouwdepot, /oplevering en /diagnostiek
+# als losse pagina's oppikken — allemaal met identieke inhoud, en allemaal
+# schermen die achter een kluis horen te zitten.
+#
+# Daarom: alles dicht, en alleen de drie publieke paden weer open. Een nieuwe
+# route in de app is daarmee automatisch uitgesloten.
+#
+# `Allow: /$` matcht uitsluitend de wortel-URL; zonder die `$` zou hij alles
+# openzetten wat met een slash begint, en dat is de hele site.
+#
+# De lijst hieronder hoort gelijk te lopen met `src/data/publieke-paginas.ts`.
+# `scripts/verify-seo.mjs` loopt rood zodra dat niet meer zo is.
+
 User-agent: *
+Allow: /$
+Allow: /voorwaarden
+Allow: /privacy
 Disallow: /
+
+Sitemap: https://nieuwbouwplanner.netlify.app/sitemap.xml

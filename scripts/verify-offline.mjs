@@ -36,8 +36,22 @@ function getAllFiles(dir, fileList = []) {
 
 const EXTENSIES = [".js", ".css", ".html", ".json"];
 
+// Het eigen canonieke origin.
+//
+// Sinds 21 augustus 2026 staan er absolute URL's van onszelf in index.html en
+// sitemap.xml: og:url, og:image en de canonical. Dat zijn geen uitgaande
+// verbindingen maar metadata voor zoekmachines — de browser haalt er tijdens
+// gebruik niets van op. De gate gaat over EXTERNE endpoints, en het eigen
+// adres is dat per definitie niet.
+//
+// Bewust hier hardgecodeerd en niet uit publieke-paginas.ts gelezen: dan zou
+// een verkeerd origin daar automatisch ook hier toegestaan raken.
+// `scripts/verify-seo.mjs` bewaakt dat de twee gelijk blijven lopen.
+const EIGEN_ORIGIN = "https://nieuwbouwplanner.netlify.app";
+
 // Toegestane statische documentatie-links of XML-namespaces van React/Tailwind/Workbox internals
 const TOEGESTANE_PREFIXES = [
+  EIGEN_ORIGIN,
   "http://www.w3.org/",
   "https://react.dev/errors/",
   "https://reactrouter.com/",

@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { Artikel, JuridischePagina } from "@/components/PubliekeLayout";
-import { AANBIEDER, JURIDISCH_BIJGEWERKT } from "@/data/aanbieder";
+import { AANBIEDER, JURIDISCH_BIJGEWERKT, adresOpEenRegel } from "@/data/aanbieder";
+import { usePaginameta } from "@/lib/usePaginameta";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
@@ -20,6 +21,8 @@ import { AANBIEDER, JURIDISCH_BIJGEWERKT } from "@/data/aanbieder";
  */
 
 export default function Privacy() {
+  usePaginameta("/privacy");
+
   return (
     <JuridischePagina
       titel="Privacyverklaring"
@@ -43,9 +46,10 @@ export default function Privacy() {
       <Artikel nummer={2} titel="Wie verantwoordelijk is">
         <p>
           {AANBIEDER.naam}
-          {AANBIEDER.vestigingsadres ? `, gevestigd te ${AANBIEDER.vestigingsadres}` : ""}
+          {AANBIEDER.vestigingsadres ? `, gevestigd te ${adresOpEenRegel()}` : ""}
           {AANBIEDER.kvk ? ` (KvK ${AANBIEDER.kvk})` : ""} is de aanbieder van de app en
-          verwerkingsverantwoordelijke voor de bezoekgegevens uit artikel 3.
+          verwerkingsverantwoordelijke voor de bezoekgegevens uit artikel 3. De volledige
+          contactgegevens staan in artikel 1 van de algemene voorwaarden.
         </p>
         <p>
           Voor de inhoud van je dossier ligt dat anders: die gegevens verwerk je zelf, op je

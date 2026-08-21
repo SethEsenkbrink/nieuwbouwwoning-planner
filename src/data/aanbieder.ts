@@ -7,12 +7,24 @@
  * elkaar, en een juridische pagina die zichzelf tegenspreekt is erger dan geen
  * pagina.
  *
+ * DE GEGEVENS HIERONDER ZIJN OVERGENOMEN UIT DE VOETTEKST VAN
+ * brinkmultimedia.nl (21 augustus 2026). Wijzigt daar iets — een verhuizing,
+ * een ander telefoonnummer, het vervallen van de kleineondernemersregeling —
+ * dan hoort dit bestand mee te veranderen. Het is de enige plek in deze app
+ * waar het staat.
+ *
  * ⚠ VELDEN DIE LEEG ZIJN, WORDEN NIET GETOOND.
  * Dat is bewust: liever een regel minder dan "KvK: TODO" op een pagina waar
- * iemand rechten aan ontleent. Vul `kvk` en `vestigingsadres` in zodra je ze
- * op de site wilt hebben — de pagina's nemen ze dan vanzelf op.
+ * iemand rechten aan ontleent.
  * ═══════════════════════════════════════════════════════════════════════════
  */
+
+export interface Vestigingsadres {
+  straat: string;
+  postcode: string;
+  plaats: string;
+  land: string;
+}
 
 export interface Aanbieder {
   naam: string;
@@ -21,10 +33,17 @@ export interface Aanbieder {
   email: string;
   /** Voor het melden van kwetsbaarheden (zie SECURITY.md). */
   beveiligingEmail: string;
-  /** Leeg laten tot het ingevuld kan worden. */
+  /** Zoals je hem zou intoetsen, met spaties. */
+  telefoon?: string;
   kvk?: string;
-  /** Leeg laten tot het ingevuld kan worden. */
-  vestigingsadres?: string;
+  btwId?: string;
+  vestigingsadres?: Vestigingsadres;
+  /**
+   * Fiscale voetnoot uit de kleineondernemersregeling. Staat op facturen en
+   * hoort daar; op de juridische pagina's van een gratis app is hij niet
+   * verplicht, maar wel eerlijk om te noemen.
+   */
+  fiscaleNoot?: string;
   /**
    * De licentie waaronder de broncode beschikbaar is.
    *
@@ -42,8 +61,30 @@ export const AANBIEDER: Aanbieder = {
   product: "Woningdossier",
   email: "info@brinkmultimedia.nl",
   beveiligingEmail: "security@brinkmultimedia.nl",
+  telefoon: "06 40 53 76 50",
+  kvk: "71256385",
+  btwId: "NL002397011B65",
+  vestigingsadres: {
+    straat: "De Hoven 30",
+    postcode: "9454 PS",
+    plaats: "Ekehaar",
+    land: "Nederland",
+  },
+  fiscaleNoot: "Vrijgesteld van omzetbelasting op grond van artikel 25 Wet OB.",
   licentie: "AGPL-3.0-only",
 };
+
+/**
+ * Het adres op één regel, zoals je het in een lopende zin zet.
+ *
+ * Geeft een lege string terug als er geen adres is ingevuld — de aanroeper
+ * hoort die regel dan weg te laten in plaats van "gevestigd te " af te drukken.
+ */
+export function adresOpEenRegel(aanbieder: Aanbieder = AANBIEDER): string {
+  const adres = aanbieder.vestigingsadres;
+  if (!adres) return "";
+  return `${adres.straat}, ${adres.postcode} ${adres.plaats}`;
+}
 
 /** De datum waarop de juridische teksten voor het laatst zijn herzien. */
 export const JURIDISCH_BIJGEWERKT = "21 augustus 2026";

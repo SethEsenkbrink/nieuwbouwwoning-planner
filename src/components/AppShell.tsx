@@ -5,11 +5,16 @@ import { Logo } from "./Logo";
 import { Knop } from "./Knop";
 import { Hoofdnavigatie, Menuknop, Mobielmenu, Subnavigatie } from "./Hoofdnavigatie";
 import { magBewerken, useModus } from "@/context/useModus";
+import { useStandaardmeta } from "@/lib/usePaginameta";
 
 /**
  * Header + container voor alle schermen in het Woningdossier.
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  // Zonder dit blijft het tabblad "Privacyverklaring" heten nadat iemand
+  // vanaf die pagina zijn kluis heeft geopend.
+  useStandaardmeta();
+
   const modus = useModus();
   const { pathname } = useLocation();
   const bewerkenToegestaan = magBewerken(modus, pathname);

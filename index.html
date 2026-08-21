@@ -10,11 +10,39 @@
       content="100% lokaal, end-to-end versleuteld dossier voor het complete leven van je woning."
     />
 
-    <meta name="robots" content="noindex, nofollow" />
+    <!--
+      GEEN `noindex` MEER, EN GEEN VASTE CANONICAL.
+
+      Tot 21 augustus 2026 stond hier `noindex, nofollow`. Dat klopte toen de
+      hele app achter een kluis zat en er niets te vinden viel. Sinds er een
+      landingspagina met voorwaarden en privacyverklaring is, zou het die drie
+      pagina's onvindbaar maken.
+
+      Welke paden een zoekmachine mag zien staat nu op één plek:
+      `src/data/publieke-paginas.ts`. `public/robots.txt` blokkeert de rest, en
+      `scripts/verify-seo.mjs` bewaakt dat die twee op elkaar aansluiten.
+
+      Een canonical hoort hier NIET: dit bestand wordt voor élke route
+      geserveerd, dus één vaste canonical zou tegen Google zeggen dat
+      /voorwaarden een duplicaat van de homepage is. Die wordt per route gezet
+      in `src/lib/usePaginameta.ts`.
+    -->
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="theme-color" content="#F5F1E8" />
+
+    <!-- De og:*-waarden worden per pagina overschreven; dit zijn de defaults. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Woningdossier" />
+    <meta property="og:locale" content="nl_NL" />
+    <meta property="og:title" content="Woningdossier — 100% lokaal en versleuteld" />
+    <meta
+      property="og:description"
+      content="100% lokaal, end-to-end versleuteld dossier voor het complete leven van je woning."
+    />
+    <meta property="og:url" content="https://nieuwbouwplanner.netlify.app/" />
+    <meta property="og:image" content="https://nieuwbouwplanner.netlify.app/icon-512.png" />
   </head>
   <body>
     <div id="root"></div>

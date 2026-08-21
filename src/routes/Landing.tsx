@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import { PubliekeLayout } from "@/components/PubliekeLayout";
+import { usePaginameta } from "@/lib/usePaginameta";
 import { AANBIEDER } from "@/data/aanbieder";
 
 /**
@@ -143,6 +144,8 @@ const NIET_DOEN: readonly NietDoen[] = [
 ];
 
 export default function Landing() {
+  usePaginameta("/");
+
   return (
     <PubliekeLayout>
       {/* ── Hero ───────────────────────────────────────────────────────── */}
