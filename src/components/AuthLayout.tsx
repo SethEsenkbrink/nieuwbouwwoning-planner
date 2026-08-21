@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "react-router";
 import { Logo } from "./Logo";
 
 interface AuthLayoutProps {
@@ -15,7 +16,11 @@ export function AuthLayout({ titel, ondertitel, children, voettekst }: AuthLayou
     <main className="flex min-h-screen flex-col items-center justify-center bg-canvas px-s2 py-s6">
       <div className="w-full max-w-md">
         <div className="mb-s4 flex justify-center">
-          <Logo hoogte={44} />
+          {/* Klikbaar naar de landingspagina. Iemand die hier per ongeluk
+              belandt, moet kunnen teruglezen waar dit wachtwoordveld bij hoort. */}
+          <Link to="/" aria-label="Naar de startpagina">
+            <Logo hoogte={44} />
+          </Link>
         </div>
 
         <div className="brink-card p-s4">
@@ -36,6 +41,18 @@ export function AuthLayout({ titel, ondertitel, children, voettekst }: AuthLayou
           Deze tool structureert en herinnert. Termijnen zijn indicatief — je eigen contract
           blijft leidend.
         </p>
+
+        <nav
+          aria-label="Juridisch"
+          className="mt-s2 flex justify-center gap-s3 text-sm text-granite"
+        >
+          <Link to="/voorwaarden" className="underline-offset-4 hover:text-slate hover:underline">
+            Voorwaarden
+          </Link>
+          <Link to="/privacy" className="underline-offset-4 hover:text-slate hover:underline">
+            Privacy
+          </Link>
+        </nav>
       </div>
     </main>
   );

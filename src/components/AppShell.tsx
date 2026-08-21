@@ -92,6 +92,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           Woningdossier structureert en herinnert; het is geen juridisch of financieel advies.
           Termijnen zijn indicatief — controleer ze altijd tegen je eigen contract.
         </p>
+
+        {/* De juridische pagina's moeten ook binnen de app bereikbaar zijn.
+            Ze staan bewust niet in de hoofdnavigatie: daar hoort werk, niet
+            naslag. */}
+        <nav aria-label="Juridisch" className="mt-s2 flex flex-wrap gap-s3 text-sm text-granite">
+          <Link to="/voorwaarden" className="underline-offset-4 hover:text-slate hover:underline">
+            Algemene voorwaarden
+          </Link>
+          <Link to="/privacy" className="underline-offset-4 hover:text-slate hover:underline">
+            Privacyverklaring
+          </Link>
+        </nav>
       </footer>
     </div>
   );

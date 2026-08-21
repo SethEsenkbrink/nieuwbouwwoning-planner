@@ -2,6 +2,9 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import { VaultProvider } from "@/context/VaultContext";
 import { useVault } from "@/context/useVault";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Landing from "@/routes/Landing";
+import Voorwaarden from "@/routes/Voorwaarden";
+import Privacy from "@/routes/Privacy";
 import Inloggen from "@/routes/Inloggen";
 import Registreren from "@/routes/Registreren";
 import WachtwoordVergeten from "@/routes/WachtwoordVergeten";
@@ -39,11 +42,32 @@ function AlleenVergrendeld({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * `/` heeft twee gezichten.
+ *
+ * Met een ontgrendelde kluis is dit het dashboard. Zonder kluis is het de
+ * landingspagina — en dat is nieuw: tot nu toe stuurde `/` een bezoeker
+ * rechtstreeks naar /inloggen, dus naar een wachtwoordveld zonder enige uitleg
+ * over waar hij het wachtwoord voor zou invullen.
+ *
+ * Bewust géén redirect naar /welkom of iets dergelijks. De landingspagina
+ * hoort op de wortel-URL te staan: dat is het adres dat mensen delen en dat in
+ * een adresbalk wordt getypt.
+ */
+function Startpagina() {
+  const { isOntgrendeld } = useVault();
+  return isOntgrendeld ? <Dashboard /> : <Landing />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <VaultProvider>
         <Routes>
+          {/* ── Publiek: zichtbaar zonder ontgrendelde kluis ────────── */}
+          <Route path="/voorwaarden" element={<Voorwaarden />} />
+          <Route path="/privacy" element={<Privacy />} />
+
           <Route
             path="/inloggen"
             element={
@@ -69,14 +93,7 @@ export default function App() {
             }
           />
 
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<Startpagina />} />
           <Route
             path="/project/nieuw"
             element={
